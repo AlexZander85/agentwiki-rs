@@ -106,6 +106,62 @@
     white-space: nowrap;
     text-align: right;
   }
+  .sync-row {
+    padding: 0 14px 9px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--ink-2);
+  }
+  .sync-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ink-1);
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .sync-btn:hover {
+    background: var(--card-subtle);
+    border-color: var(--line-strong);
+  }
+  .sync-btn.loading {
+    opacity: 0.7;
+    pointer-events: none;
+  }
+  .sync-btn.loading .sync-icon {
+    display: inline-block;
+    animation: sync-spin 0.8s linear infinite;
+  }
+  @keyframes sync-spin {
+    100% { transform: rotate(360deg); }
+  }
+  .auto-sync-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 11px;
+    color: var(--ink-2);
+  }
+  .auto-sync-label input[type="checkbox"] {
+    cursor: pointer;
+    margin: 0;
+  }
+  .last-sync-time {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--ink-3);
+    white-space: nowrap;
+  }
   .controls { padding: 0 12px 10px; display: flex; flex-direction: column; gap: 6px; }
   .filter-row { display: flex; gap: 6px; width: 100%; }
   .date-row { display: flex; gap: 6px; width: 100%; align-items: center; }
@@ -1007,6 +1063,17 @@
     <div class="brand">
       <h1>sessionwiki</h1>
       <div class="stats" id="stats">loading index&hellip;</div>
+    </div>
+    <div class="sync-row">
+      <button id="sync-btn" class="sync-btn" title="Sync index from local agent directories">
+        <span class="sync-icon">🔄</span>
+        <span id="sync-label">Sync</span>
+      </button>
+      <label class="auto-sync-label" title="Automatically sync index every 10 minutes">
+        <input type="checkbox" id="auto-sync-cb">
+        <span id="auto-sync-label-text">Auto-sync (10m)</span>
+      </label>
+      <span id="last-sync-time" class="last-sync-time" title="Last sync timestamp"></span>
     </div>
     <div class="controls">
       <div class="filter-row">
@@ -2633,22 +2700,106 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-(async function init() {
+let autoSyncTimer = null;
+const AUTO_SYNC_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+
+function updateSyncTimeDisplay(ts) {
+  const timeEl = $("last-sync-time");
+  if (!timeEl) return;
+  if (!ts) {
+    timeEl.textContent = "";
+    return;
+  }
+  const d = new Date(ts);
+  const pad = (n) => String(n).padStart(2, "0");
+  const timeStr = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  timeEl.textContent = `synced ${timeStr}`;
+  timeEl.title = `Last synced: ${fmtDate(d.toISOString())} ${timeStr}`;
+}
+
+async function loadStats() {
   const stats = await jget("/api/stats");
-  if (stats && stats.tags) {
+  if (!stats) return;
+  if (stats.tags) {
     availableTagsList = stats.tags;
     renderAvailableTags();
   }
   let sessions = 0, bytes = 0;
+  const existingTools = new Set(Array.from($("tool").options).map((o) => o.value));
   for (const t of stats.tools) {
     sessions += t.sessions;
     bytes += t.bytes;
-    const opt = el("option", "", t.tool);
-    opt.value = t.tool;
-    $("tool").appendChild(opt);
+    if (!existingTools.has(t.tool)) {
+      const opt = el("option", "", t.tool);
+      opt.value = t.tool;
+      $("tool").appendChild(opt);
+    }
   }
   $("stats").textContent =
     L.stats(sessions.toLocaleString(), stats.tools.length, fmtBytes(bytes));
+}
+
+async function performSync(isAuto = false) {
+  const btn = $("sync-btn");
+  const label = $("sync-label");
+  if (btn) btn.classList.add("loading");
+  if (label) label.textContent = isAuto ? "Auto-syncing..." : "Syncing...";
+
+  try {
+    await jget("/api/sync");
+    const now = new Date();
+    localStorage.setItem("sessionwiki-last-sync", now.toISOString());
+    updateSyncTimeDisplay(now.toISOString());
+
+    await loadStats();
+    await refresh();
+  } catch (err) {
+    console.error("Sync failed:", err);
+    const timeEl = $("last-sync-time");
+    if (timeEl) timeEl.textContent = "sync failed";
+  } finally {
+    if (btn) btn.classList.remove("loading");
+    if (label) label.textContent = "Sync";
+  }
+}
+
+function manageAutoSync(enabled) {
+  if (autoSyncTimer) {
+    clearInterval(autoSyncTimer);
+    autoSyncTimer = null;
+  }
+  if (enabled) {
+    autoSyncTimer = setInterval(() => {
+      performSync(true);
+    }, AUTO_SYNC_INTERVAL_MS);
+  }
+}
+
+function setupSyncControls() {
+  const btn = $("sync-btn");
+  const cb = $("auto-sync-cb");
+
+  if (btn) {
+    btn.addEventListener("click", () => performSync(false));
+  }
+
+  const savedTime = localStorage.getItem("sessionwiki-last-sync");
+  if (savedTime) updateSyncTimeDisplay(savedTime);
+
+  const savedAuto = localStorage.getItem("sessionwiki-auto-sync") === "true";
+  if (cb) {
+    cb.checked = savedAuto;
+    cb.addEventListener("change", () => {
+      localStorage.setItem("sessionwiki-auto-sync", cb.checked ? "true" : "false");
+      manageAutoSync(cb.checked);
+    });
+  }
+  manageAutoSync(savedAuto);
+}
+
+(async function init() {
+  await loadStats();
+  setupSyncControls();
   await refresh();
 })();
 </script>
