@@ -45,8 +45,19 @@ pub fn run(preferred_port: Option<u16>) -> Result<()> {
     let window = builder.build(&event_loop)?;
 
     let url = format!("http://{addr}");
+    // External links (window.open from the UI, e.g. "Search in Google") are
+    // handed to the system browser from THIS process. Doing it via the HTTP
+    // server is unreliable: the app may be attached to a server some other
+    // process started (see `already_running`), which may not be allowed to
+    // launch a browser at all.
     let _webview = WebViewBuilder::new()
         .with_url(&url)
+        .with_new_window_req_handler(|target, _features| {
+            if target.starts_with("https://") || target.starts_with("http://") {
+                crate::web::open_browser(&target);
+            }
+            wry::NewWindowResponse::Deny
+        })
         .build(&window)?;
 
     event_loop.run(move |event, _, control_flow| {

@@ -66,7 +66,6 @@ pub fn serve(port: u16, no_open: bool, sync: bool) -> Result<()> {
             "/api/projects" => api_projects(&conn),
             "/api/tag" => api_tag(&conn, query),
             "/api/sync" => api_sync(&mut conn),
-            "/api/open" => api_open(query),
             p if p.starts_with("/api/related/") => {
                 api_related(&conn, p.trim_start_matches("/api/related/"))
             }
@@ -346,16 +345,6 @@ fn api_tag(conn: &Connection, query: &str) -> Result<Boxed> {
     json_response(json!({ "ok": true, "session_id": row.session_id, "tags": tags, "all_tags": all_tags }))
 }
 
-fn api_open(query: &str) -> Result<Boxed> {
-    if let Some(target) = param(query, "url") {
-        if target.starts_with("https://") || target.starts_with("http://") {
-            open_browser(&target);
-            return json_response(json!({ "ok": true }));
-        }
-    }
-    json_response_with_status(json!({ "error": "invalid url" }), 400)
-}
-
 fn api_sync(conn: &mut Connection) -> Result<Boxed> {
     index::sync(conn, None)?;
     let count: i64 = conn
@@ -454,7 +443,7 @@ fn should_open_browser(no_open: bool, wsl: bool) -> bool {
 }
 
 #[cfg(target_os = "windows")]
-fn open_browser(url: &str) {
+pub(crate) fn open_browser(url: &str) {
     use std::os::windows::ffi::OsStrExt;
     let url_wide: Vec<u16> = std::ffi::OsStr::new(url)
         .encode_wide()
@@ -489,7 +478,7 @@ fn open_browser(url: &str) {
 }
 
 #[cfg(not(target_os = "windows"))]
-fn open_browser(url: &str) {
+pub(crate) fn open_browser(url: &str) {
     #[cfg(target_os = "macos")]
     let mut cmd = std::process::Command::new("open");
     #[cfg(target_os = "macos")]

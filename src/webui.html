@@ -3378,11 +3378,10 @@ function setupContextMenu() {
   });
 }
 
-async function openExternalUrl(targetUrl) {
-  try {
-    const res = await jget(`/api/open?url=${encodeURIComponent(targetUrl)}`);
-    if (res && res.ok) return;
-  } catch (_) {}
+// Called synchronously from the click handler so the browser keeps the user
+// gesture. In a normal browser this opens a tab; in sessionwiki-app the
+// webview's new-window handler (app.rs) passes it to the system browser.
+function openExternalUrl(targetUrl) {
   window.open(targetUrl, "_blank", "noopener,noreferrer");
 }
 
