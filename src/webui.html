@@ -1100,8 +1100,12 @@ document.documentElement.lang = lang;
 
 const LANG_NAMES = { en: "English", ko: "한국어", ja: "日本語", zh: "中文" };
 
-function exportSessionToMarkdown(s) {
+async function exportSessionToMarkdown(s, visibleList) {
   if (!s) return;
+  const roleFilter = $("role") ? $("role").value : "";
+  const msgs = (visibleList && roleFilter) ? visibleList.map(v => v.m || v) : (s.messages || []);
+  const totalCount = s.messages ? s.messages.length : msgs.length;
+
   const lines = [];
   lines.push(`# ${s.title || "Session"}\n`);
 
@@ -1110,7 +1114,11 @@ function exportSessionToMarkdown(s) {
   if (s.started) lines.push(`- **Started:** ${fmtDate(s.started)}`);
   if (s.ended) lines.push(`- **Ended:** ${fmtDate(s.ended)}`);
   if (s.model) lines.push(`- **Model:** ${s.model}`);
-  lines.push(`- **Messages:** ${s.messages ? s.messages.length : 0}`);
+  if (roleFilter && msgs.length !== totalCount) {
+    lines.push(`- **Messages:** ${msgs.length} (filtered from ${totalCount}; role filter: \`${roleFilter}\`)`);
+  } else {
+    lines.push(`- **Messages:** ${msgs.length}`);
+  }
   if (s.path) lines.push(`- **File:** \`${s.path}\``);
   if (s.tags && s.tags.length) lines.push(`- **Tags:** ${s.tags.map(t => '#' + t).join(" ")}`);
   lines.push("");
@@ -1130,9 +1138,9 @@ function exportSessionToMarkdown(s) {
   }
 
   lines.push(`---\n\n## Transcript\n`);
-  if (s.messages && s.messages.length) {
-    for (let i = 0; i < s.messages.length; i++) {
-      const m = s.messages[i];
+  if (msgs.length) {
+    for (let i = 0; i < msgs.length; i++) {
+      const m = msgs[i];
       const roleTitle = m.role === "user" ? "User" : m.role === "assistant" ? "Assistant" : "Tool";
       const tsStr = m.ts ? ` *(${fmtDate(m.ts)})*` : "";
       lines.push(`### ${roleTitle}${tsStr}\n`);
@@ -1149,19 +1157,46 @@ function exportSessionToMarkdown(s) {
   }
 
   const content = lines.join("\n");
-  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
-  const a = document.createElement("a");
-  const dateStr = s.started ? new Date(s.started).toISOString().slice(0, 10) : "session";
-  const safeTitle = (s.title || s.id || "session")
-    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
+  const rawTitle = (s.title || s.id || "session")
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, " ")
+    .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 60) || "session";
-  a.download = `${safeTitle}_${dateStr}.md`;
-  a.href = URL.createObjectURL(blob);
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+    .slice(0, 100) || "session";
+  const defaultFilename = `${rawTitle}.md`;
+
+  let saved = false;
+  if (typeof window.showSaveFilePicker === "function") {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: defaultFilename,
+        types: [{
+          description: "Markdown Document (*.md)",
+          accept: { "text/markdown": [".md"] }
+        }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(content);
+      await writable.close();
+      saved = true;
+    } catch (err) {
+      if (err && err.name === "AbortError") {
+        // User deliberately clicked Cancel in the system Save dialog
+        return;
+      }
+    }
+  }
+
+  if (!saved) {
+    const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+    const a = document.createElement("a");
+    a.download = defaultFilename;
+    a.href = URL.createObjectURL(blob);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+    saved = true;
+  }
 
   const btn = $("export-session-md");
   if (btn) {
@@ -1174,7 +1209,7 @@ function exportSessionToMarkdown(s) {
     `;
     setTimeout(() => {
       btn.innerHTML = origHtml;
-    }, 1200);
+    }, 1500);
   }
 }
 
@@ -1490,7 +1525,7 @@ function renderCurrentSession(keepScroll) {
     </svg>
     <span>${L.exportMdBtn || "Export .md"}</span>
   `;
-  exportBtn.onclick = () => exportSessionToMarkdown(s);
+  exportBtn.onclick = () => exportSessionToMarkdown(s, visibleMessages);
   chipsRow.appendChild(exportBtn);
 
   head.appendChild(chipsRow);
