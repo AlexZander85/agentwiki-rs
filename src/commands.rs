@@ -1988,6 +1988,52 @@ pub fn stats() -> Result<()> {
     Ok(())
 }
 
+/// Optimize the search index and defragment the database to reclaim disk space.
+pub fn vacuum() -> Result<()> {
+    let conn = index::open()?;
+    let path = index::db_path()?;
+    let wal_path = path.with_file_name("index.db-wal");
+
+    let before_db = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+    let before_wal = std::fs::metadata(&wal_path).map(|m| m.len()).unwrap_or(0);
+    let before = before_db + before_wal;
+
+    eprintln!("Optimizing FTS5 search index...");
+    let _ = conn.execute_batch("INSERT INTO msgs(msgs) VALUES('optimize');");
+
+    eprintln!("Defragmenting database and reclaiming free pages...");
+    conn.execute_batch("VACUUM;")?;
+
+    eprintln!("Flushing and truncating WAL log...");
+    let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+
+    #[cfg(windows)]
+    {
+        let _ = std::process::Command::new("compact")
+            .args(["/c", "/exe:xpress8k", &path.to_string_lossy()])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
+
+    let after_db = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+    let after_wal = std::fs::metadata(&wal_path).map(|m| m.len()).unwrap_or(0);
+    let after = after_db + after_wal;
+
+    let saved = before.saturating_sub(after);
+    println!(
+        "Vacuum complete: {} -> {} ({})",
+        human_size(before),
+        human_size(after),
+        if saved > 0 {
+            format!("reclaimed {}", human_size(saved))
+        } else {
+            "already compacted".to_string()
+        }
+    );
+    Ok(())
+}
+
 /// Long absolute paths make poor labels; keep the tail.
 fn project_label(p: &str) -> String {
     if p.len() > 28 && p.contains('/') {
