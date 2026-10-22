@@ -320,15 +320,73 @@
     background: color-mix(in srgb, var(--bg) 88%, transparent);
     backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--line);
-    padding: 14px 36px 12px;
+    padding: 14px 40px 12px;
+  }
+  .doc-head-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
   }
   .doc-head h2 {
     margin: 0;
-    font-size: 16.5px;
-    font-weight: 560;
+    font-size: 17px;
+    font-weight: 580;
     letter-spacing: -.2px;
-    line-height: 1.4;
-    max-width: 820px;
+    line-height: 1.35;
+    flex: 1;
+    min-width: 0;
+  }
+  .chat-search {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 3px 8px;
+    box-shadow: var(--shadow);
+    flex-shrink: 0;
+  }
+  .chat-search svg { stroke: var(--ink-3); flex-shrink: 0; }
+  .chat-search input {
+    border: none;
+    outline: none;
+    background: transparent;
+    font: inherit;
+    font-size: 12px;
+    color: var(--ink);
+    width: 170px;
+  }
+  .chat-search-count {
+    font-size: 11px;
+    color: var(--ink-3);
+    margin: 0 2px;
+    white-space: nowrap;
+  }
+  .chat-search button {
+    border: 1px solid var(--line);
+    background: var(--bg-sunken);
+    color: var(--ink-2);
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 11px;
+    line-height: 1;
+  }
+  .chat-search button:hover {
+    color: var(--ink);
+    border-color: var(--line-strong);
+  }
+  mark.chat-hit {
+    background: #ffeb3b;
+    color: #111;
+    border-radius: 2px;
+    padding: 0 1px;
+  }
+  mark.chat-hit.current {
+    background: #ff9800;
+    color: #fff;
   }
   .doc-head .chips {
     display: flex; flex-wrap: wrap; gap: 6px 14px;
@@ -418,7 +476,8 @@
   .filechip:hover { border-color: var(--accent); color: var(--ink); }
   .filechip.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
-  .doc { max-width: 800px; margin: 0 auto; padding: 26px 36px 90px; }
+  .doc { max-width: 1400px; margin: 0 auto; padding: 22px 40px 90px; }
+  .doc-head-inner { max-width: 1400px; margin: 0 auto; }
 
   .seealso {
     margin-top: 26px;
@@ -1009,7 +1068,21 @@ function renderCurrentSession(keepScroll) {
   const roleFilter = $("role").value;
 
   const head = el("div", "doc-head");
-  head.appendChild(el("h2", "", s.title || L.untitled));
+  const topRow = el("div", "doc-head-top");
+  topRow.appendChild(el("h2", "", s.title || L.untitled));
+
+  const chatSearchWrap = el("div", "chat-search");
+  chatSearchWrap.innerHTML = `
+    <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="5"/><path d="m11 11 3.5 3.5"/></svg>
+    <input type="search" id="chat-q" placeholder="${(L.searchInChat || "Search in chat...")} (Ctrl+F)" autocomplete="off">
+    <span id="chat-search-count" class="chat-search-count"></span>
+    <button id="chat-search-prev" title="Previous match">&uarr;</button>
+    <button id="chat-search-next" title="Next match">&darr;</button>
+    <button id="chat-search-close" title="Clear search">&times;</button>
+  `;
+  topRow.appendChild(chatSearchWrap);
+  head.appendChild(topRow);
+
   const chips = el("div", "chips");
   const toolChip = el("span", "chip");
   toolChip.appendChild(el("span", "dot " + s.tool));
@@ -1388,8 +1461,155 @@ $("date-clear").addEventListener("click", () => {
     });
   }
 })();
+let chatMatches = [];
+let currentMatchIdx = -1;
+
+function clearChatSearch() {
+  const hits = document.querySelectorAll("mark.chat-hit");
+  hits.forEach(mark => {
+    const parent = mark.parentNode;
+    parent.replaceChild(document.createTextNode(mark.textContent), mark);
+    parent.normalize();
+  });
+  chatMatches = [];
+  currentMatchIdx = -1;
+  const countEl = $("chat-search-count");
+  if (countEl) countEl.textContent = "";
+}
+
+function doChatSearch(term) {
+  clearChatSearch();
+  if (!term || term.length < 2) return;
+
+  const docEl = document.querySelector(".doc");
+  if (!docEl) return;
+
+  const treeWalker = document.createTreeWalker(
+    docEl,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        const p = node.parentElement;
+        if (!p || p.tagName === "SCRIPT" || p.tagName === "STYLE" || p.tagName === "MARK") {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    }
+  );
+
+  const textNodes = [];
+  while (treeWalker.nextNode()) {
+    textNodes.push(treeWalker.currentNode);
+  }
+
+  const re = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+  for (const node of textNodes) {
+    const text = node.nodeValue;
+    let match;
+    const parts = [];
+    let lastIndex = 0;
+    while ((match = re.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(document.createTextNode(text.slice(lastIndex, match.index)));
+      }
+      const mark = el("mark", "chat-hit", match[0]);
+      parts.push(mark);
+      chatMatches.push(mark);
+      lastIndex = re.lastIndex;
+    }
+    if (parts.length > 0) {
+      if (lastIndex < text.length) {
+        parts.push(document.createTextNode(text.slice(lastIndex)));
+      }
+      const parent = node.parentNode;
+      const frag = document.createDocumentFragment();
+      for (const p of parts) frag.appendChild(p);
+      parent.replaceChild(frag, node);
+    }
+  }
+
+  const countEl = $("chat-search-count");
+  if (chatMatches.length > 0) {
+    currentMatchIdx = 0;
+    highlightCurrentMatch();
+  } else {
+    if (countEl) countEl.textContent = "0";
+  }
+}
+
+function highlightCurrentMatch() {
+  chatMatches.forEach((m, idx) => {
+    m.classList.toggle("current", idx === currentMatchIdx);
+  });
+  const countEl = $("chat-search-count");
+  if (countEl) countEl.textContent = `${currentMatchIdx + 1}/${chatMatches.length}`;
+  if (chatMatches[currentMatchIdx]) {
+    let cur = chatMatches[currentMatchIdx].parentElement;
+    while (cur && cur !== document.body) {
+      if (cur.tagName === "DETAILS" && !cur.open) {
+        cur.open = true;
+      }
+      cur = cur.parentElement;
+    }
+    chatMatches[currentMatchIdx].scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+// In-chat search wire
+document.addEventListener("input", (e) => {
+  if (e.target && e.target.id === "chat-q") {
+    doChatSearch(e.target.value.trim());
+  }
+});
 document.addEventListener("keydown", (e) => {
-  if (e.key === "/" && document.activeElement !== $("q")) {
+  if (e.target && e.target.id === "chat-q") {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (chatMatches.length > 0) {
+        if (e.shiftKey) {
+          currentMatchIdx = (currentMatchIdx - 1 + chatMatches.length) % chatMatches.length;
+        } else {
+          currentMatchIdx = (currentMatchIdx + 1) % chatMatches.length;
+        }
+        highlightCurrentMatch();
+      }
+    } else if (e.key === "Escape") {
+      e.target.value = "";
+      clearChatSearch();
+    }
+  }
+});
+document.addEventListener("click", (e) => {
+  if (e.target && e.target.id === "chat-search-next") {
+    if (chatMatches.length > 0) {
+      currentMatchIdx = (currentMatchIdx + 1) % chatMatches.length;
+      highlightCurrentMatch();
+    }
+  } else if (e.target && e.target.id === "chat-search-prev") {
+    if (chatMatches.length > 0) {
+      currentMatchIdx = (currentMatchIdx - 1 + chatMatches.length) % chatMatches.length;
+      highlightCurrentMatch();
+    }
+  } else if (e.target && e.target.id === "chat-search-close") {
+    const q = $("chat-q");
+    if (q) q.value = "";
+    clearChatSearch();
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+    const chatQ = $("chat-q");
+    if (chatQ) {
+      e.preventDefault();
+      chatQ.focus();
+      chatQ.select();
+      return;
+    }
+  }
+  if (e.key === "/" && document.activeElement !== $("q") && document.activeElement?.id !== "chat-q") {
     e.preventDefault();
     $("q").focus();
   }
