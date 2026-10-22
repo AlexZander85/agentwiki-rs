@@ -25,13 +25,29 @@ fn legacy_candidates(dir: &std::path::Path) -> Vec<PathBuf> {
         .collect()
 }
 
+/// Resolve the data directory where `index.db` lives.
+/// 1. `SESSIONWIKI_DATA` environment variable override (if set).
+/// 2. Local `data` directory next to the executable (portable mode, if exists).
+/// 3. Platform default directory (`~/.local/share/sessionwiki` or `%APPDATA%\sessionwiki`).
+fn resolve_data_dir() -> Option<PathBuf> {
+    if let Some(dir) = std::env::var_os("SESSIONWIKI_DATA") {
+        return Some(PathBuf::from(dir));
+    }
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let local_data = exe_dir.join("data");
+            if local_data.exists() {
+                return Some(local_data);
+            }
+        }
+    }
+    dirs::data_dir().map(|d| d.join("sessionwiki"))
+}
+
 /// The index lives outside the session stores and never touches them.
-/// Default: ~/.local/share/sessionwiki/index.db (platform equivalent).
+/// Default: ~/.local/share/sessionwiki/index.db (platform equivalent), or local `data/` if present.
 pub fn db_path() -> Result<PathBuf> {
-    let dir = std::env::var_os("SESSIONWIKI_DATA")
-        .map(PathBuf::from)
-        .or_else(|| dirs::data_dir().map(|d| d.join("sessionwiki")))
-        .context("cannot determine a data directory")?;
+    let dir = resolve_data_dir().context("cannot determine a data directory")?;
     // One-time migration from earlier names, newest first. This carries over
     // the existing index AND the curated tags/notes/summaries, which are not
     // rebuildable. The project was session-atlas, then sessiondex.
@@ -68,9 +84,7 @@ pub fn db_path() -> Result<PathBuf> {
 /// legacy migration `db_path` performs. For strictly read-only callers (`doctor`)
 /// that must not mutate the filesystem just to check for the index.
 pub fn existing_db_path() -> Option<PathBuf> {
-    let dir = std::env::var_os("SESSIONWIKI_DATA")
-        .map(PathBuf::from)
-        .or_else(|| dirs::data_dir().map(|d| d.join("sessionwiki")))?;
+    let dir = resolve_data_dir()?;
     let db = dir.join("index.db");
     db.exists().then_some(db)
 }
