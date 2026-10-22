@@ -455,13 +455,21 @@ fn should_open_browser(no_open: bool, wsl: bool) -> bool {
 
 fn open_browser(url: &str) {
     #[cfg(target_os = "macos")]
-    let cmd = "open";
+    let mut cmd = std::process::Command::new("open");
+    #[cfg(target_os = "macos")]
+    cmd.arg(url);
+
     #[cfg(target_os = "windows")]
-    let cmd = "explorer";
+    let mut cmd = std::process::Command::new("rundll32");
+    #[cfg(target_os = "windows")]
+    cmd.args(["url.dll,FileProtocolHandler", url]);
+
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    let cmd = "xdg-open";
-    let _ = std::process::Command::new(cmd)
-        .arg(url)
+    let mut cmd = std::process::Command::new("xdg-open");
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    cmd.arg(url);
+
+    let _ = cmd
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn();

@@ -3270,6 +3270,9 @@ function setupContextMenu() {
   const menu = $("custom-context-menu");
   if (!menu) return;
 
+  let activeSelectionText = "";
+  let activeSelectionMd = "";
+
   document.addEventListener("contextmenu", (e) => {
     // Only show custom menu if text is selected inside the document/chat
     const sel = window.getSelection();
@@ -3283,6 +3286,8 @@ function setupContextMenu() {
 
     if (selectedText.length > 0) {
       e.preventDefault();
+      activeSelectionText = selectedText;
+      activeSelectionMd = getSelectedMarkdown() || selectedText;
       menu.style.display = "block";
       const menuW = menu.offsetWidth || 250;
       const menuH = menu.offsetHeight || 130;
@@ -3307,9 +3312,7 @@ function setupContextMenu() {
 
   // Copy as Markdown click
   $("ctx-copy-md")?.addEventListener("click", () => {
-    const md = getSelectedMarkdown();
-    const selText = window.getSelection()?.toString().trim() || "";
-    const textToCopy = md || selText;
+    const textToCopy = activeSelectionMd || getSelectedMarkdown() || (window.getSelection()?.toString().trim() || "");
     if (textToCopy) {
       navigator.clipboard?.writeText(textToCopy).then(() => {
         showToast(L.copiedMd || "✓ Copied as Markdown");
@@ -3320,7 +3323,7 @@ function setupContextMenu() {
 
   // Copy as Plain Text click
   $("ctx-copy-text")?.addEventListener("click", () => {
-    const selText = window.getSelection()?.toString().trim() || "";
+    const selText = activeSelectionText || (window.getSelection()?.toString().trim() || "");
     if (selText) {
       navigator.clipboard?.writeText(selText).then(() => {
         showToast(L.copiedText || "✓ Copied as text");
@@ -3331,7 +3334,7 @@ function setupContextMenu() {
 
   // Search in chat click
   $("ctx-search-chat")?.addEventListener("click", () => {
-    const selText = window.getSelection()?.toString().trim() || "";
+    const selText = activeSelectionText || (window.getSelection()?.toString().trim() || "");
     if (selText) {
       const q = $("chat-q");
       if (q) {
@@ -3345,7 +3348,7 @@ function setupContextMenu() {
 
   // Search in Google click
   $("ctx-search-google")?.addEventListener("click", () => {
-    const selText = window.getSelection()?.toString().trim() || "";
+    const selText = activeSelectionText || (window.getSelection()?.toString().trim() || "");
     if (selText) {
       const q = selText.slice(0, 300);
       const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(q)}`;
