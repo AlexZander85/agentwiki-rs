@@ -1747,13 +1747,6 @@ function addKeywordFromInput() {
 
 async function refresh() {
   const inputVal = $("q").value.trim();
-  const allTerms = [...searchKeywords];
-  if (inputVal && !allTerms.includes(inputVal)) {
-    allTerms.push(inputVal);
-  }
-  const q = allTerms.join(" ");
-  const isSearchActive = allTerms.length > 0 && q.length >= 2;
-
   const tool = $("tool").value;
   const t = tool ? `&tool=${encodeURIComponent(tool)}` : "";
   const roles = $("role").value;
@@ -1764,8 +1757,16 @@ async function refresh() {
 
   renderTagBar();
   let items = [];
-  if (isSearchActive) {
-    items = await jget(`/api/search?q=${encodeURIComponent(q)}${t}${r}${sParam}${uParam}`);
+  const isSearchActive = searchKeywords.length > 0 || inputVal.length >= 2;
+
+  if (searchKeywords.length > 0) {
+    // Mode 3: Keyword filter chips via '+' -> cross-message session intersection!
+    const sessionTermsParam = `&session_terms=${encodeURIComponent(searchKeywords.join(","))}`;
+    const qParam = inputVal ? `&q=${encodeURIComponent(inputVal)}` : "";
+    items = await jget(`/api/search?limit=500${sessionTermsParam}${qParam}${t}${r}${sParam}${uParam}`);
+  } else if (inputVal.length >= 2) {
+    // Mode 1 & 2: Search bar input -> strictly within one message!
+    items = await jget(`/api/search?q=${encodeURIComponent(inputVal)}${t}${r}${sParam}${uParam}`);
   } else if (currentTag) {
     items = await jget(`/api/sessions?limit=500${t}&tag=${encodeURIComponent(currentTag)}${sParam}${uParam}`);
   } else {
