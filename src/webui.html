@@ -1418,7 +1418,7 @@ const I18N = {
     exportMd: "Export session to Markdown (.md)", exportMdBtn: "Export .md", exported: "Saved!",
     sortRelevance: "🎯 relevance", sortCreated: "📅 created date", sortLastActive: "🕒 last message", sortMsgs: "💬 message count",
     sync: "Sync", syncing: "Syncing...", autoSync: "Auto-sync (10m)", synced: "synced", lastSynced: "Last synced",
-    ctxCopyMd: "Copy as Markdown", ctxCopyText: "Copy as plain text", ctxSearchChat: "Search in chat",
+    ctxCopyMd: "Copy as Markdown", ctxCopyText: "Copy as plain text", ctxSearchChat: "Search in chat", ctxSearchGoogle: "Search in Google",
     copiedMd: "✓ Copied as Markdown", copiedText: "✓ Copied as text",
     allDates: "all dates", today: "today", yesterday: "yesterday", singleDay: "single day…", dateRange: "date range…",
     lastActivePrefix: "last",
@@ -1460,7 +1460,7 @@ const I18N = {
     exportMd: "세션을 Markdown(.md)으로 내보내기", exportMdBtn: ".md 내보내기", exported: "저장됨!",
     sortRelevance: "🎯 관련도순", sortCreated: "📅 생성일순", sortLastActive: "🕒 최근 메시지순", sortMsgs: "💬 메시지 수순",
     sync: "동기화", syncing: "동기화 중...", autoSync: "자동 동기화 (10분)", synced: "동기화됨", lastSynced: "마지막 동기화",
-    ctxCopyMd: "Markdown으로 복사", ctxCopyText: "일반 텍스트로 복사", ctxSearchChat: "이 대화에서 검색",
+    ctxCopyMd: "Markdown으로 복사", ctxCopyText: "일반 텍스트로 복사", ctxSearchChat: "이 대화에서 검색", ctxSearchGoogle: "Google에서 검색",
     copiedMd: "✓ Markdown으로 복사됨", copiedText: "✓ 텍스트로 복사됨",
     allDates: "모든 날짜", today: "오늘", yesterday: "어제", singleDay: "특정 날짜…", dateRange: "날짜 범위…",
     lastActivePrefix: "최근",
@@ -1502,7 +1502,7 @@ const I18N = {
     exportMd: "セッションをMarkdown(.md)にエクスポート", exportMdBtn: ".md エクスポート", exported: "保存完了!",
     sortRelevance: "🎯 関連度順", sortCreated: "📅 作成日時順", sortLastActive: "🕒 最終メッセージ順", sortMsgs: "💬 メッセージ数順",
     sync: "同期", syncing: "同期中...", autoSync: "自動同期 (10分)", synced: "同期済み", lastSynced: "最終同期",
-    ctxCopyMd: "Markdownとしてコピー", ctxCopyText: "テキストとしてコピー", ctxSearchChat: "このチャット内を検索",
+    ctxCopyMd: "Markdownとしてコピー", ctxCopyText: "テキストとしてコピー", ctxSearchChat: "このチャット内を検索", ctxSearchGoogle: "Google で検索",
     copiedMd: "✓ Markdownとしてコピーしました", copiedText: "✓ テキストとしてコピーしました",
     allDates: "すべての日付", today: "今日", yesterday: "昨日", singleDay: "指定日…", dateRange: "期間指定…",
     lastActivePrefix: "最終",
@@ -1544,7 +1544,7 @@ const I18N = {
     exportMd: "导出会话为 Markdown (.md)", exportMdBtn: "导出 .md", exported: "已保存!",
     sortRelevance: "🎯 相关度", sortCreated: "📅 创建时间", sortLastActive: "🕒 最后消息", sortMsgs: "💬 消息数量",
     sync: "同步", syncing: "同步中...", autoSync: "自动同步 (10分钟)", synced: "已同步", lastSynced: "上次同步",
-    ctxCopyMd: "复制为 Markdown", ctxCopyText: "复制为纯文本", ctxSearchChat: "在当前对话中搜索",
+    ctxCopyMd: "复制为 Markdown", ctxCopyText: "复制为纯文本", ctxSearchChat: "在当前对话中搜索", ctxSearchGoogle: "在 Google 中搜索",
     copiedMd: "✓ 已复制为 Markdown", copiedText: "✓ 已复制为文本",
     allDates: "所有日期", today: "今天", yesterday: "昨天", singleDay: "指定日期…", dateRange: "日期范围…",
     lastActivePrefix: "最后",
@@ -1804,6 +1804,7 @@ function applyStaticStrings() {
   if ($("ctx-copy-md-label")) $("ctx-copy-md-label").textContent = L.ctxCopyMd || "Copy as Markdown";
   if ($("ctx-copy-text-label")) $("ctx-copy-text-label").textContent = L.ctxCopyText || "Copy as plain text";
   if ($("ctx-search-chat-label")) $("ctx-search-chat-label").textContent = L.ctxSearchChat || "Search in chat";
+  if ($("ctx-search-google-label")) $("ctx-search-google-label").textContent = L.ctxSearchGoogle || "Search in Google";
   for (const b of $("langmenu").children) {
     b.setAttribute("aria-selected", b.dataset.lang === lang ? "true" : "false");
   }
@@ -3342,6 +3343,17 @@ function setupContextMenu() {
     hideContextMenu();
   });
 
+  // Search in Google click
+  $("ctx-search-google")?.addEventListener("click", () => {
+    const selText = window.getSelection()?.toString().trim() || "";
+    if (selText) {
+      const q = selText.slice(0, 300);
+      const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+      openExternalUrl(googleUrl);
+    }
+    hideContextMenu();
+  });
+
   // Global Hotkeys
   document.addEventListener("keydown", (e) => {
     // Ctrl+Shift+C (or Cmd+Shift+C) -> Copy as Markdown
@@ -3361,6 +3373,14 @@ function setupContextMenu() {
       hideContextMenu();
     }
   });
+}
+
+async function openExternalUrl(targetUrl) {
+  try {
+    const res = await jget(`/api/open?url=${encodeURIComponent(targetUrl)}`);
+    if (res && res.ok) return;
+  } catch (_) {}
+  window.open(targetUrl, "_blank", "noopener,noreferrer");
 }
 
 function setupSyncControls() {
@@ -3408,6 +3428,10 @@ function setupSyncControls() {
     <span class="menu-icon">🔍</span>
     <span class="menu-label" id="ctx-search-chat-label">Search in chat</span>
     <span class="menu-shortcut">Ctrl+F</span>
+  </div>
+  <div class="menu-item" id="ctx-search-google">
+    <span class="menu-icon">🌐</span>
+    <span class="menu-label" id="ctx-search-google-label">Search in Google</span>
   </div>
 </div>
 </body>
