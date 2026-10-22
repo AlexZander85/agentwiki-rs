@@ -54,3 +54,6 @@ tempfile = "3"
 [profile.release]
 lto = true
 strip = true
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
