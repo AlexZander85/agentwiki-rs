@@ -32,6 +32,21 @@ dirs = "7"
 unicode-normalization = "0.1"
 sha2 = "0.11"
 ruzstd = { version = "0.9.1", default-features = false, features = ["std"] }
+wry = { version = "0.57", optional = true }
+tao = { version = "0.37", optional = true }
+
+[features]
+default = ["gui"]
+gui = ["dep:wry", "dep:tao"]
+
+[[bin]]
+name = "sessionwiki"
+path = "src/main.rs"
+
+[[bin]]
+name = "sessionwiki-app"
+path = "src/bin/app.rs"
+required-features = ["gui"]
 
 [dev-dependencies]
 tempfile = "3"
