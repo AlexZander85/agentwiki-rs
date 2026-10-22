@@ -307,6 +307,8 @@ enum Command {
     Projects,
     /// Usage breakdown across tools, projects, and months
     Stats,
+    /// Optimize the search index and defragment the database to reclaim disk space
+    Vacuum,
     /// Diagnose this machine's setup: which stores exist, index health, version
     Doctor {
         /// Emit the checks as JSON
@@ -466,6 +468,7 @@ fn main() {
         } => commands::digest(&since, tool.as_deref(), project.as_deref(), json, no_sync),
         Command::Projects => commands::projects(),
         Command::Stats => commands::stats(),
+        Command::Vacuum => commands::vacuum(),
         Command::Doctor { json } => doctor::run(json),
         Command::Hook {
             cmd: HookCmd::SessionStart,
