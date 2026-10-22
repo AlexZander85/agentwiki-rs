@@ -263,6 +263,23 @@
   }
   .themebtn:hover { color: var(--ink); border-color: var(--line-strong); }
 
+  .recentbtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font: 500 11.5px/1.2 inherit;
+    color: var(--ink-2);
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 7px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color .15s, color .15s;
+  }
+  .recentbtn:hover { color: var(--ink); border-color: var(--line-strong); }
+  .recentbtn.on { border-color: var(--accent); color: var(--accent); }
+
   /* language picker */
   .langctl { position: relative; }
   .langbtn {
@@ -517,6 +534,144 @@
   }
   .seealso .rel .editmore { font-size: 10.5px; color: var(--ink-3); margin-top: 1px; }
 
+  /* Recent view & file history panel */
+  .recent-view {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 26px 40px 90px;
+  }
+  .recent-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 16px;
+    margin-bottom: 20px;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .recent-head h2 {
+    font-size: 19px;
+    font-weight: 600;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--ink);
+  }
+  .recent-head h2 svg { color: var(--accent); }
+  .recent-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .recent-btn-sub {
+    font: 500 11.5px/1.2 inherit;
+    padding: 6px 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    color: var(--ink-2);
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .recent-btn-sub:hover {
+    color: var(--ink);
+    border-color: var(--line-strong);
+  }
+  .recent-section-title {
+    font-size: 12px;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--ink-3);
+    margin: 22px 0 10px;
+  }
+  .recent-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .recent-card {
+    display: block;
+    padding: 12px 16px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .recent-card:hover {
+    background: var(--bg-sunken);
+    border-color: var(--line-strong);
+  }
+  .recent-card .rc-title {
+    font-size: 13.5px;
+    font-weight: 550;
+    color: var(--ink);
+    margin-bottom: 5px;
+  }
+  .recent-card .rc-meta {
+    font-size: 11.5px;
+    color: var(--ink-3);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .recent-card .rc-tool {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    background: var(--bg-sunken);
+    border: 1px solid var(--line);
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: var(--ink-2);
+  }
+  .recent-empty {
+    padding: 16px;
+    font-size: 12.5px;
+    color: var(--ink-3);
+    background: var(--bg-sunken);
+    border-radius: 8px;
+  }
+
+  .file-history-box {
+    margin-top: 10px;
+    padding: 12px 14px;
+    background: var(--bg-sunken);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .file-hist-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .file-hist-head h4 {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .file-hist-close {
+    background: none;
+    border: none;
+    color: var(--ink-3);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+  }
+  .file-hist-close:hover { color: var(--ink); }
+  .file-hist-empty {
+    font-size: 12px;
+    color: var(--ink-3);
+    padding: 4px 0;
+  }
+
   .outline {
     background: var(--bg-sunken);
     border: 1px solid var(--line);
@@ -701,6 +856,13 @@
             <button role="option" data-lang="zh">中文</button>
           </div>
         </div>
+        <button class="recentbtn" id="recentbtn" title="View recently opened and related sessions">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6">
+            <circle cx="8" cy="8" r="6.5"/>
+            <path d="M8 4.5V8l2.5 1.5"/>
+          </svg>
+          <span id="recentlabel">Recent</span>
+        </button>
         <button class="themebtn" id="theme">Dark</button>
       </div>
     </div>
@@ -747,6 +909,8 @@ const I18N = {
     clickToCopy: "Click to copy",
     outline: (n) => `Outline · ${n} turns`,
     seeAlso: "See also", filtering: "filtering", filterByTag: "filter by tag",
+    recent: "Recent", recentTitle: "Recently Viewed Sessions", recentOpened: "Recently Opened",
+    clearRecent: "Clear history", backToChat: "← Back to chat", noRecent: "No recently viewed sessions yet.",
     filesLabel: "Files", tracedBy: (f) => `Sessions that touched ${f}`,
     fileHistory: (f) => `How ${f} was written`,
     moreEdits: (n) => `+${n} more`, loadFailed: "Couldn't load",
@@ -778,6 +942,8 @@ const I18N = {
     clickToCopy: "클릭하여 복사",
     outline: (n) => `목차 · 질문 ${n}개`,
     seeAlso: "관련 세션", filtering: "필터", filterByTag: "태그로 필터",
+    recent: "최근 세션", recentTitle: "최근 본 세션", recentOpened: "최근 열어본 세션",
+    clearRecent: "기록 지우기", backToChat: "← 대화로 돌아가기", noRecent: "최근 본 세션이 없습니다.",
     filesLabel: "파일", tracedBy: (f) => `${f} 를 편집한 세션`,
     fileHistory: (f) => `${f} 가 어떻게 쓰였나`,
     moreEdits: (n) => `+${n}개 더`, loadFailed: "불러오지 못함",
@@ -809,6 +975,8 @@ const I18N = {
     clickToCopy: "クリックでコピー",
     outline: (n) => `目次 · ${n}ターン`,
     seeAlso: "関連セッション", filtering: "フィルタ", filterByTag: "タグで絞り込み",
+    recent: "最近", recentTitle: "最近閲覧したセッション", recentOpened: "最近開いたセッション",
+    clearRecent: "履歴を削除", backToChat: "← チャットに戻る", noRecent: "最近閲覧したセッションはありません。",
     filesLabel: "ファイル", tracedBy: (f) => `${f} を編集したセッション`,
     fileHistory: (f) => `${f} はどう書かれたか`,
     moreEdits: (n) => `他 ${n} 件`, loadFailed: "読み込めませんでした",
@@ -840,6 +1008,8 @@ const I18N = {
     clickToCopy: "点击复制",
     outline: (n) => `大纲 · ${n}轮`,
     seeAlso: "相关会话", filtering: "筛选", filterByTag: "按标签筛选",
+    recent: "最近", recentTitle: "最近查看的会话", recentOpened: "最近打开的会话",
+    clearRecent: "清空记录", backToChat: "← 返回聊天", noRecent: "暂无最近查看的会话。",
     filesLabel: "文件", tracedBy: (f) => `编辑过 ${f} 的会话`,
     fileHistory: (f) => `${f} 是如何写成的`,
     moreEdits: (n) => `还有 ${n} 处`, loadFailed: "加载失败",
@@ -869,6 +1039,7 @@ function applyStaticStrings() {
   $("ph-p2").textContent = L.phP2.replace(/`/g, "");
   $("stats").textContent = L.loading;
   $("langlabel").textContent = LANG_NAMES[lang] || "English";
+  if ($("recentlabel")) $("recentlabel").textContent = L.recent || "Recent";
   for (const b of $("langmenu").children) {
     b.setAttribute("aria-selected", b.dataset.lang === lang ? "true" : "false");
   }
@@ -908,6 +1079,7 @@ $("theme").onclick = () => {
   localStorage.setItem("sdx-theme", next);
   applyTheme(next);
 };
+$("recentbtn").onclick = () => showRecentView();
 
 /* ---------- helpers ---------- */
 async function jget(url) {
@@ -1056,9 +1228,33 @@ function setActive(elm) {
 /* ---------- transcript ---------- */
 let currentSession = null;
 
+function recordRecentlyViewed(s) {
+  if (!s || !s.id) return;
+  let recents = [];
+  try {
+    recents = JSON.parse(localStorage.getItem("sdx-recent-sessions") || "[]");
+  } catch (_) {}
+  recents = recents.filter((r) => r.id !== s.id);
+  recents.unshift({
+    id: s.id,
+    title: s.title || L.untitled,
+    tool: s.tool,
+    project: s.project || "-",
+    started: s.started,
+    msgs: s.messages ? s.messages.length : (s.msgs || 0),
+    time: Date.now()
+  });
+  if (recents.length > 50) recents = recents.slice(0, 50);
+  try {
+    localStorage.setItem("sdx-recent-sessions", JSON.stringify(recents));
+  } catch (_) {}
+}
+
 async function openSession(id) {
   const s = await jget("/api/session/" + encodeURIComponent(id));
   currentSession = s;
+  recordRecentlyViewed(s);
+  if ($("recentbtn")) $("recentbtn").classList.remove("on");
   renderCurrentSession(false);
 }
 
@@ -1232,34 +1428,38 @@ function renderCurrentSession(keepScroll) {
     anchors[vi] = wrap;
   }
 
-  // See also panel
-  const seealso = el("div", "seealso");
-  doc.appendChild(seealso);
-  let seealsoGen = 0;
-  const relatedGen = ++seealsoGen;
-  jget("/api/related/" + encodeURIComponent(s.id)).then((rel) => {
-    if (relatedGen !== seealsoGen || !rel || !rel.length) return;
-    seealso.appendChild(el("h3", "", L.seeAlso || "See also"));
-    for (const r of rel) {
-      const a = el("div", "rel");
-      a.appendChild(el("div", "t", r.title || L.untitled));
-      a.appendChild(el("div", "m", `${r.tool} · ${fmtDate(r.started)} · ${L.msgs(r.msgs)}`));
-      a.onclick = () => openSession(r.id);
-      seealso.appendChild(a);
-    }
-  }).catch(() => {});
-
   const EDITS_SHOWN = 6;
   function showFileHistory(filePath, chip) {
     document.querySelectorAll(".filechip.on").forEach((c) => c.classList.remove("on"));
     chip.classList.add("on");
     const parts = filePath.split(/[\/\\]/);
     const base = parts.pop() || filePath;
-    const my = ++seealsoGen;
+    let box = $("file-history-box");
+    const parentDet = chip.closest(".files-details") || head;
+    if (!box) {
+      box = el("div", "file-history-box");
+      box.id = "file-history-box";
+      parentDet.appendChild(box);
+    }
+    box.replaceChildren(el("div", "file-hist-empty", L.loading || "Loading..."));
     jget("/api/file?path=" + encodeURIComponent(filePath)).then((hist) => {
-      if (my !== seealsoGen) return;
-      seealso.replaceChildren(el("h3", "", L.fileHistory(base)));
-      for (const r of ((hist && hist.sessions) || [])) {
+      box.replaceChildren();
+      const top = el("div", "file-hist-head");
+      top.appendChild(el("h4", "", L.fileHistory(base)));
+      const closeBtn = el("button", "file-hist-close", "×");
+      closeBtn.onclick = () => {
+        chip.classList.remove("on");
+        box.remove();
+      };
+      top.appendChild(closeBtn);
+      box.appendChild(top);
+
+      const sessions = (hist && hist.sessions) || [];
+      if (!sessions.length) {
+        box.appendChild(el("div", "file-hist-empty", "No other sessions modified this file."));
+        return;
+      }
+      for (const r of sessions) {
         const a = el("div", "rel");
         a.appendChild(el("div", "t", r.title || L.untitled));
         a.appendChild(el("div", "m", `${r.tool} · ${fmtDate(r.started)} · ${L.msgs(r.msgs)}`));
@@ -1281,18 +1481,127 @@ function renderCurrentSession(keepScroll) {
           a.appendChild(ev);
         }
         a.onclick = () => openSession(r.id);
-        seealso.appendChild(a);
+        box.appendChild(a);
       }
-      seealso.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      box.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }).catch(() => {
-      if (my !== seealsoGen) return;
-      seealso.replaceChildren(el("h3", "", L.fileHistory(base)), el("div", "m", L.loadFailed));
+      box.replaceChildren(el("div", "file-hist-empty", L.loadFailed));
     });
   }
 
   const prevScroll = keepScroll ? $("main").scrollTop : 0;
   $("main").replaceChildren(head, doc);
   $("main").scrollTop = prevScroll;
+}
+
+function showRecentView() {
+  const main = $("main");
+  const btn = $("recentbtn");
+  if (btn.classList.contains("on") && currentSession) {
+    btn.classList.remove("on");
+    renderCurrentSession(true);
+    return;
+  }
+  btn.classList.add("on");
+  main.replaceChildren();
+
+  const rv = el("div", "recent-view");
+  const head = el("div", "recent-head");
+  const title = el("h2", "");
+  title.innerHTML = `
+    <svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8">
+      <circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/>
+    </svg>
+    <span>${L.recentTitle || "Recently Viewed Sessions"}</span>
+  `;
+  head.appendChild(title);
+
+  const actions = el("div", "recent-actions");
+  if (currentSession) {
+    const backBtn = el("button", "recent-btn-sub", L.backToChat || "← Back to chat");
+    backBtn.onclick = () => {
+      btn.classList.remove("on");
+      renderCurrentSession(true);
+    };
+    actions.appendChild(backBtn);
+  }
+
+  const clearBtn = el("button", "recent-btn-sub", L.clearRecent || "Clear history");
+  clearBtn.onclick = () => {
+    localStorage.removeItem("sdx-recent-sessions");
+    btn.classList.remove("on");
+    showRecentView();
+  };
+  actions.appendChild(clearBtn);
+  head.appendChild(actions);
+  rv.appendChild(head);
+
+  // 1. Recently opened sessions from localStorage
+  let recents = [];
+  try {
+    recents = JSON.parse(localStorage.getItem("sdx-recent-sessions") || "[]");
+  } catch (_) {}
+
+  const secTitle1 = el("div", "recent-section-title", `${L.recentOpened || "Recently Opened"} (${recents.length})`);
+  rv.appendChild(secTitle1);
+
+  if (recents.length === 0) {
+    rv.appendChild(el("div", "recent-empty", L.noRecent || "No recently viewed sessions yet."));
+  } else {
+    const grid1 = el("div", "recent-grid");
+    for (const r of recents) {
+      const card = el("div", "recent-card");
+      card.appendChild(el("div", "rc-title", r.title || L.untitled));
+      const meta = el("div", "rc-meta");
+      meta.appendChild(el("span", "rc-tool", r.tool));
+      if (r.project && r.project !== "-") meta.appendChild(el("span", "rc-proj", r.project));
+      if (r.started) meta.appendChild(el("span", "rc-date", fmtDate(r.started)));
+      meta.appendChild(el("span", "rc-msgs", L.msgs(r.msgs || 0)));
+      card.appendChild(meta);
+      card.onclick = () => {
+        btn.classList.remove("on");
+        openSession(r.id);
+      };
+      grid1.appendChild(card);
+    }
+    rv.appendChild(grid1);
+  }
+
+  // 2. Related sessions to currently active session
+  if (currentSession) {
+    const secTitle2 = el("div", "recent-section-title", `${L.seeAlso || "Related Sessions"} (${currentSession.title})`);
+    rv.appendChild(secTitle2);
+    const grid2 = el("div", "recent-grid");
+    grid2.appendChild(el("div", "recent-empty", L.loading || "Loading related sessions..."));
+    rv.appendChild(grid2);
+
+    jget("/api/related/" + encodeURIComponent(currentSession.id)).then((rel) => {
+      grid2.replaceChildren();
+      if (!rel || !rel.length) {
+        grid2.appendChild(el("div", "recent-empty", "No related sessions found."));
+        return;
+      }
+      for (const r of rel) {
+        const card = el("div", "recent-card");
+        card.appendChild(el("div", "rc-title", r.title || L.untitled));
+        const meta = el("div", "rc-meta");
+        meta.appendChild(el("span", "rc-tool", r.tool));
+        if (r.project) meta.appendChild(el("span", "rc-proj", r.project));
+        if (r.started) meta.appendChild(el("span", "rc-date", fmtDate(r.started)));
+        meta.appendChild(el("span", "rc-msgs", L.msgs(r.msgs || 0)));
+        card.appendChild(meta);
+        card.onclick = () => {
+          btn.classList.remove("on");
+          openSession(r.id);
+        };
+        grid2.appendChild(card);
+      }
+    }).catch(() => {
+      grid2.replaceChildren(el("div", "recent-empty", L.loadFailed));
+    });
+  }
+
+  main.appendChild(rv);
 }
 
 function filterByTag(tag) {
