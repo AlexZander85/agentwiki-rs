@@ -1115,9 +1115,24 @@
   }
   .msg .body pre[data-lang]::before {
     content: attr(data-lang);
-    position: absolute; top: 6px; right: 10px;
-    font-size: 10px; color: var(--ink-3);
+    position: absolute;
+    top: 7px;
+    right: 68px;
+    font-size: 10px;
+    color: var(--ink-3);
     font-family: inherit;
+    text-transform: lowercase;
+    pointer-events: none;
+  }
+  .msg .body img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+    margin: 8px 0;
+  }
+  .msg .body input[type="checkbox"] {
+    margin-right: 6px;
+    vertical-align: middle;
   }
   .msg .body pre, .msg .body pre code {
     font-family: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
