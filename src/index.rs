@@ -1841,6 +1841,28 @@ pub fn recent(
     tag: Option<&str>,
     include_subagents: bool,
 ) -> Result<Vec<SessionRow>> {
+    recent_range(
+        conn,
+        limit,
+        tool,
+        project,
+        tag,
+        include_subagents,
+        None,
+        None,
+    )
+}
+
+pub fn recent_range(
+    conn: &Connection,
+    limit: usize,
+    tool: Option<&str>,
+    project: Option<&str>,
+    tag: Option<&str>,
+    include_subagents: bool,
+    since: Option<&str>,
+    until: Option<&str>,
+) -> Result<Vec<SessionRow>> {
     let mut sql = format!(
         "SELECT session_id, tool, path, project, title, started, msg_count, kind, {PREVIEW_SQL}, {SUMMARY_SQL}, {TAGS_SQL}, (archived_at IS NOT NULL), COALESCE(ended, started)
          FROM files f WHERE 1=1",
@@ -1865,6 +1887,20 @@ pub fn recent(
             " AND EXISTS (SELECT 1 FROM tags g WHERE g.session_id = f.session_id AND g.tag = ?)",
         );
         args.push(norm_tag(t)); // stored tags are normalized; match their form
+    }
+    if let Some(s) = since {
+        sql.push_str(" AND (started >= ? OR COALESCE(ended, started) >= ?)");
+        args.push(s.to_string());
+        args.push(s.to_string());
+    }
+    if let Some(u) = until {
+        let bound = if u.len() == 10 {
+            format!("{u}T23:59:59Z")
+        } else {
+            u.to_string()
+        };
+        sql.push_str(" AND started <= ?");
+        args.push(bound);
     }
     // Recent means recently ACTIVE: a session resumed for weeks began long
     // ago, and ordering by its start buried it below everything begun since.

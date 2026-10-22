@@ -57,27 +57,110 @@
     overflow-wrap: anywhere;
   }
   ::selection { background: var(--accent-soft); }
-  .layout { display: flex; height: 100vh; }
+  /* ---------- layout & resizer ---------- */
+  .layout { display: flex; height: 100vh; position: relative; }
+  .resizer {
+    width: 6px;
+    margin-left: -3px;
+    margin-right: -3px;
+    z-index: 20;
+    cursor: col-resize;
+    user-select: none;
+    background: transparent;
+    transition: background 0.15s ease;
+    flex-shrink: 0;
+  }
+  .resizer:hover, .resizer.dragging {
+    background: var(--accent);
+  }
 
   /* ---------- sidebar ---------- */
   aside {
     width: 348px;
-    min-width: 270px;
+    min-width: 250px;
+    max-width: 80vw;
     border-right: 1px solid var(--line);
     display: flex;
     flex-direction: column;
     background: var(--bg-sunken);
+    flex-shrink: 0;
   }
-  .brand { padding: 16px 18px 12px; }
+  .brand {
+    padding: 12px 14px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+  }
   .brand h1 {
     margin: 0;
     font-size: 15px;
     font-weight: 640;
     letter-spacing: -.2px;
+    white-space: nowrap;
   }
-  .brand .stats { color: var(--ink-2); font-size: 12px; margin-top: 2px; font-weight: 440; }
-  .controls { padding: 0 12px 12px; display: flex; gap: 8px; }
-  .searchwrap { position: relative; flex: 1; }
+  .brand .stats {
+    color: var(--ink-2);
+    font-size: 11px;
+    font-weight: 440;
+    white-space: nowrap;
+    text-align: right;
+  }
+  .controls { padding: 0 12px 10px; display: flex; flex-direction: column; gap: 6px; }
+  .filter-row { display: flex; gap: 6px; width: 100%; }
+  .date-row { display: flex; gap: 6px; width: 100%; align-items: center; }
+  .date-row select {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 7px;
+    font-size: 12px;
+  }
+  .date-input-wrap {
+    display: none;
+    flex: 1.3;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+  .date-input-wrap.active {
+    display: flex;
+  }
+  .date-input {
+    flex: 1;
+    min-width: 0;
+    padding: 3px 5px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--card);
+    font: inherit;
+    font-size: 11px;
+    color: var(--ink);
+  }
+  .date-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .date-clear-btn {
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink-2);
+    border-radius: 6px;
+    padding: 3px 6px;
+    font-size: 11px;
+    cursor: pointer;
+    line-height: 1;
+    display: none;
+  }
+  .date-clear-btn.active {
+    display: inline-block;
+  }
+  .filter-row select {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 7px;
+    font-size: 12px;
+  }
+  .searchwrap { position: relative; width: 100%; }
   .searchwrap svg {
     position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
     width: 13px; height: 13px; stroke: var(--ink-3); fill: none; stroke-width: 2;
@@ -91,9 +174,9 @@
   }
   .controls input[type="search"] {
     width: 100%;
-    padding: 8px 30px 8px 29px;
+    padding: 7px 30px 7px 29px;
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: 9px;
     background: var(--card);
     font: inherit;
     font-size: 13px;
@@ -107,12 +190,10 @@
   }
   .controls input[type="search"]:focus ~ kbd { display: none; }
   .controls select {
-    padding: 8px 9px;
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: 8px;
     background: var(--card);
     font: inherit;
-    font-size: 13px;
     color: var(--ink-2);
     box-shadow: var(--shadow);
   }
@@ -294,6 +375,31 @@
     white-space: pre-wrap;
   }
 
+  .doc-head details.files-details {
+    margin-top: 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 10px;
+    background: var(--bg-sunken);
+  }
+  .doc-head details.files-details summary {
+    cursor: pointer;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--ink-2);
+    user-select: none;
+    outline: none;
+  }
+  .doc-head details.files-details summary:hover {
+    color: var(--ink);
+  }
+  .doc-head details.files-details .files {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
   .doc-head .files { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .doc-head .files .lbl {
     font-size: 11px; font-weight: 640; letter-spacing: .05em; text-transform: uppercase;
@@ -475,27 +581,47 @@
 </head>
 <body>
 <div class="layout">
-  <aside>
+  <aside id="sidebar">
     <div class="brand">
       <h1>sessionwiki</h1>
       <div class="stats" id="stats">loading index&hellip;</div>
     </div>
     <div class="controls">
+      <div class="filter-row">
+        <select id="tool" aria-label="Filter by tool">
+          <option value="">all tools</option>
+        </select>
+        <select id="role" aria-label="Filter by message role">
+          <option value="">all message roles</option>
+          <option value="user,assistant">user and assistant</option>
+          <option value="user">user messages</option>
+          <option value="assistant">assistant replies</option>
+          <option value="tool">tool output</option>
+        </select>
+      </div>
+      <div class="date-row">
+        <select id="date-mode" aria-label="Filter by date">
+          <option value="all">all dates</option>
+          <option value="today">today</option>
+          <option value="yesterday">yesterday</option>
+          <option value="single">single day&hellip;</option>
+          <option value="range">date range&hellip;</option>
+        </select>
+        <div id="date-single-wrap" class="date-input-wrap">
+          <input type="date" id="date-single" class="date-input" title="Choose day">
+        </div>
+        <div id="date-range-wrap" class="date-input-wrap">
+          <input type="date" id="date-from" class="date-input" title="From date">
+          <span style="font-size:11px;color:var(--ink-3)">&ndash;</span>
+          <input type="date" id="date-to" class="date-input" title="To date">
+        </div>
+        <button id="date-clear" class="date-clear-btn" title="Reset date filter">&times;</button>
+      </div>
       <div class="searchwrap">
         <svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="5"/><path d="m11 11 3.5 3.5"/></svg>
         <input type="search" id="q" placeholder="Search sessions" autocomplete="off">
         <kbd>/</kbd>
       </div>
-      <select id="tool" aria-label="Filter by tool">
-        <option value="">all tools</option>
-      </select>
-      <select id="role" aria-label="Filter by message role">
-        <option value="">all message roles</option>
-        <option value="user,assistant">user and assistant</option>
-        <option value="user">user messages</option>
-        <option value="assistant">assistant replies</option>
-        <option value="tool">tool output</option>
-      </select>
     </div>
     <nav id="list"></nav>
     <div class="sidefoot">
@@ -520,6 +646,7 @@
       </div>
     </div>
   </aside>
+  <div class="resizer" id="resizer" title="Drag to resize sidebar"></div>
   <main id="main">
     <div class="placeholder">
       <h2 id="ph-title">Pick a session on the left</h2>
@@ -868,8 +995,18 @@ function setActive(elm) {
 }
 
 /* ---------- transcript ---------- */
+let currentSession = null;
+
 async function openSession(id) {
   const s = await jget("/api/session/" + encodeURIComponent(id));
+  currentSession = s;
+  renderCurrentSession(false);
+}
+
+function renderCurrentSession(keepScroll) {
+  if (!currentSession) return;
+  const s = currentSession;
+  const roleFilter = $("role").value;
 
   const head = el("div", "doc-head");
   head.appendChild(el("h2", "", s.title || L.untitled));
@@ -880,9 +1017,33 @@ async function openSession(id) {
   chips.appendChild(toolChip);
   chips.appendChild(el("span", "chip", s.project || "-"));
   chips.appendChild(el("span", "chip", fmtDate(s.started)));
-  chips.appendChild(el("span", "chip", L.messages(s.messages.length)));
+
+  // Message filtering by selected role
+  const visibleMessages = [];
+  for (let i = 0; i < s.messages.length; i++) {
+    const m = s.messages[i];
+    let show = true;
+    if (roleFilter === "user,assistant") {
+      show = (m.role === "user" || m.role === "assistant");
+    } else if (roleFilter === "user") {
+      show = (m.role === "user");
+    } else if (roleFilter === "assistant") {
+      show = (m.role === "assistant");
+    } else if (roleFilter === "tool") {
+      show = (m.role === "tool");
+    }
+    if (show) {
+      visibleMessages.push({ m, origIndex: i });
+    }
+  }
+
+  const countStr = roleFilter && visibleMessages.length !== s.messages.length
+    ? `${visibleMessages.length} / ${s.messages.length}`
+    : `${s.messages.length}`;
+  chips.appendChild(el("span", "chip", L.messages(countStr)));
   head.appendChild(chips);
   head.appendChild(el("div", "path", s.path));
+
   if (s.summary) {
     head.appendChild(el("div", "synopsis", s.summary));
   }
@@ -897,18 +1058,25 @@ async function openSession(id) {
     }
     head.appendChild(row);
   }
+
+  // Collapsible files list (collapsed by default)
   if (s.touched && s.touched.length) {
+    const det = el("details", "files-details");
+    const sum = el("summary", "", `${L.filesLabel || "Files"} (${s.touched.length})`);
+    det.appendChild(sum);
     const row = el("div", "files");
-    row.appendChild(el("span", "lbl", L.filesLabel));
     for (const p of s.touched) {
-      const base = p.split("/").pop() || p;
+      const parts = p.split(/[\/\\]/);
+      const base = parts.pop() || p;
       const chip = el("span", "filechip", base);
       chip.title = p;
       chip.onclick = () => showFileHistory(p, chip);
       row.appendChild(chip);
     }
-    head.appendChild(row);
+    det.appendChild(row);
+    head.appendChild(det);
   }
+
   if (s.note) {
     head.appendChild(el("div", "note", s.note));
   }
@@ -931,28 +1099,35 @@ async function openSession(id) {
 
   const doc = el("div", "doc");
 
-  // Outline: the user turns are the session's table of contents.
-  // Each entry jumps to its message in the transcript.
+  // Outline: user turns from visible messages
   const userTurns = [];
-  s.messages.forEach((m, i) => {
+  visibleMessages.forEach(({ m }, vi) => {
     const t = m.text.trimStart();
-    if (m.role === "user" && !t.startsWith("<") && !t.startsWith("[Request interrupted")) userTurns.push(i);
+    if (m.role === "user" && !t.startsWith("<") && !t.startsWith("[Request interrupted")) {
+      userTurns.push({ vi, text: m.text });
+    }
   });
   const anchors = {};
   if (userTurns.length >= 3) {
     const det = el("details", "outline");
     det.appendChild(el("summary", "", L.outline(userTurns.length)));
     const ol = el("ol");
-    for (const i of userTurns) {
-      const li = el("li", "", s.messages[i].text.replace(/\s+/g, " ").slice(0, 110));
-      li.onclick = () => anchors[i] && anchors[i].scrollIntoView({ behavior: "smooth", block: "start" });
+    for (const ut of userTurns) {
+      const li = el("li", "", ut.text.replace(/\s+/g, " ").slice(0, 110));
+      li.onclick = () => anchors[ut.vi] && anchors[ut.vi].scrollIntoView({ behavior: "smooth", block: "start" });
       ol.appendChild(li);
     }
     det.appendChild(ol);
     doc.appendChild(det);
   }
 
-  for (const [mi, m] of s.messages.entries()) {
+  if (visibleMessages.length === 0) {
+    const emptyMsg = el("div", "empty", `No messages matching role filter "${roleFilter}".`);
+    doc.appendChild(emptyMsg);
+  }
+
+  for (let vi = 0; vi < visibleMessages.length; vi++) {
+    const { m } = visibleMessages[vi];
     if (m.role === "tool") {
       const row = el("div", "toolrow");
       const sum = el("summary", "", m.text.split("\n")[0].slice(0, 140));
@@ -968,7 +1143,7 @@ async function openSession(id) {
         row.appendChild(el("div", "toolline", m.text));
       }
       doc.appendChild(row);
-      anchors[mi] = row;
+      anchors[vi] = row;
       continue;
     }
     const wrap = el("div", "msg " + m.role);
@@ -981,17 +1156,15 @@ async function openSession(id) {
     content.appendChild(body);
     wrap.append(av, content);
     doc.appendChild(wrap);
-    anchors[mi] = wrap;
+    anchors[vi] = wrap;
   }
 
-  // See also: related sessions (same project + shared files + shared tags).
-  // This panel is shared with the file-history view below, so a monotonic token
-  // guards it: a slow response never overwrites a newer one (rapid chip clicks).
+  // See also panel
   const seealso = el("div", "seealso");
   doc.appendChild(seealso);
   let seealsoGen = 0;
   const relatedGen = ++seealsoGen;
-  jget("/api/related/" + encodeURIComponent(s.id || id)).then((rel) => {
+  jget("/api/related/" + encodeURIComponent(s.id)).then((rel) => {
     if (relatedGen !== seealsoGen || !rel || !rel.length) return;
     seealso.appendChild(el("h3", "", L.seeAlso || "See also"));
     for (const r of rel) {
@@ -1003,23 +1176,20 @@ async function openSession(id) {
     }
   }).catch(() => {});
 
-  // Clicking a touched file shows the file's evidence chain: the sessions that
-  // edited it (newest first), each with what it changed.
   const EDITS_SHOWN = 6;
-  function showFileHistory(path, chip) {
+  function showFileHistory(filePath, chip) {
     document.querySelectorAll(".filechip.on").forEach((c) => c.classList.remove("on"));
     chip.classList.add("on");
-    const base = path.split("/").pop() || path;
+    const parts = filePath.split(/[\/\\]/);
+    const base = parts.pop() || filePath;
     const my = ++seealsoGen;
-    jget("/api/file?path=" + encodeURIComponent(path)).then((hist) => {
-      if (my !== seealsoGen) return; // a newer click already owns the panel
+    jget("/api/file?path=" + encodeURIComponent(filePath)).then((hist) => {
+      if (my !== seealsoGen) return;
       seealso.replaceChildren(el("h3", "", L.fileHistory(base)));
       for (const r of ((hist && hist.sessions) || [])) {
         const a = el("div", "rel");
         a.appendChild(el("div", "t", r.title || L.untitled));
         a.appendChild(el("div", "m", `${r.tool} · ${fmtDate(r.started)} · ${L.msgs(r.msgs)}`));
-        // The evidence: what this session actually changed in the file, bounded
-        // so a file with a huge edit history keeps the panel snappy.
         if (r.edits && r.edits.length) {
           const ev = el("div", "edits");
           for (const e of r.edits.slice(0, EDITS_SHOWN)) {
@@ -1047,8 +1217,9 @@ async function openSession(id) {
     });
   }
 
+  const prevScroll = keepScroll ? $("main").scrollTop : 0;
   $("main").replaceChildren(head, doc);
-  $("main").scrollTop = 0;
+  $("main").scrollTop = prevScroll;
 }
 
 function filterByTag(tag) {
@@ -1058,20 +1229,77 @@ function filterByTag(tag) {
 }
 
 /* ---------- data flow ---------- */
+function getDateBounds() {
+  const mode = $("date-mode").value;
+  let since = null;
+  let until = null;
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const toYMD = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+  if (mode === "today") {
+    since = toYMD(now);
+    until = toYMD(now);
+  } else if (mode === "yesterday") {
+    const y = new Date(now.getTime() - 86400000);
+    since = toYMD(y);
+    until = toYMD(y);
+  } else if (mode === "single") {
+    const val = $("date-single").value;
+    if (val) {
+      since = val;
+      until = val;
+    }
+  } else if (mode === "range") {
+    since = $("date-from").value || null;
+    until = $("date-to").value || null;
+  }
+  return { since, until, mode };
+}
+
+function updateDateUI() {
+  const mode = $("date-mode").value;
+  const singleWrap = $("date-single-wrap");
+  const rangeWrap = $("date-range-wrap");
+  const clearBtn = $("date-clear");
+
+  singleWrap.classList.toggle("active", mode === "single");
+  rangeWrap.classList.toggle("active", mode === "range");
+  clearBtn.classList.toggle("active", mode !== "all");
+}
+
 async function refresh() {
   const q = $("q").value.trim();
   const tool = $("tool").value;
   const t = tool ? `&tool=${encodeURIComponent(tool)}` : "";
   const roles = $("role").value;
   const r = roles ? `&roles=${encodeURIComponent(roles)}` : "";
+  const { since, until } = getDateBounds();
+  const sParam = since ? `&since=${encodeURIComponent(since)}` : "";
+  const uParam = until ? `&until=${encodeURIComponent(until)}` : "";
+
   renderTagBar();
+  let items = [];
   if (q.length >= 3) {
-    renderItems(await jget(`/api/search?q=${encodeURIComponent(q)}${t}${r}`), true);
+    items = await jget(`/api/search?q=${encodeURIComponent(q)}${t}${r}${sParam}${uParam}`);
   } else if (currentTag) {
-    renderItems(await jget(`/api/sessions?limit=200${t}&tag=${encodeURIComponent(currentTag)}`), false);
+    items = await jget(`/api/sessions?limit=500${t}&tag=${encodeURIComponent(currentTag)}${sParam}${uParam}`);
   } else {
-    renderItems(await jget(`/api/sessions?limit=200${t}`), false);
+    items = await jget(`/api/sessions?limit=500${t}${sParam}${uParam}`);
   }
+
+  // Client-side date filter safeguard
+  if (since || until) {
+    items = items.filter((row) => {
+      if (!row.started) return false;
+      const rowDay = row.started.slice(0, 10);
+      if (since && rowDay < since) return false;
+      if (until && rowDay > until) return false;
+      return true;
+    });
+  }
+
+  renderItems(items, q.length >= 3);
 }
 
 // A removable chip above the list when a tag filter is active.
@@ -1098,7 +1326,68 @@ $("q").addEventListener("input", () => {
   timer = setTimeout(refresh, 250);
 });
 $("tool").addEventListener("change", refresh);
-$("role").addEventListener("change", refresh);
+$("role").addEventListener("change", () => {
+  refresh();
+  renderCurrentSession(true);
+});
+$("date-mode").addEventListener("change", () => {
+  updateDateUI();
+  refresh();
+});
+$("date-single").addEventListener("change", refresh);
+$("date-from").addEventListener("change", refresh);
+$("date-to").addEventListener("change", refresh);
+$("date-clear").addEventListener("click", () => {
+  $("date-mode").value = "all";
+  $("date-single").value = "";
+  $("date-from").value = "";
+  $("date-to").value = "";
+  updateDateUI();
+  refresh();
+});
+
+// Sidebar resizer drag & drop
+(function initResizer() {
+  const sidebar = $("sidebar") || document.querySelector("aside");
+  const resizer = $("resizer");
+  const savedWidth = localStorage.getItem("sessionwiki_sidebar_width");
+  if (savedWidth && sidebar) {
+    const w = parseInt(savedWidth, 10);
+    if (w >= 240 && w <= window.innerWidth * 0.8) {
+      sidebar.style.width = w + "px";
+    }
+  }
+
+  if (resizer && sidebar) {
+    let isDragging = false;
+    resizer.addEventListener("mousedown", (e) => {
+      isDragging = true;
+      resizer.classList.add("dragging");
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    });
+
+    window.addEventListener("mousemove", (e) => {
+      if (!isDragging) return;
+      const minW = 240;
+      const maxW = Math.max(minW, Math.floor(window.innerWidth * 0.75));
+      const newW = Math.min(Math.max(e.clientX, minW), maxW);
+      sidebar.style.width = newW + "px";
+    });
+
+    window.addEventListener("mouseup", () => {
+      if (isDragging) {
+        isDragging = false;
+        resizer.classList.remove("dragging");
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        if (sidebar.style.width) {
+          localStorage.setItem("sessionwiki_sidebar_width", parseInt(sidebar.style.width, 10));
+        }
+      }
+    });
+  }
+})();
 document.addEventListener("keydown", (e) => {
   if (e.key === "/" && document.activeElement !== $("q")) {
     e.preventDefault();

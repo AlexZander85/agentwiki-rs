@@ -160,16 +160,20 @@ fn api_sessions(conn: &Connection, query: &str) -> Result<Boxed> {
     let tool = param(query, "tool");
     let project = param(query, "project");
     let tag = param(query, "tag");
+    let since = param(query, "since");
+    let until = param(query, "until");
     let limit = param(query, "limit")
         .and_then(|s| s.parse().ok())
-        .unwrap_or(200);
-    let rows = index::recent(
+        .unwrap_or(500);
+    let rows = index::recent_range(
         conn,
         limit,
         tool.as_deref(),
         project.as_deref(),
         tag.as_deref(),
         false,
+        since.as_deref(),
+        until.as_deref(),
     )?;
     json_response(json!(rows.iter().map(row_json).collect::<Vec<_>>()))
 }
