@@ -64,6 +64,7 @@ pub fn serve(port: u16, no_open: bool, sync: bool) -> Result<()> {
             "/api/trace" => api_trace(&conn, query),
             "/api/file" => api_file(&conn, query),
             "/api/projects" => api_projects(&conn),
+            "/api/tag" => api_tag(&conn, query),
             p if p.starts_with("/api/related/") => {
                 api_related(&conn, p.trim_start_matches("/api/related/"))
             }
@@ -303,6 +304,32 @@ fn api_file(conn: &Connection, query: &str) -> Result<Boxed> {
         })
         .collect();
     json_response(json!({ "path": hist.path, "sessions": sessions }))
+}
+
+fn api_tag(conn: &Connection, query: &str) -> Result<Boxed> {
+    let id = param(query, "id").context("missing session id")?;
+    let matches = index::resolve(conn, &id)?;
+    let row = matches.first().context("session not found")?;
+
+    if let Some(add) = param(query, "add") {
+        for t in add.split([',', ' ']).map(str::trim).filter(|s| !s.is_empty()) {
+            let _ = index::add_tag(conn, &row.session_id, t);
+        }
+    }
+    if let Some(rm) = param(query, "rm") {
+        for t in rm.split([',', ' ']).map(str::trim).filter(|s| !s.is_empty()) {
+            let _ = index::remove_tag(conn, &row.session_id, t);
+        }
+    }
+
+    let updated = index::resolve(conn, &row.session_id)?;
+    let tags = updated
+        .first()
+        .and_then(|r| r.tags.as_ref())
+        .map(|t| t.split(',').map(String::from).collect::<Vec<_>>())
+        .unwrap_or_default();
+
+    json_response(json!({ "ok": true, "session_id": row.session_id, "tags": tags }))
 }
 
 fn api_session(conn: &Connection, id: &str) -> Result<Boxed> {
