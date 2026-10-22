@@ -31,10 +31,18 @@ pub fn run(preferred_port: Option<u16>) -> Result<()> {
     }
 
     let event_loop = EventLoop::new();
-    let window = WindowBuilder::new()
+    let icon = {
+        let rgba = include_bytes!("../assets/icon_64.rgba");
+        tao::window::Icon::from_rgba(rgba.to_vec(), 64, 64).ok()
+    };
+
+    let mut builder = WindowBuilder::new()
         .with_title("SessionWiki")
-        .with_inner_size(tao::dpi::LogicalSize::new(1440.0, 920.0))
-        .build(&event_loop)?;
+        .with_inner_size(tao::dpi::LogicalSize::new(1440.0, 920.0));
+    if let Some(ic) = icon {
+        builder = builder.with_window_icon(Some(ic));
+    }
+    let window = builder.build(&event_loop)?;
 
     let url = format!("http://{addr}");
     let _webview = WebViewBuilder::new()
