@@ -113,6 +113,13 @@ enum Command {
         #[arg(long)]
         sync: bool,
     },
+    /// Open the native desktop application window
+    #[cfg(feature = "gui")]
+    App {
+        /// Port to connect to or listen on (default: 7575)
+        #[arg(long)]
+        port: Option<u16>,
+    },
     /// Print one session as a readable transcript
     Show {
         /// Session id (prefix is enough), from list/search output
@@ -389,6 +396,13 @@ fn main() {
             no_open,
             sync,
         } => web::serve(port, no_open, sync),
+        #[cfg(feature = "gui")]
+        Command::App { port } => {
+            if let Err(e) = sessionwiki::app::run(port) {
+                eprintln!("sessionwiki app error: {e}");
+            }
+            Ok(())
+        }
         Command::Show {
             id,
             full,

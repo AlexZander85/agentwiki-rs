@@ -1,4 +1,5 @@
 /target
+*.exe
 
 # Runtime index DB. db_path() defaults to ~/.local/share/sessionwiki, but
 # SESSIONWIKI_DATA can redirect it anywhere, including this repo - never commit
@@ -27,3 +28,5 @@ Thumbs.db
 .bridge/
 npm/build/
 npm/README.md
+
+*.WebView2/
