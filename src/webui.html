@@ -275,7 +275,16 @@
     padding: 9px 12px 11px;
     border-top: 1px solid var(--line);
   }
-  .sidefoot .hint { display: block; color: var(--ink-3); font-size: 10.5px; margin-bottom: 7px; padding: 0 2px; }
+  .hint-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 7px;
+    padding: 0 2px;
+  }
+  .sidefoot .hint { color: var(--ink-3); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .list-count { color: var(--ink-2); font-size: 11px; font-weight: 550; white-space: nowrap; }
   .footrow { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .themebtn {
     font: 500 11.5px/1.2 inherit;
@@ -865,7 +874,10 @@
     </div>
     <nav id="list"></nav>
     <div class="sidefoot">
-      <span class="hint" id="hint">read-only view &middot; refresh: sessionwiki list</span>
+      <div class="hint-row">
+        <span class="hint" id="hint">read-only view &middot; refresh: sessionwiki list</span>
+        <span class="list-count" id="list-count"></span>
+      </div>
       <div class="footrow">
         <div class="langctl" id="langctl">
           <button class="langbtn" id="langbtn" aria-haspopup="listbox" aria-expanded="false">
@@ -1206,6 +1218,18 @@ function renderInline(text, container) {
 function renderItems(rows, isSearch) {
   const list = $("list");
   list.replaceChildren();
+
+  const countEl = $("list-count");
+  if (countEl) {
+    if (!rows.length) {
+      countEl.textContent = "";
+    } else {
+      const totalMsgs = rows.reduce((sum, r) => sum + (r.msgs || 0), 0);
+      countEl.textContent = `${rows.length} · ${totalMsgs.toLocaleString()} msgs`;
+      countEl.title = `${rows.length} sessions, ${totalMsgs} total messages in current view`;
+    }
+  }
+
   if (!rows.length) {
     list.appendChild(el("div", "empty", isSearch ? L.noMatches : L.emptyIndex));
     return;
