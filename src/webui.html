@@ -1034,11 +1034,12 @@
     border-color: var(--accent);
   }
 
-  /* Clean GFM Tables (GitHub/ChatGPT/Tailwind Typography style) */
+  /* Clean GFM Tables (GitHub/MDHero Grid style with clear column dividers) */
   .table-wrap {
     width: 100%;
     overflow-x: auto;
     margin: 12px 0;
+    border-radius: 6px;
   }
   .msg .body table {
     width: 100%;
@@ -1046,24 +1047,24 @@
     margin: 0;
     font-size: 13px;
     line-height: 1.5;
+    border: 1px solid var(--line);
   }
   .msg .body thead {
-    border-bottom: 2px solid var(--line-strong);
+    background: var(--card-subtle);
   }
   .msg .body th {
     padding: 8px 14px;
     font-weight: 600;
     text-align: left;
     color: var(--ink);
-    border: none;
+    border: 1px solid var(--line);
     border-bottom: 2px solid var(--line-strong);
     background: var(--card-subtle);
     white-space: nowrap;
   }
   .msg .body td {
     padding: 8px 14px;
-    border: none;
-    border-bottom: 1px solid var(--line);
+    border: 1px solid var(--line);
     vertical-align: top;
     color: var(--ink-1);
   }
