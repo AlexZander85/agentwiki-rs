@@ -1,8 +1,8 @@
 use super::{
-    bounded_redacted_output, dedup_paths, ok_or_flag, redacted_truncate, title_from_messages,
-    Adapter, Discovered, Store,
+    bounded_redacted_output, clean_path, dedup_paths, ok_or_flag, redacted_truncate,
+    title_from_messages, Adapter, Discovered, Store,
 };
-use crate::model::{Message, Role, Session, ToolCall, ToolResult};
+use crate::model::{EditEvent, EditKind, Message, Role, Session, ToolCall, ToolResult};
 use crate::util::short_id;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -73,27 +73,42 @@ impl Adapter for OpenCode {
                     continue;
                 }
             };
-            let mut stmt = match conn.prepare("SELECT id, time_updated, time_created FROM session")
-            {
-                Ok(s) => s,
-                Err(_) => {
-                    had_error = true;
-                    continue;
-                }
-            };
-            let rows = stmt.query_map([], |r| {
-                let id: String = r.get(0)?;
-                let updated: Option<i64> = r.get(1)?;
-                let created: Option<i64> = r.get(2)?;
-                Ok((id, updated.or(created).unwrap_or(0)))
-            });
-            match rows {
-                Ok(rows) => {
-                    for (id, token) in rows.flatten() {
-                        keys.push((make_key(db, &id), token));
+            let mut seen = std::collections::HashSet::new();
+
+            // OpenCode v2.x schema (session_v2 table)
+            if table_exists(&conn, "session_v2") {
+                if let Ok(mut stmt) = conn.prepare("SELECT id, time_updated, time_created FROM session_v2") {
+                    if let Ok(rows) = stmt.query_map([], |r| {
+                        let id: String = r.get(0)?;
+                        let updated: Option<i64> = r.get(1)?;
+                        let created: Option<i64> = r.get(2)?;
+                        Ok((id, updated.or(created).unwrap_or(0)))
+                    }) {
+                        for (id, token) in rows.flatten() {
+                            if seen.insert(id.clone()) {
+                                keys.push((make_key(db, &id), token));
+                            }
+                        }
                     }
                 }
-                Err(_) => had_error = true,
+            }
+
+            // OpenCode v1.x schema (session table)
+            if table_exists(&conn, "session") {
+                if let Ok(mut stmt) = conn.prepare("SELECT id, time_updated, time_created FROM session") {
+                    if let Ok(rows) = stmt.query_map([], |r| {
+                        let id: String = r.get(0)?;
+                        let updated: Option<i64> = r.get(1)?;
+                        let created: Option<i64> = r.get(2)?;
+                        Ok((id, updated.or(created).unwrap_or(0)))
+                    }) {
+                        for (id, token) in rows.flatten() {
+                            if seen.insert(id.clone()) {
+                                keys.push((make_key(db, &id), token));
+                            }
+                        }
+                    }
+                }
             }
         }
         Some(Store {
@@ -107,6 +122,134 @@ impl Adapter for OpenCode {
         let (db, sid) = key.split_once(KEY_SEP).context("malformed opencode key")?;
         let conn = open_ro(Path::new(db)).with_context(|| format!("open {db}"))?;
 
+        if table_exists(&conn, "session_v2") {
+            if let Ok(session) = self.parse_v2(&conn, db, sid, key) {
+                return Ok(session);
+            }
+        }
+
+        self.parse_v1(&conn, db, sid, key)
+    }
+
+    fn parse(&self, path: &Path) -> Result<Session> {
+        parse_json(self.name(), path)
+    }
+}
+
+fn table_exists(conn: &Connection, table: &str) -> bool {
+    conn.query_row(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1",
+        params![table],
+        |_| Ok(true),
+    )
+    .unwrap_or(false)
+}
+
+impl OpenCode {
+    fn parse_v2(&self, conn: &Connection, _db: &str, sid: &str, key: &str) -> Result<Session> {
+        let (project, raw_title, created, updated, parent): (
+            String,
+            String,
+            Option<i64>,
+            Option<i64>,
+            Option<String>,
+        ) = conn.query_row(
+            "SELECT directory, title, time_created, time_updated, parent_id
+             FROM session_v2 WHERE id = ?1",
+            params![sid],
+            |r| {
+                Ok((
+                    r.get::<_, Option<String>>(0)?.unwrap_or_default(),
+                    r.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                    r.get(2)?,
+                    r.get(3)?,
+                    r.get(4)?,
+                ))
+            },
+        )?;
+
+        let mut stmt = conn.prepare(
+            "SELECT type, time_created, data FROM session_message
+             WHERE session_id = ?1 ORDER BY seq ASC, id ASC LIMIT 200000",
+        )?;
+
+        let mut messages: Vec<Message> = Vec::new();
+        let mut touched: Vec<String> = Vec::new();
+        let mut edits: Vec<EditEvent> = Vec::new();
+
+        let rows = stmt.query_map(params![sid], |r| {
+            let mtype: String = r.get(0)?;
+            let tc: Option<i64> = r.get(1)?;
+            let data: String = r.get(2)?;
+            Ok((mtype, tc, data))
+        })?;
+
+        for row in rows.flatten() {
+            let (mtype, tc, data_str) = row;
+            let ts = tc.and_then(DateTime::from_timestamp_millis);
+            let Ok(data) = serde_json::from_str::<Value>(&data_str) else {
+                continue;
+            };
+
+            match mtype.as_str() {
+                "user" => {
+                    let text = data
+                        .get("text")
+                        .or_else(|| data.get("content"))
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .trim();
+                    if !text.is_empty() {
+                        push(&mut messages, Role::User, text, ts);
+                    }
+                }
+                "assistant" => {
+                    if let Some(content) = data.get("content").and_then(Value::as_array) {
+                        for item in content {
+                            let itype = item.get("type").and_then(Value::as_str).unwrap_or("");
+                            match itype {
+                                "text" => {
+                                    if let Some(t) = item.get("text").and_then(Value::as_str) {
+                                        let text = t.trim();
+                                        if !text.is_empty() {
+                                            push(&mut messages, Role::Assistant, text, ts);
+                                        }
+                                    }
+                                }
+                                "tool" => {
+                                    emit_tool_part_v2(item, ts, &mut messages, &mut touched, &mut edits);
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let title = if raw_title.trim().is_empty() || raw_title.starts_with("New session") {
+            title_from_messages(&messages)
+        } else {
+            redacted_truncate(&raw_title, 80)
+        };
+
+        Ok(Session {
+            id: short_id(key),
+            tool: self.name(),
+            path: PathBuf::from(display_path(key)),
+            project,
+            started: created.and_then(DateTime::from_timestamp_millis),
+            ended: updated.and_then(DateTime::from_timestamp_millis),
+            title,
+            subagent: parent.is_some_and(|p| !p.is_empty()),
+            messages,
+            touched: dedup_paths(touched),
+            edits,
+        })
+    }
+
+    fn parse_v1(&self, conn: &Connection, _db: &str, sid: &str, key: &str) -> Result<Session> {
         let (project, raw_title, created, updated): (String, String, Option<i64>, Option<i64>) =
             conn.query_row(
                 "SELECT directory, title, time_created, time_updated
@@ -121,9 +264,7 @@ impl Adapter for OpenCode {
                     ))
                 },
             )?;
-        // parent_id is fetched separately and tolerantly: an older or partial
-        // schema without the column degrades to "not a subagent" rather than
-        // failing the whole session.
+
         let parent: Option<String> = conn
             .query_row(
                 "SELECT parent_id FROM session WHERE id = ?1",
@@ -132,9 +273,6 @@ impl Adapter for OpenCode {
             )
             .unwrap_or(None);
 
-        // role per message, in transcript order.
-        // LIMIT caps memory if a malicious db packs millions of rows into one
-        // session; a real session is orders of magnitude below this.
         let mut mstmt = conn.prepare(
             "SELECT id, time_created, data FROM message
              WHERE session_id = ?1 ORDER BY time_created, id LIMIT 200000",
@@ -149,7 +287,6 @@ impl Adapter for OpenCode {
             .filter_map(|x| x.ok())
             .collect();
 
-        // content parts, grouped per message in order.
         let mut pstmt = conn.prepare(
             "SELECT message_id, data FROM part
              WHERE session_id = ?1 ORDER BY time_created, id LIMIT 200000",
@@ -168,6 +305,7 @@ impl Adapter for OpenCode {
 
         let mut messages: Vec<Message> = Vec::new();
         let mut touched: Vec<String> = Vec::new();
+        let mut edits: Vec<EditEvent> = Vec::new();
         for (mid, tc, mdata) in &messages_meta {
             let role = match mdata.get("role").and_then(Value::as_str) {
                 Some("user") => Role::User,
@@ -184,7 +322,7 @@ impl Adapter for OpenCode {
                         }
                     }
                     Some("tool") => {
-                        emit_tool_part(p, ts, &mut messages, &mut touched);
+                        emit_tool_part(p, ts, &mut messages, &mut touched, &mut edits);
                     }
                     Some("patch") => {
                         if let Some(Value::Array(files)) = p.get("files") {
@@ -195,7 +333,6 @@ impl Adapter for OpenCode {
                             }
                         }
                     }
-                    // reasoning / step-* / file / snapshot - skip.
                     _ => {}
                 }
             }
@@ -218,12 +355,8 @@ impl Adapter for OpenCode {
             subagent: parent.is_some_and(|p| !p.is_empty()),
             messages,
             touched: dedup_paths(touched),
-            edits: Vec::new(),
+            edits,
         })
-    }
-
-    fn parse(&self, path: &Path) -> Result<Session> {
-        parse_json(self.name(), path)
     }
 }
 
@@ -330,6 +463,7 @@ fn parse_json(tool: &'static str, path: &Path) -> Result<Session> {
 
     let mut messages: Vec<Message> = Vec::new();
     let mut touched: Vec<String> = Vec::new();
+    let mut edits: Vec<EditEvent> = Vec::new();
 
     if let Some(store) = store {
         for msg_path in sorted_json(&store.join("message").join(&session_id)) {
@@ -365,7 +499,7 @@ fn parse_json(tool: &'static str, path: &Path) -> Result<Session> {
                         }
                     }
                     Some("tool") => {
-                        emit_tool_part(&p, ts, &mut messages, &mut touched);
+                        emit_tool_part(&p, ts, &mut messages, &mut touched, &mut edits);
                     }
                     Some("patch") => {
                         if let Some(Value::Array(files)) = p.get("files") {
@@ -395,21 +529,52 @@ fn parse_json(tool: &'static str, path: &Path) -> Result<Session> {
         subagent,
         messages,
         touched: dedup_paths(touched),
-        edits: Vec::new(),
+        edits,
     })
 }
 
-/// Both layouts name an edited file in `state.input.filePath` for the
+/// Both layouts name an edited file in `state.input.filePath` or `path` for the
 /// `edit`/`write`/`multiedit` tools. Reads are not authorship.
 fn edited_path(tool: &str, input: Option<&Value>) -> Option<String> {
     if !matches!(tool, "edit" | "write" | "multiedit") {
         return None;
     }
-    input?
-        .get("filePath")
-        .and_then(Value::as_str)
-        .filter(|p| !p.is_empty())
-        .map(String::from)
+    let input = input?;
+    for key in ["filePath", "path", "file_path"] {
+        if let Some(p) = input.get(key).and_then(Value::as_str) {
+            if !p.is_empty() {
+                return Some(p.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn edit_event(tool: &str, input: Option<&Value>, ts: Option<DateTime<Utc>>) -> Option<EditEvent> {
+    let path = clean_path(&edited_path(tool, input)?)?;
+    let input = input?;
+    let kind = match tool {
+        "edit" | "multiedit" => EditKind::Edit,
+        "write" => EditKind::Write,
+        _ => return None,
+    };
+    let raw = match kind {
+        EditKind::Edit => input
+            .get("newString")
+            .or_else(|| input.get("new_string"))
+            .or_else(|| input.get("new_str"))
+            .and_then(Value::as_str)
+            .unwrap_or(""),
+        EditKind::Write => input.get("content").and_then(Value::as_str).unwrap_or(""),
+        _ => "",
+    };
+    let snippet = redacted_truncate(raw.trim(), 200);
+    Some(EditEvent {
+        path,
+        kind,
+        snippet,
+        ts,
+    })
 }
 
 fn emit_tool_part(
@@ -417,11 +582,18 @@ fn emit_tool_part(
     ts: Option<DateTime<Utc>>,
     messages: &mut Vec<Message>,
     touched: &mut Vec<String>,
+    edits: &mut Vec<EditEvent>,
 ) {
     let name = part.get("tool").and_then(Value::as_str).unwrap_or("?");
     let input = part.pointer("/state/input");
-    if let Some(path) = edited_path(name, input) {
-        touched.push(path);
+    let tool_lower = name.to_ascii_lowercase();
+    if let Some(path) = edited_path(&tool_lower, input) {
+        if let Some(clean) = clean_path(&path) {
+            touched.push(clean);
+            if let Some(ev) = edit_event(&tool_lower, input, ts) {
+                edits.push(ev);
+            }
+        }
     }
 
     let mut args = input.cloned().unwrap_or_else(|| serde_json::json!({}));
@@ -463,6 +635,86 @@ fn emit_tool_part(
                     .map(str::to_owned),
                 text: bounded_redacted_output(output.or(error).unwrap_or_default()),
                 is_error: status == Some("error") || has_error_field,
+            },
+        ));
+    }
+}
+
+fn emit_tool_part_v2(
+    part: &Value,
+    ts: Option<DateTime<Utc>>,
+    messages: &mut Vec<Message>,
+    touched: &mut Vec<String>,
+    edits: &mut Vec<EditEvent>,
+) {
+    let name = part
+        .get("name")
+        .or_else(|| part.get("tool"))
+        .and_then(Value::as_str)
+        .unwrap_or("?");
+    let input = part.pointer("/state/input").or_else(|| part.get("input"));
+    let tool_lower = name.to_ascii_lowercase();
+
+    if let Some(path) = edited_path(&tool_lower, input) {
+        if let Some(clean) = clean_path(&path) {
+            touched.push(clean);
+            if let Some(ev) = edit_event(&tool_lower, input, ts) {
+                edits.push(ev);
+            }
+        }
+    }
+
+    let mut args = input.cloned().unwrap_or_else(|| serde_json::json!({}));
+    redact_json_strings(&mut args);
+    let call_id = part
+        .get("id")
+        .or_else(|| part.get("callID"))
+        .and_then(Value::as_str)
+        .filter(|id| !id.is_empty())
+        .map(str::to_owned);
+
+    messages.push(Message::tool_call(
+        ts,
+        ToolCall {
+            id: call_id.clone(),
+            name: name.to_owned(),
+            args,
+        },
+    ));
+
+    let state = part.get("state");
+    let status = state
+        .and_then(|v| v.get("status"))
+        .and_then(Value::as_str);
+
+    let mut output_text: Option<String> = None;
+    if let Some(s) = state {
+        if let Some(c) = s.get("content").and_then(Value::as_array) {
+            let texts: Vec<&str> = c
+                .iter()
+                .filter_map(|x| x.get("text").and_then(Value::as_str))
+                .collect();
+            if !texts.is_empty() {
+                output_text = Some(texts.join("\n"));
+            }
+        }
+        if output_text.is_none() {
+            if let Some(out) = s.get("output").and_then(Value::as_str) {
+                output_text = Some(out.to_string());
+            } else if let Some(err) = s.get("error").and_then(Value::as_str) {
+                output_text = Some(err.to_string());
+            }
+        }
+    }
+
+    let is_error = status == Some("error") || status == Some("failed");
+    if let Some(text) = output_text {
+        messages.push(Message::tool_result(
+            ts,
+            ToolResult {
+                call_id,
+                text: bounded_redacted_output(&text),
+                is_error,
             },
         ));
     }
@@ -573,6 +825,73 @@ mod tests {
         let roles: Vec<_> = s.messages.iter().map(|m| m.role.label()).collect();
         assert_eq!(roles, ["user", "assistant", "tool"]);
         assert_eq!(s.touched, ["src/client.ts"]);
+        assert_eq!(s.started, DateTime::from_timestamp_millis(1718630400000));
+        assert_eq!(s.ended, DateTime::from_timestamp_millis(1718630500000));
+
+        let _ = std::fs::remove_file(&db);
+        let _ = std::fs::remove_file(db.with_extension("db-wal"));
+        let _ = std::fs::remove_file(db.with_extension("db-shm"));
+    }
+
+    #[test]
+    fn parses_a_sqlite_session_v2() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("opencode_v2.db");
+
+        {
+            let conn = Connection::open(&db).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE session_v2 (
+                    id TEXT PRIMARY KEY,
+                    parent_id TEXT,
+                    project_id TEXT,
+                    directory TEXT,
+                    title TEXT,
+                    time_created INTEGER,
+                    time_updated INTEGER
+                 );
+                 CREATE TABLE session_message (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    seq INTEGER NOT NULL,
+                    time_created INTEGER,
+                    data TEXT NOT NULL
+                 );",
+            )
+            .unwrap();
+
+            conn.execute(
+                "INSERT INTO session_v2 VALUES ('ses2', NULL, 'p2', '/home/dev/v2app', 'V2 Migration', 1718630400000, 1718630500000)",
+                [],
+            )
+            .unwrap();
+
+            conn.execute(
+                "INSERT INTO session_message VALUES ('m1', 'ses2', 'user', 1, 1718630400000, '{\"text\":\"Please fix disk issue\"}')",
+                [],
+            )
+            .unwrap();
+
+            conn.execute(
+                "INSERT INTO session_message VALUES ('m2', 'ses2', 'assistant', 2, 1718630450000, '{\"content\":[{\"type\":\"text\",\"text\":\"Fixing it now.\"},{\"type\":\"tool\",\"name\":\"write\",\"state\":{\"input\":{\"path\":\"src/disk.ts\",\"content\":\"const ok = true;\"}}}]}')",
+                [],
+            )
+            .unwrap();
+        }
+
+        let key = make_key(&db, "ses2");
+        let s = OpenCode.parse_key(&key).unwrap();
+
+        assert_eq!(s.tool, "opencode");
+        assert_eq!(s.project, "/home/dev/v2app");
+        assert_eq!(s.title, "V2 Migration");
+        assert!(!s.subagent);
+        let roles: Vec<_> = s.messages.iter().map(|m| m.role.label()).collect();
+        assert_eq!(roles, ["user", "assistant", "tool"]);
+        assert_eq!(s.touched, ["src/disk.ts"]);
+        assert_eq!(s.edits.len(), 1);
+        assert_eq!(s.edits[0].path, "src/disk.ts");
         assert_eq!(s.started, DateTime::from_timestamp_millis(1718630400000));
         assert_eq!(s.ended, DateTime::from_timestamp_millis(1718630500000));
 
