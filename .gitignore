@@ -28,3 +28,5 @@ Thumbs.db
 .bridge/
 npm/build/
 npm/README.md
+
+*.WebView2/
