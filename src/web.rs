@@ -224,7 +224,30 @@ fn api_search(conn: &Connection, query: &str) -> Result<Boxed> {
     let limit = param(query, "limit")
         .and_then(|s| s.parse().ok())
         .unwrap_or(50);
-    let hits = index::search_with_roles(conn, qt, limit, tool.as_deref(), None, roles.as_deref())?;
+    let mut hits = index::search_with_roles(conn, qt, limit, tool.as_deref(), None, roles.as_deref())?;
+
+    let terms = qt
+        .split_whitespace()
+        .filter(|w| w.chars().count() >= 2)
+        .collect::<Vec<_>>();
+    if hits.len() < limit && terms.len() > 1 {
+        let existing_ids: std::collections::HashSet<String> =
+            hits.iter().map(|h| h.row.session_id.clone()).collect();
+        if let Ok(extra_rows) =
+            index::search_sessions_multi_terms(conn, &terms, limit - hits.len(), tool.as_deref())
+        {
+            for row in extra_rows {
+                if !existing_ids.contains(&row.session_id) {
+                    hits.push(index::Hit {
+                        row,
+                        snippet: String::new(),
+                        role: "session".to_string(),
+                    });
+                }
+            }
+        }
+    }
+
     json_response(json!(hits
         .iter()
         .map(|h| {

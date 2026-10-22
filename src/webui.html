@@ -160,21 +160,46 @@
     padding: 4px 7px;
     font-size: 12px;
   }
-  .searchwrap { position: relative; width: 100%; }
+  .searchwrap { position: relative; width: 100%; display: flex; align-items: center; }
   .searchwrap svg {
     position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
     width: 13px; height: 13px; stroke: var(--ink-3); fill: none; stroke-width: 2;
     pointer-events: none;
   }
-  .searchwrap kbd {
-    position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
-    font: 600 10px/1 inherit; color: var(--ink-3);
-    border: 1px solid var(--line-strong); border-radius: 4px; padding: 2px 5px;
-    background: var(--card); pointer-events: none;
+  .add-tag-btn {
+    position: absolute; right: 7px; top: 50%; transform: translateY(-50%);
+    width: 20px; height: 20px; border-radius: 5px;
+    background: var(--bg-sunken); border: 1px solid var(--line);
+    color: var(--ink-2); font-size: 15px; font-weight: 600; line-height: 1;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    padding: 0; transition: all .15s;
   }
+  .add-tag-btn:hover {
+    background: var(--card); border-color: var(--accent); color: var(--accent);
+  }
+  .search-tags-row {
+    display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
+    margin-top: 6px; width: 100%;
+  }
+  .search-tag-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--card); border: 1px solid var(--accent);
+    color: var(--ink); font-size: 11px; padding: 2px 7px;
+    border-radius: 12px; font-weight: 500;
+  }
+  .search-tag-chip .remove-chip {
+    cursor: pointer; opacity: 0.6; font-size: 11px; margin-left: 2px;
+    line-height: 1; transition: opacity .15s, color .15s;
+  }
+  .search-tag-chip .remove-chip:hover { opacity: 1; color: var(--accent); }
+  .search-tags-clear {
+    font-size: 10.5px; color: var(--ink-3); background: none;
+    border: none; cursor: pointer; padding: 1px 4px; text-decoration: underline;
+  }
+  .search-tags-clear:hover { color: var(--ink); }
   .controls input[type="search"] {
     width: 100%;
-    padding: 7px 30px 7px 29px;
+    padding: 7px 32px 7px 29px;
     border: 1px solid var(--line);
     border-radius: 9px;
     background: var(--card);
@@ -834,8 +859,9 @@
       <div class="searchwrap">
         <svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="5"/><path d="m11 11 3.5 3.5"/></svg>
         <input type="search" id="q" placeholder="Search sessions" autocomplete="off">
-        <kbd>/</kbd>
+        <button type="button" id="add-tag-btn" class="add-tag-btn" title="Add keyword as filter chip (Enter)">+</button>
       </div>
+      <div id="search-tags" class="search-tags-row"></div>
     </div>
     <nav id="list"></nav>
     <div class="sidefoot">
@@ -1650,8 +1676,60 @@ function updateDateUI() {
   clearBtn.classList.toggle("active", mode !== "all");
 }
 
+let searchKeywords = [];
+
+function renderSearchTags() {
+  const wrap = $("search-tags");
+  if (!wrap) return;
+  wrap.replaceChildren();
+  if (searchKeywords.length === 0) return;
+
+  for (let i = 0; i < searchKeywords.length; i++) {
+    const kw = searchKeywords[i];
+    const chip = el("span", "search-tag-chip");
+    chip.appendChild(document.createTextNode(kw));
+    const x = el("span", "remove-chip", "✕");
+    x.title = "Remove keyword";
+    x.onclick = () => {
+      searchKeywords.splice(i, 1);
+      renderSearchTags();
+      refresh();
+    };
+    chip.appendChild(x);
+    wrap.appendChild(chip);
+  }
+
+  if (searchKeywords.length > 1) {
+    const clearBtn = el("button", "search-tags-clear", "clear all");
+    clearBtn.onclick = () => {
+      searchKeywords = [];
+      renderSearchTags();
+      refresh();
+    };
+    wrap.appendChild(clearBtn);
+  }
+}
+
+function addKeywordFromInput() {
+  const val = $("q").value.trim();
+  if (!val) return;
+  if (!searchKeywords.includes(val)) {
+    searchKeywords.push(val);
+  }
+  $("q").value = "";
+  renderSearchTags();
+  refresh();
+}
+
 async function refresh() {
-  const q = $("q").value.trim();
+  const inputVal = $("q").value.trim();
+  const allTerms = [...searchKeywords];
+  if (inputVal && !allTerms.includes(inputVal)) {
+    allTerms.push(inputVal);
+  }
+  const q = allTerms.join(" ");
+  const isSearchActive = allTerms.length > 0 && q.length >= 2;
+
   const tool = $("tool").value;
   const t = tool ? `&tool=${encodeURIComponent(tool)}` : "";
   const roles = $("role").value;
@@ -1662,7 +1740,7 @@ async function refresh() {
 
   renderTagBar();
   let items = [];
-  if (q.length >= 3) {
+  if (isSearchActive) {
     items = await jget(`/api/search?q=${encodeURIComponent(q)}${t}${r}${sParam}${uParam}`);
   } else if (currentTag) {
     items = await jget(`/api/sessions?limit=500${t}&tag=${encodeURIComponent(currentTag)}${sParam}${uParam}`);
@@ -1681,7 +1759,7 @@ async function refresh() {
     });
   }
 
-  renderItems(items, q.length >= 3);
+  renderItems(items, isSearchActive);
 }
 
 // A removable chip above the list when a tag filter is active.
@@ -1707,6 +1785,22 @@ $("q").addEventListener("input", () => {
   clearTimeout(timer);
   timer = setTimeout(refresh, 250);
 });
+$("q").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    addKeywordFromInput();
+  } else if (e.key === "Backspace" && $("q").value === "" && searchKeywords.length > 0) {
+    searchKeywords.pop();
+    renderSearchTags();
+    refresh();
+  }
+});
+if ($("add-tag-btn")) {
+  $("add-tag-btn").onclick = (e) => {
+    e.preventDefault();
+    addKeywordFromInput();
+  };
+}
 $("tool").addEventListener("change", refresh);
 $("role").addEventListener("change", () => {
   refresh();
