@@ -2221,6 +2221,71 @@ fn search_fts_terms(
     Ok(out)
 }
 
+/// Find sessions where all query terms are present across any of the session's messages
+/// (multi-term intersection). Used when multiple terms are searched and they might appear
+/// in different turns of the same conversation.
+pub fn search_sessions_multi_terms(
+    conn: &Connection,
+    terms: &[&str],
+    limit: usize,
+    tool: Option<&str>,
+) -> Result<Vec<SessionRow>> {
+    if terms.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut intersect_sqls = Vec::new();
+    let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+
+    for term in terms {
+        let clean = term.trim_matches('"').replace('"', "\"\"");
+        intersect_sqls.push(
+            "SELECT m.session_id FROM messages m WHERE m.id IN (SELECT rowid FROM msgs WHERE msgs MATCH ?)"
+        );
+        params.push(Box::new(format!("\"{clean}\"")));
+    }
+
+    let combined_intersect = intersect_sqls.join(" INTERSECT ");
+    let mut sql = format!(
+        "SELECT f.session_id, f.tool, f.path, f.project, f.title, f.started, f.msg_count, f.kind, \
+                (f.archived_at IS NOT NULL) \
+         FROM files f \
+         WHERE f.session_id IN ({combined_intersect})"
+    );
+    if let Some(t) = tool {
+        sql.push_str(" AND f.tool = ?");
+        params.push(Box::new(t.to_string()));
+    }
+    sql.push_str(" ORDER BY f.started DESC LIMIT ?");
+    params.push(Box::new(limit as i64));
+
+    let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(param_refs.as_slice(), |r| {
+        Ok(SessionRow {
+            session_id: r.get(0)?,
+            tool: r.get(1)?,
+            path: r.get(2)?,
+            project: r.get(3)?,
+            title: r.get(4)?,
+            started: r.get(5)?,
+            last_active: None,
+            msg_count: r.get(6)?,
+            kind: r.get(7)?,
+            preview: None,
+            summary: None,
+            tags: None,
+            archived: r.get(8)?,
+            account: None,
+        })
+    })?;
+    let mut out = Vec::new();
+    for r in rows.flatten() {
+        out.push(r);
+    }
+    crate::account_link::annotate(out.iter_mut());
+    Ok(out)
+}
+
 /// Substring search for terms below the trigram tokenizer's three-character
 /// floor. All terms must match the same messages.text row.
 ///
