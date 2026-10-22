@@ -1188,6 +1188,76 @@
     font-size: 12px;
     color: var(--ink-2);
   }
+  /* Custom Context Menu */
+  .custom-context-menu {
+    position: fixed;
+    z-index: 99999;
+    background: var(--card);
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    padding: 5px;
+    min-width: 250px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28), 0 2px 6px rgba(0, 0, 0, 0.15);
+    font-size: 12.5px;
+    user-select: none;
+    color: var(--ink);
+    backdrop-filter: blur(10px);
+  }
+  .custom-context-menu .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .custom-context-menu .menu-item:hover {
+    background: var(--hover);
+  }
+  .custom-context-menu .menu-icon {
+    font-size: 13px;
+    width: 16px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .custom-context-menu .menu-label {
+    flex: 1;
+    font-weight: 500;
+  }
+  .custom-context-menu .menu-shortcut {
+    font-size: 11px;
+    color: var(--ink-3);
+    margin-left: 12px;
+  }
+  .custom-context-menu .menu-separator {
+    height: 1px;
+    background: var(--line);
+    margin: 4px 6px;
+  }
+
+  /* Toast Notification */
+  .toast-popup {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--ink);
+    color: var(--bg);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 500;
+    z-index: 100000;
+    box-shadow: var(--shadow);
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  .toast-popup.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
 </style>
 </head>
 <body>
@@ -3042,6 +3112,209 @@ function manageAutoSync(enabled) {
   }
 }
 
+
+/* ---------- Selection to Markdown & Custom Context Menu ---------- */
+function getSelectedMarkdown() {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || sel.rangeCount === 0) return "";
+
+  const range = sel.getRangeAt(0);
+  const fragment = range.cloneContents();
+  const div = document.createElement("div");
+  div.appendChild(fragment);
+
+  // If selection is inside a table but missing table tags, wrap it properly
+  const ths = div.querySelectorAll("th");
+  const tds = div.querySelectorAll("td");
+  if (!div.querySelector("table") && (ths.length > 0 || tds.length > 0)) {
+    const table = document.createElement("table");
+    const tr = document.createElement("tr");
+    div.childNodes.forEach(c => tr.appendChild(c.cloneNode(true)));
+    table.appendChild(tr);
+    div.replaceChildren(table);
+  }
+
+  function nodeToMd(node) {
+    if (node.nodeType === Node.TEXT_NODE) return node.nodeValue;
+    if (node.nodeType !== Node.ELEMENT_NODE) return "";
+
+    const tag = node.tagName.toLowerCase();
+    const children = Array.from(node.childNodes).map(nodeToMd).join("");
+
+    switch (tag) {
+      case "h1": return "\n# " + children.trim() + "\n\n";
+      case "h2": return "\n## " + children.trim() + "\n\n";
+      case "h3": return "\n### " + children.trim() + "\n\n";
+      case "h4": return "\n#### " + children.trim() + "\n\n";
+      case "h5": return "\n##### " + children.trim() + "\n\n";
+      case "h6": return "\n###### " + children.trim() + "\n\n";
+      case "p": return "\n\n" + children.trim() + "\n\n";
+      case "strong":
+      case "b": return "**" + children + "**";
+      case "em":
+      case "i": return "*" + children + "*";
+      case "del":
+      case "s": return "~~" + children + "~~";
+      case "code":
+        if (node.parentElement && node.parentElement.tagName.toLowerCase() === "pre") return children;
+        return "`" + children + "`";
+      case "pre": {
+        const lang = node.dataset.lang || "";
+        const code = node.querySelector("code")?.textContent || children;
+        return "\n```" + lang + "\n" + code.replace(/\n$/, "") + "\n```\n";
+      }
+      case "a": return "[" + children + "](" + (node.getAttribute("href") || "") + ")";
+      case "blockquote": return "\n> " + children.trim().replace(/\n/g, "\n> ") + "\n\n";
+      case "ul": return "\n" + children + "\n";
+      case "ol": return "\n" + children + "\n";
+      case "li": return "- " + children.trim() + "\n";
+      case "hr": return "\n---\n";
+      case "br": return "\n";
+      case "table": {
+        const rows = Array.from(node.querySelectorAll("tr"));
+        if (!rows.length) return children;
+        const res = [];
+        for (const row of rows) {
+          const rThs = Array.from(row.querySelectorAll("th"));
+          const rTds = Array.from(row.querySelectorAll("td"));
+          if (rThs.length) {
+            const headers = rThs.map(c => Array.from(c.childNodes).map(nodeToMd).join("").trim());
+            res.push("| " + headers.join(" | ") + " |");
+            res.push("| " + headers.map(() => "---").join(" | ") + " |");
+          } else if (rTds.length) {
+            const cells = rTds.map(c => Array.from(c.childNodes).map(nodeToMd).join("").trim());
+            res.push("| " + cells.join(" | ") + " |");
+          }
+        }
+        return "\n" + res.join("\n") + "\n\n";
+      }
+      default: return children;
+    }
+  }
+
+  const rawMd = nodeToMd(div);
+  return rawMd.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function showToast(msg) {
+  let toast = $("app-toast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "app-toast";
+    toast.className = "toast-popup";
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.classList.add("visible");
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => {
+    toast.classList.remove("visible");
+  }, 1800);
+}
+
+function hideContextMenu() {
+  const menu = $("custom-context-menu");
+  if (menu) menu.style.display = "none";
+}
+
+function setupContextMenu() {
+  const menu = $("custom-context-menu");
+  if (!menu) return;
+
+  document.addEventListener("contextmenu", (e) => {
+    // Only show custom menu if text is selected inside the document/chat
+    const sel = window.getSelection();
+    const selectedText = sel ? sel.toString().trim() : "";
+
+    // Ignore right-clicks inside text inputs/search
+    if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) {
+      hideContextMenu();
+      return;
+    }
+
+    if (selectedText.length > 0) {
+      e.preventDefault();
+      menu.style.display = "block";
+      const menuW = menu.offsetWidth || 250;
+      const menuH = menu.offsetHeight || 130;
+      let x = e.clientX;
+      let y = e.clientY;
+      if (x + menuW > window.innerWidth) x = window.innerWidth - menuW - 10;
+      if (y + menuH > window.innerHeight) y = window.innerHeight - menuH - 10;
+      menu.style.left = Math.max(10, x) + "px";
+      menu.style.top = Math.max(10, y) + "px";
+    } else {
+      hideContextMenu();
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!menu.contains(e.target)) {
+      hideContextMenu();
+    }
+  });
+
+  document.addEventListener("scroll", hideContextMenu, true);
+
+  // Copy as Markdown click
+  $("ctx-copy-md")?.addEventListener("click", () => {
+    const md = getSelectedMarkdown();
+    const selText = window.getSelection()?.toString().trim() || "";
+    const textToCopy = md || selText;
+    if (textToCopy) {
+      navigator.clipboard?.writeText(textToCopy).then(() => {
+        showToast("✓ Скопировано как Markdown");
+      });
+    }
+    hideContextMenu();
+  });
+
+  // Copy as Plain Text click
+  $("ctx-copy-text")?.addEventListener("click", () => {
+    const selText = window.getSelection()?.toString().trim() || "";
+    if (selText) {
+      navigator.clipboard?.writeText(selText).then(() => {
+        showToast("✓ Скопировано как текст");
+      });
+    }
+    hideContextMenu();
+  });
+
+  // Search in chat click
+  $("ctx-search-chat")?.addEventListener("click", () => {
+    const selText = window.getSelection()?.toString().trim() || "";
+    if (selText) {
+      const q = $("chat-q");
+      if (q) {
+        q.value = selText.slice(0, 60);
+        doChatSearch(q.value);
+        q.focus();
+      }
+    }
+    hideContextMenu();
+  });
+
+  // Global Hotkeys
+  document.addEventListener("keydown", (e) => {
+    // Ctrl+Shift+C (or Cmd+Shift+C) -> Copy as Markdown
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "C" || e.key === "c")) {
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed && sel.toString().trim()) {
+        e.preventDefault();
+        const md = getSelectedMarkdown();
+        const textToCopy = md || sel.toString().trim();
+        if (textToCopy) {
+          navigator.clipboard?.writeText(textToCopy).then(() => {
+            showToast("✓ Скопировано как Markdown");
+          });
+        }
+      }
+    } else if (e.key === "Escape") {
+      hideContextMenu();
+    }
+  });
+}
+
 function setupSyncControls() {
   const btn = $("sync-btn");
   const cb = $("auto-sync-cb");
@@ -3067,8 +3340,27 @@ function setupSyncControls() {
 (async function init() {
   await loadStats();
   setupSyncControls();
+  setupContextMenu();
   await refresh();
 })();
 </script>
+<div id="custom-context-menu" class="custom-context-menu" style="display: none;">
+  <div class="menu-item" id="ctx-copy-md">
+    <span class="menu-icon">📋</span>
+    <span class="menu-label" id="ctx-copy-md-label">Копировать как Markdown</span>
+    <span class="menu-shortcut">Ctrl+Shift+C</span>
+  </div>
+  <div class="menu-item" id="ctx-copy-text">
+    <span class="menu-icon">📝</span>
+    <span class="menu-label" id="ctx-copy-text-label">Копировать как текст</span>
+    <span class="menu-shortcut">Ctrl+C</span>
+  </div>
+  <div class="menu-separator"></div>
+  <div class="menu-item" id="ctx-search-chat">
+    <span class="menu-icon">🔍</span>
+    <span class="menu-label" id="ctx-search-chat-label">Искать в этом чате</span>
+    <span class="menu-shortcut">Ctrl+F</span>
+  </div>
+</div>
 </body>
 </html>
