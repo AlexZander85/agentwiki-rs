@@ -2145,7 +2145,7 @@ fn search_fts_terms(
     // narrowing the terms surfaces the long tail.
     let mut sql = String::from(
         "SELECT f.session_id, f.tool, f.path, f.project, f.title, f.started, f.msg_count, f.kind,
-                m.role, x.snip, min(x.rank) AS best, (f.archived_at IS NOT NULL)
+                m.role, x.snip, min(x.rank) AS best, (f.archived_at IS NOT NULL), COALESCE(f.ended, f.started)
          FROM (SELECT rowid AS mid,
                       snippet(msgs, 0, char(2), char(3), char(8230), 18) AS snip,
                       rank
@@ -2196,7 +2196,7 @@ fn search_fts_terms(
         |r| {
             Ok(Hit {
                 row: SessionRow {
-                    last_active: None,
+                    last_active: r.get(12)?, 
                     session_id: r.get(0)?,
                     tool: r.get(1)?,
                     path: r.get(2)?,
@@ -2247,7 +2247,7 @@ pub fn search_sessions_multi_terms(
     let combined_intersect = intersect_sqls.join(" INTERSECT ");
     let mut sql = format!(
         "SELECT f.session_id, f.tool, f.path, f.project, f.title, f.started, f.msg_count, f.kind, \
-                (f.archived_at IS NOT NULL) \
+                (f.archived_at IS NOT NULL), COALESCE(f.ended, f.started) \
          FROM files f \
          WHERE f.session_id IN ({combined_intersect})"
     );
@@ -2268,7 +2268,7 @@ pub fn search_sessions_multi_terms(
             project: r.get(3)?,
             title: r.get(4)?,
             started: r.get(5)?,
-            last_active: None,
+            last_active: r.get(9)?,
             msg_count: r.get(6)?,
             kind: r.get(7)?,
             preview: None,
@@ -2328,7 +2328,7 @@ fn search_like_terms(
 
     let mut sql = String::from(
         "SELECT f.session_id, f.tool, f.path, f.project, f.title, f.started, f.msg_count, f.kind,
-                x.role, x.text, (f.archived_at IS NOT NULL)
+                x.role, x.text, (f.archived_at IS NOT NULL), COALESCE(f.ended, f.started)
          FROM (SELECT m.session_id AS sid, m.role AS role, m.text AS text, m.id AS mid
                FROM messages m WHERE 1=1",
     );
@@ -2373,7 +2373,7 @@ fn search_like_terms(
             let text: String = r.get(9)?;
             Ok(Hit {
                 row: SessionRow {
-                    last_active: None,
+                    last_active: r.get(12)?, 
                     session_id: r.get(0)?,
                     tool: r.get(1)?,
                     path: r.get(2)?,
