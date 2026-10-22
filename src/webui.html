@@ -1020,7 +1020,7 @@
           <option value="tool">tool output</option>
         </select>
       </div>
-      <div class="date-row">
+      <div class="filter-row" style="margin-top: 6px;">
         <select id="date-mode" aria-label="Filter by date">
           <option value="all">all dates</option>
           <option value="today">today</option>
@@ -1028,6 +1028,14 @@
           <option value="single">single day&hellip;</option>
           <option value="range">date range&hellip;</option>
         </select>
+        <select id="sort-mode" aria-label="Sort sessions by">
+          <option value="relevance">🎯 relevance</option>
+          <option value="created">📅 created date</option>
+          <option value="last_active" selected>🕒 last message</option>
+          <option value="msgs">💬 message count</option>
+        </select>
+      </div>
+      <div class="date-row" id="date-custom-row" style="margin-top: 6px; display: none;">
         <div id="date-single-wrap" class="date-input-wrap">
           <input type="date" id="date-single" class="date-input" title="Choose day">
         </div>
@@ -1453,6 +1461,12 @@ async function exportSessionToMarkdown(s, visibleList) {
 function applyStaticStrings() {
   $("q").placeholder = L.searchPh;
   $("tool").options[0].textContent = L.allTools;
+  if ($("sort-mode")) {
+    $("sort-mode").options[0].textContent = L.sortRelevance || "🎯 relevance";
+    $("sort-mode").options[1].textContent = L.sortCreated || "📅 created date";
+    $("sort-mode").options[2].textContent = L.sortLastActive || "🕒 last message";
+    $("sort-mode").options[3].textContent = L.sortMsgs || "💬 message count";
+  }
   $("role").options[0].textContent = L.allRoles;
   $("role").options[1].textContent = L.conversationRoles;
   $("role").options[2].textContent = L.userRole;
@@ -1610,30 +1624,86 @@ function renderInline(text, container) {
   if (last < text.length) container.appendChild(document.createTextNode(text.slice(last)));
 }
 
-/* ---------- sidebar list ---------- */
+/* ---------- sidebar list & sorting ---------- */
+let currentLoadedRows = [];
+let currentIsSearch = false;
+let userHasCustomSort = false;
+
+function sortSessionRows(rows, sortMode, isSearch) {
+  const mode = sortMode || (isSearch ? "relevance" : "last_active");
+  const copy = rows.slice();
+
+  switch (mode) {
+    case "relevance":
+      if (!isSearch) {
+        copy.sort((a, b) => {
+          const tb = b.last_active || b.started || "";
+          const ta = a.last_active || a.started || "";
+          return tb.localeCompare(ta);
+        });
+      }
+      break;
+
+    case "created":
+      copy.sort((a, b) => {
+        const tb = b.started || "";
+        const ta = a.started || "";
+        return tb.localeCompare(ta);
+      });
+      break;
+
+    case "last_active":
+      copy.sort((a, b) => {
+        const tb = b.last_active || b.started || "";
+        const ta = a.last_active || a.started || "";
+        return tb.localeCompare(ta);
+      });
+      break;
+
+    case "msgs":
+      copy.sort((a, b) => {
+        const mb = b.msgs || 0;
+        const ma = a.msgs || 0;
+        if (mb !== ma) return mb - ma;
+        const tb = b.last_active || b.started || "";
+        const ta = a.last_active || a.started || "";
+        return tb.localeCompare(ta);
+      });
+      break;
+  }
+
+  return copy;
+}
+
 function renderItems(rows, isSearch) {
   const list = $("list");
   list.replaceChildren();
 
+  const sortMode = $("sort-mode") ? $("sort-mode").value : (isSearch ? "relevance" : "last_active");
+  const sortedRows = sortSessionRows(rows, sortMode, isSearch);
+
   const countEl = $("list-count");
   if (countEl) {
-    if (!rows.length) {
+    if (!sortedRows.length) {
       countEl.textContent = "";
     } else {
-      const totalMsgs = rows.reduce((sum, r) => sum + (r.msgs || 0), 0);
-      countEl.textContent = `${rows.length} · ${totalMsgs.toLocaleString()} msgs`;
-      countEl.title = `${rows.length} sessions, ${totalMsgs} total messages in current view`;
+      const totalMsgs = sortedRows.reduce((sum, r) => sum + (r.msgs || 0), 0);
+      countEl.textContent = `${sortedRows.length} · ${totalMsgs.toLocaleString()} msgs`;
+      countEl.title = `${sortedRows.length} sessions, ${totalMsgs} total messages in current view`;
     }
   }
 
-  if (!rows.length) {
+  if (!sortedRows.length) {
     list.appendChild(el("div", "empty", isSearch ? L.noMatches : L.emptyIndex));
     return;
   }
+
   let lastGroup = null;
-  for (const r of rows) {
-    if (!isSearch) {
-      const g = dayGroup(r.started);
+  const showDayGroups = !isSearch && (sortMode === "last_active" || sortMode === "created");
+  for (const r of sortedRows) {
+    if (showDayGroups) {
+      const dateToGroup = sortMode === "created" ? r.started : (r.last_active || r.started);
+      const g = dayGroup(dateToGroup);
       if (g !== lastGroup) {
         list.appendChild(el("div", "group", L.groups[g]));
         lastGroup = g;
@@ -2177,7 +2247,10 @@ function updateDateUI() {
   const singleWrap = $("date-single-wrap");
   const rangeWrap = $("date-range-wrap");
   const clearBtn = $("date-clear");
+  const customRow = $("date-custom-row");
 
+  const isCustom = (mode === "single" || mode === "range");
+  if (customRow) customRow.style.display = isCustom ? "flex" : "none";
   singleWrap.classList.toggle("active", mode === "single");
   rangeWrap.classList.toggle("active", mode === "range");
   clearBtn.classList.toggle("active", mode !== "all");
@@ -2267,6 +2340,13 @@ async function refresh() {
     });
   }
 
+  currentLoadedRows = items;
+  currentIsSearch = isSearchActive;
+
+  if ($("sort-mode") && !userHasCustomSort) {
+    $("sort-mode").value = isSearchActive ? "relevance" : "last_active";
+  }
+
   renderItems(items, isSearchActive);
 }
 
@@ -2286,6 +2366,15 @@ function renderTagBar() {
   x.style.cursor = "pointer";
   x.onclick = () => { currentTag = null; renderAvailableTags(); refresh(); };
   bar.append(document.createTextNode((L.filtering || "filtering") + ": "), chip, x);
+}
+
+if ($("sort-mode")) {
+  $("sort-mode").addEventListener("change", () => {
+    userHasCustomSort = true;
+    if (currentLoadedRows && currentLoadedRows.length) {
+      renderItems(currentLoadedRows, currentIsSearch);
+    }
+  });
 }
 
 let timer = null;
