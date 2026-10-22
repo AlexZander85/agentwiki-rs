@@ -1416,6 +1416,10 @@ const I18N = {
     themeDark: "Dark", themeLight: "Light",
     stats: (s, t, b) => `${s} sessions · ${t} tools · ${b}`,
     exportMd: "Export session to Markdown (.md)", exportMdBtn: "Export .md", exported: "Saved!",
+    sortRelevance: "🎯 relevance", sortCreated: "📅 created date", sortLastActive: "🕒 last message", sortMsgs: "💬 message count",
+    sync: "Sync", syncing: "Syncing...", autoSync: "Auto-sync (10m)",
+    ctxCopyMd: "Copy as Markdown", ctxCopyText: "Copy as plain text", ctxSearchChat: "Search in chat",
+    copiedMd: "✓ Copied as Markdown", copiedText: "✓ Copied as text",
   },
   ko: {
     loading: "인덱스 불러오는 중…",
@@ -1449,6 +1453,10 @@ const I18N = {
     hint: "읽기 전용 · 갱신: sessionwiki list",
     themeDark: "다크", themeLight: "라이트",
     stats: (s, t, b) => `세션 ${s} · 툴 ${t} · ${b}`,
+    sortRelevance: "🎯 관련도순", sortCreated: "📅 생성일순", sortLastActive: "🕒 최근 메시지순", sortMsgs: "💬 메시지 수순",
+    sync: "동기화", syncing: "동기화 중...", autoSync: "자동 동기화 (10분)",
+    ctxCopyMd: "Markdown으로 복사", ctxCopyText: "일반 텍스트로 복사", ctxSearchChat: "이 대화에서 검색",
+    copiedMd: "✓ Markdown으로 복사됨", copiedText: "✓ 텍스트로 복사됨",
   },
   ja: {
     loading: "インデックスを読み込み中…",
@@ -1482,6 +1490,10 @@ const I18N = {
     hint: "読み取り専用 · 更新: sessionwiki list",
     themeDark: "ダーク", themeLight: "ライト",
     stats: (s, t, b) => `セッション ${s} · ツール ${t} · ${b}`,
+    sortRelevance: "🎯 関連度順", sortCreated: "📅 作成日時順", sortLastActive: "🕒 最終メッセージ順", sortMsgs: "💬 メッセージ数順",
+    sync: "同期", syncing: "同期中...", autoSync: "自動同期 (10分)",
+    ctxCopyMd: "Markdownとしてコピー", ctxCopyText: "テキストとしてコピー", ctxSearchChat: "このチャット内を検索",
+    copiedMd: "✓ Markdownとしてコピーしました", copiedText: "✓ テキストとしてコピーしました",
   },
   zh: {
     loading: "正在加载索引…",
@@ -1515,6 +1527,10 @@ const I18N = {
     hint: "只读视图 · 刷新: sessionwiki list",
     themeDark: "深色", themeLight: "浅色",
     stats: (s, t, b) => `${s} 个会话 · ${t} 个工具 · ${b}`,
+    sortRelevance: "🎯 相关度", sortCreated: "📅 创建时间", sortLastActive: "🕒 最后消息", sortMsgs: "💬 消息数量",
+    sync: "同步", syncing: "同步中...", autoSync: "自动同步 (10分钟)",
+    ctxCopyMd: "复制为 Markdown", ctxCopyText: "复制为纯文本", ctxSearchChat: "在当前对话中搜索",
+    copiedMd: "✓ 已复制为 Markdown", copiedText: "✓ 已复制为文本",
   },
 };
 const lang = localStorage.getItem("sdx-lang")
@@ -1757,6 +1773,11 @@ function applyStaticStrings() {
   $("stats").textContent = L.loading;
   $("langlabel").textContent = LANG_NAMES[lang] || "English";
   if ($("recentlabel")) $("recentlabel").textContent = L.recent || "Recent";
+  if ($("sync-label")) $("sync-label").textContent = L.sync || "Sync";
+  if ($("auto-sync-label-text")) $("auto-sync-label-text").textContent = L.autoSync || "Auto-sync (10m)";
+  if ($("ctx-copy-md-label")) $("ctx-copy-md-label").textContent = L.ctxCopyMd || "Copy as Markdown";
+  if ($("ctx-copy-text-label")) $("ctx-copy-text-label").textContent = L.ctxCopyText || "Copy as plain text";
+  if ($("ctx-search-chat-label")) $("ctx-search-chat-label").textContent = L.ctxSearchChat || "Search in chat";
   for (const b of $("langmenu").children) {
     b.setAttribute("aria-selected", b.dataset.lang === lang ? "true" : "false");
   }
@@ -3081,7 +3102,7 @@ async function performSync(isAuto = false) {
   const btn = $("sync-btn");
   const label = $("sync-label");
   if (btn) btn.classList.add("loading");
-  if (label) label.textContent = isAuto ? "Auto-syncing..." : "Syncing...";
+  if (label) label.textContent = isAuto ? (L.syncing || "Auto-syncing...") : (L.syncing || "Syncing...");
 
   try {
     await jget("/api/sync");
@@ -3097,7 +3118,7 @@ async function performSync(isAuto = false) {
     if (timeEl) timeEl.textContent = "sync failed";
   } finally {
     if (btn) btn.classList.remove("loading");
-    if (label) label.textContent = "Sync";
+    if (label) label.textContent = L.sync || "Sync";
   }
 }
 
@@ -3264,7 +3285,7 @@ function setupContextMenu() {
     const textToCopy = md || selText;
     if (textToCopy) {
       navigator.clipboard?.writeText(textToCopy).then(() => {
-        showToast("✓ Скопировано как Markdown");
+        showToast(L.copiedMd || "✓ Copied as Markdown");
       });
     }
     hideContextMenu();
@@ -3275,7 +3296,7 @@ function setupContextMenu() {
     const selText = window.getSelection()?.toString().trim() || "";
     if (selText) {
       navigator.clipboard?.writeText(selText).then(() => {
-        showToast("✓ Скопировано как текст");
+        showToast(L.copiedText || "✓ Copied as text");
       });
     }
     hideContextMenu();
@@ -3306,7 +3327,7 @@ function setupContextMenu() {
         const textToCopy = md || sel.toString().trim();
         if (textToCopy) {
           navigator.clipboard?.writeText(textToCopy).then(() => {
-            showToast("✓ Скопировано как Markdown");
+            showToast(L.copiedMd || "✓ Copied as Markdown");
           });
         }
       }
@@ -3348,18 +3369,18 @@ function setupSyncControls() {
 <div id="custom-context-menu" class="custom-context-menu" style="display: none;">
   <div class="menu-item" id="ctx-copy-md">
     <span class="menu-icon">📋</span>
-    <span class="menu-label" id="ctx-copy-md-label">Копировать как Markdown</span>
+    <span class="menu-label" id="ctx-copy-md-label">Copy as Markdown</span>
     <span class="menu-shortcut">Ctrl+Shift+C</span>
   </div>
   <div class="menu-item" id="ctx-copy-text">
     <span class="menu-icon">📝</span>
-    <span class="menu-label" id="ctx-copy-text-label">Копировать как текст</span>
+    <span class="menu-label" id="ctx-copy-text-label">Copy as plain text</span>
     <span class="menu-shortcut">Ctrl+C</span>
   </div>
   <div class="menu-separator"></div>
   <div class="menu-item" id="ctx-search-chat">
     <span class="menu-icon">🔍</span>
-    <span class="menu-label" id="ctx-search-chat-label">Искать в этом чате</span>
+    <span class="menu-label" id="ctx-search-chat-label">Search in chat</span>
     <span class="menu-shortcut">Ctrl+F</span>
   </div>
 </div>
