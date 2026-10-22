@@ -976,9 +976,19 @@
   .msg .who { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 3px; }
   .msg .who .msg-time { font-weight: 400; letter-spacing: normal; text-transform: none; color: var(--ink-3); opacity: 0.85; margin-left: 5px; }
   .msg .body {
-    white-space: pre-wrap;
+    white-space: normal;
     font-size: 14px;
-    line-height: 1.65;
+    line-height: 1.55;
+    word-break: break-word;
+  }
+  .msg .body p {
+    margin: 0.5em 0;
+  }
+  .msg .body p:first-child {
+    margin-top: 0;
+  }
+  .msg .body p:last-child {
+    margin-bottom: 0;
   }
   .msg.user .body {
     background: var(--user-bg);
@@ -1024,33 +1034,36 @@
     border-color: var(--accent);
   }
 
-  /* GFM Tables (reposeek-app / MDHero style) */
+  /* Clean GFM Tables (GitHub/ChatGPT/Tailwind Typography style) */
+  .table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    margin: 12px 0;
+  }
   .msg .body table {
     width: 100%;
     border-collapse: collapse;
-    margin: 14px 0;
+    margin: 0;
     font-size: 13px;
     line-height: 1.5;
-    overflow-x: auto;
-    display: block;
-    border-radius: 6px;
-    border: 1px solid var(--line);
   }
   .msg .body thead {
-    background: var(--card-subtle);
     border-bottom: 2px solid var(--line-strong);
   }
   .msg .body th {
-    padding: 8px 12px;
+    padding: 8px 14px;
     font-weight: 600;
     text-align: left;
     color: var(--ink);
-    border: 1px solid var(--line);
+    border: none;
+    border-bottom: 2px solid var(--line-strong);
+    background: var(--card-subtle);
     white-space: nowrap;
   }
   .msg .body td {
-    padding: 7px 12px;
-    border: 1px solid var(--line);
+    padding: 8px 14px;
+    border: none;
+    border-bottom: 1px solid var(--line);
     vertical-align: top;
     color: var(--ink-1);
   }
@@ -1073,11 +1086,14 @@
   .msg .body h3 { font-size: 1.05em; }
   .msg .body h4 { font-size: 0.95em; }
   .msg .body ul, .msg .body ol {
-    margin: 8px 0;
-    padding-left: 22px;
+    margin: 0.4em 0;
+    padding-left: 20px;
   }
   .msg .body li {
-    margin: 3px 0;
+    margin: 0.2em 0;
+  }
+  .msg .body li > p {
+    margin: 0.1em 0;
   }
   .msg .body blockquote {
     margin: 10px 0;
@@ -1773,7 +1789,7 @@ function getMarkdownParser() {
     mdParser = window.markdownit({
       html: false, // Security: disable raw HTML tags
       linkify: true, // Autolink URLs
-      breaks: true, // Line breaks as <br>
+      breaks: false, // Standard markdown paragraph spacing
       typographer: false,
     });
   }
@@ -1830,6 +1846,16 @@ function renderRichMarkdown(rawText, container) {
         });
       };
       pre.appendChild(copyBtn);
+    }
+  });
+
+  // Wrap tables in responsive container for smooth horizontal scrolling
+  container.querySelectorAll("table").forEach((table) => {
+    if (!table.parentElement.classList.contains("table-wrap")) {
+      const wrap = document.createElement("div");
+      wrap.className = "table-wrap";
+      table.parentNode.insertBefore(wrap, table);
+      wrap.appendChild(table);
     }
   });
 
