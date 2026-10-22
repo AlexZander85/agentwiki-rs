@@ -453,16 +453,47 @@ fn should_open_browser(no_open: bool, wsl: bool) -> bool {
     !no_open && !wsl
 }
 
+#[cfg(target_os = "windows")]
+fn open_browser(url: &str) {
+    use std::os::windows::ffi::OsStrExt;
+    let url_wide: Vec<u16> = std::ffi::OsStr::new(url)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let op_wide: Vec<u16> = std::ffi::OsStr::new("open")
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+
+    extern "system" {
+        fn ShellExecuteW(
+            hwnd: *mut std::ffi::c_void,
+            lpOperation: *const u16,
+            lpFile: *const u16,
+            lpParameters: *const u16,
+            lpDirectory: *const u16,
+            nShowCmd: i32,
+        ) -> isize;
+    }
+
+    unsafe {
+        ShellExecuteW(
+            std::ptr::null_mut(),
+            op_wide.as_ptr(),
+            url_wide.as_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            1, // SW_SHOWNORMAL
+        );
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
 fn open_browser(url: &str) {
     #[cfg(target_os = "macos")]
     let mut cmd = std::process::Command::new("open");
     #[cfg(target_os = "macos")]
     cmd.arg(url);
-
-    #[cfg(target_os = "windows")]
-    let mut cmd = std::process::Command::new("rundll32");
-    #[cfg(target_os = "windows")]
-    cmd.args(["url.dll,FileProtocolHandler", url]);
 
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     let mut cmd = std::process::Command::new("xdg-open");
