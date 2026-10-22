@@ -199,9 +199,16 @@ fn api_related(conn: &Connection, id: &str) -> Result<Boxed> {
 fn api_search(conn: &Connection, query: &str) -> Result<Boxed> {
     let q = param(query, "q").unwrap_or_default();
     let qt = q.trim();
-    if qt.is_empty() {
+    let session_terms_raw = param(query, "session_terms");
+    let session_terms: Vec<&str> = session_terms_raw
+        .as_deref()
+        .map(|s| s.split(',').map(str::trim).filter(|w| !w.is_empty()).collect())
+        .unwrap_or_default();
+
+    if qt.is_empty() && session_terms.is_empty() {
         return json_response(json!([]));
     }
+
     let tool = param(query, "tool");
     let roles = match param(query, "roles") {
         Some(value) => {
@@ -224,30 +231,28 @@ fn api_search(conn: &Connection, query: &str) -> Result<Boxed> {
     let limit = param(query, "limit")
         .and_then(|s| s.parse().ok())
         .unwrap_or(50);
-    let mut hits = index::search_with_roles(conn, qt, limit, tool.as_deref(), None, roles.as_deref())?;
 
-    let terms = qt
-        .split_whitespace()
-        .filter(|w| w.chars().count() >= 2)
-        .collect::<Vec<_>>();
-    if hits.len() < limit && terms.len() > 1 {
-        let existing_ids: std::collections::HashSet<String> =
-            hits.iter().map(|h| h.row.session_id.clone()).collect();
-        if let Ok(extra_rows) =
-            index::search_sessions_multi_terms(conn, &terms, limit - hits.len(), tool.as_deref())
-        {
-            for row in extra_rows {
-                if !existing_ids.contains(&row.session_id) {
-                    hits.push(index::Hit {
-                        row,
-                        snippet: String::new(),
-                        role: "session".to_string(),
-                    });
-                }
-            }
+    // If session_terms are provided via '+' chips, run cross-message session intersection
+    if !session_terms.is_empty() {
+        let mut all_terms = session_terms;
+        if !qt.is_empty() {
+            all_terms.push(qt);
         }
+        let rows = index::search_sessions_multi_terms(conn, &all_terms, limit, tool.as_deref())?;
+        return json_response(json!(rows
+            .iter()
+            .map(|r| {
+                let mut v = row_json(r);
+                v["snippet"] = json!("");
+                v["snippet_marked"] = json!("");
+                v["role"] = json!("session");
+                v
+            })
+            .collect::<Vec<_>>()));
     }
 
+    // Default search mode: strictly within one message (FTS5 rank & snippet)
+    let hits = index::search_with_roles(conn, qt, limit, tool.as_deref(), None, roles.as_deref())?;
     json_response(json!(hits
         .iter()
         .map(|h| {
