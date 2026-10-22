@@ -154,7 +154,13 @@ fn api_stats(conn: &Connection) -> Result<Boxed> {
             }))
         })?
         .collect::<rusqlite::Result<_>>()?;
-    json_response(json!({ "tools": rows }))
+    let tag_counts = index::tag_counts(conn).unwrap_or_default();
+    let tags: Vec<serde_json::Value> = tag_counts
+        .into_iter()
+        .map(|(t, c)| json!({ "tag": t, "count": c }))
+        .collect();
+
+    json_response(json!({ "tools": rows, "tags": tags }))
 }
 
 fn api_sessions(conn: &Connection, query: &str) -> Result<Boxed> {
@@ -329,7 +335,13 @@ fn api_tag(conn: &Connection, query: &str) -> Result<Boxed> {
         .map(|t| t.split(',').map(String::from).collect::<Vec<_>>())
         .unwrap_or_default();
 
-    json_response(json!({ "ok": true, "session_id": row.session_id, "tags": tags }))
+    let all_tags: Vec<serde_json::Value> = index::tag_counts(conn)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(t, c)| json!({ "tag": t, "count": c }))
+        .collect();
+
+    json_response(json!({ "ok": true, "session_id": row.session_id, "tags": tags, "all_tags": all_tags }))
 }
 
 fn api_session(conn: &Connection, id: &str) -> Result<Boxed> {
