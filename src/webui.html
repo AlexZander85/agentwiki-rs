@@ -439,6 +439,42 @@
     background: #ff9800;
     color: #fff;
   }
+  .doc-head .chips-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-top: 6px;
+  }
+  .doc-head .chips-row .chips {
+    margin-top: 0;
+  }
+  .export-md-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 11.5px;
+    color: var(--ink-2);
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+  .export-md-btn:hover {
+    color: var(--ink);
+    border-color: var(--ink-3);
+    background: var(--bg);
+  }
+  .export-md-btn svg {
+    stroke: var(--ink-3);
+  }
+  .export-md-btn:hover svg {
+    stroke: var(--ink);
+  }
   .doc-head .chips {
     display: flex; flex-wrap: wrap; gap: 6px 14px;
     margin-top: 6px;
@@ -955,6 +991,7 @@ const I18N = {
     hint: "read-only view · refresh: sessionwiki list",
     themeDark: "Dark", themeLight: "Light",
     stats: (s, t, b) => `${s} sessions · ${t} tools · ${b}`,
+    exportMd: "Export session to Markdown (.md)", exportMdBtn: "Export .md", exported: "Saved!",
   },
   ko: {
     loading: "인덱스 불러오는 중…",
@@ -1062,6 +1099,84 @@ const L = I18N[lang] || I18N.en;
 document.documentElement.lang = lang;
 
 const LANG_NAMES = { en: "English", ko: "한국어", ja: "日本語", zh: "中文" };
+
+function exportSessionToMarkdown(s) {
+  if (!s) return;
+  const lines = [];
+  lines.push(`# ${s.title || "Session"}\n`);
+
+  lines.push(`- **Tool:** ${s.tool || "-"}`);
+  if (s.project) lines.push(`- **Project:** \`${s.project}\``);
+  if (s.started) lines.push(`- **Started:** ${fmtDate(s.started)}`);
+  if (s.ended) lines.push(`- **Ended:** ${fmtDate(s.ended)}`);
+  if (s.model) lines.push(`- **Model:** ${s.model}`);
+  lines.push(`- **Messages:** ${s.messages ? s.messages.length : 0}`);
+  if (s.path) lines.push(`- **File:** \`${s.path}\``);
+  if (s.tags && s.tags.length) lines.push(`- **Tags:** ${s.tags.map(t => '#' + t).join(" ")}`);
+  lines.push("");
+
+  if (s.summary) {
+    lines.push(`## Summary\n\n${s.summary}\n`);
+  }
+  if (s.note) {
+    lines.push(`## Note\n\n${s.note}\n`);
+  }
+  if (s.touched && s.touched.length) {
+    lines.push(`## Files Touched (${s.touched.length})\n`);
+    for (const f of s.touched) {
+      lines.push(`- \`${f}\``);
+    }
+    lines.push("");
+  }
+
+  lines.push(`---\n\n## Transcript\n`);
+  if (s.messages && s.messages.length) {
+    for (let i = 0; i < s.messages.length; i++) {
+      const m = s.messages[i];
+      const roleTitle = m.role === "user" ? "User" : m.role === "assistant" ? "Assistant" : "Tool";
+      const tsStr = m.ts ? ` *(${fmtDate(m.ts)})*` : "";
+      lines.push(`### ${roleTitle}${tsStr}\n`);
+      if (m.text) {
+        if (m.role === "tool") {
+          lines.push("```");
+          lines.push(m.text.trim());
+          lines.push("```\n");
+        } else {
+          lines.push(m.text.trim() + "\n");
+        }
+      }
+    }
+  }
+
+  const content = lines.join("\n");
+  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+  const a = document.createElement("a");
+  const dateStr = s.started ? new Date(s.started).toISOString().slice(0, 10) : "session";
+  const safeTitle = (s.title || s.id || "session")
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
+    .trim()
+    .slice(0, 60) || "session";
+  a.download = `${safeTitle}_${dateStr}.md`;
+  a.href = URL.createObjectURL(blob);
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+
+  const btn = $("export-session-md");
+  if (btn) {
+    const origHtml = btn.innerHTML;
+    btn.innerHTML = `
+      <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 8.5l3.5 3.5 6.5-7"/>
+      </svg>
+      <span>${L.exported || "Saved!"}</span>
+    `;
+    setTimeout(() => {
+      btn.innerHTML = origHtml;
+    }, 1200);
+  }
+}
 
 function applyStaticStrings() {
   $("q").placeholder = L.searchPh;
@@ -1360,7 +1475,25 @@ function renderCurrentSession(keepScroll) {
     ? `${visibleMessages.length} / ${s.messages.length}`
     : `${s.messages.length}`;
   chips.appendChild(el("span", "chip", L.messages(countStr)));
-  head.appendChild(chips);
+
+  const chipsRow = el("div", "chips-row");
+  chipsRow.appendChild(chips);
+
+  const exportBtn = el("button", "export-md-btn");
+  exportBtn.id = "export-session-md";
+  exportBtn.title = L.exportMd || "Export session to Markdown (.md)";
+  exportBtn.innerHTML = `
+    <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12.5 14.5h-9a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1h7l3 3v9a1 1 0 0 1-1 1z"/>
+      <path d="M5.5 1.5v3.5h5v-3.5"/>
+      <rect x="4.5" y="8.5" width="7" height="6"/>
+    </svg>
+    <span>${L.exportMdBtn || "Export .md"}</span>
+  `;
+  exportBtn.onclick = () => exportSessionToMarkdown(s);
+  chipsRow.appendChild(exportBtn);
+
+  head.appendChild(chipsRow);
   head.appendChild(el("div", "path", s.path));
 
   if (s.summary) {
