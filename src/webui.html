@@ -1866,6 +1866,7 @@ async function exportSessionToMarkdown(s, visibleList) {
       btn.innerHTML = origHtml;
     }, 1500);
   }
+  return saved;
 }
 
 function applyStaticStrings() {
@@ -1907,6 +1908,7 @@ function applyStaticStrings() {
   if ($("favlabel")) $("favlabel").textContent = L.favlabel || "Favorites";
   if ($("ctx-fav-session-label")) $("ctx-fav-session-label").textContent = L.addToFav || "Add to favorites";
   if ($("ctx-brief-session-label")) $("ctx-brief-session-label").textContent = L.aiBriefBtn || "Copy AI Brief";
+  if ($("ctx-export-session-label")) $("ctx-export-session-label").textContent = L.exportMdBtn || "Export .md";
   if ($("ctx-forget-session-label")) $("ctx-forget-session-label").textContent = L.deleteFromIndex || "Delete from index";
   for (const b of $("langmenu").children) {
     b.setAttribute("aria-selected", b.dataset.lang === lang ? "true" : "false");
@@ -3583,6 +3585,10 @@ function setupContextMenu() {
         $("ctx-brief-session").style.display = "flex";
         $("ctx-brief-session-label").textContent = L.aiBriefBtn || "Copy AI Brief";
       }
+      if ($("ctx-export-session")) {
+        $("ctx-export-session").style.display = "flex";
+        $("ctx-export-session-label").textContent = L.exportMdBtn || "Export .md";
+      }
       if ($("ctx-forget-session")) {
         $("ctx-forget-session").style.display = "flex";
         $("ctx-forget-session-label").textContent = L.deleteFromIndex || "Delete from index";
@@ -3594,6 +3600,7 @@ function setupContextMenu() {
 
     if ($("ctx-fav-session")) $("ctx-fav-session").style.display = "none";
     if ($("ctx-brief-session")) $("ctx-brief-session").style.display = "none";
+    if ($("ctx-export-session")) $("ctx-export-session").style.display = "none";
     if ($("ctx-forget-session")) $("ctx-forget-session").style.display = "none";
     if ($("ctx-divider-session")) $("ctx-divider-session").style.display = "none";
 
@@ -3695,6 +3702,26 @@ function setupContextMenu() {
         }
       } catch (e) {
         showToast(L.loadFailed || "Failed to generate brief");
+      }
+    }
+    hideContextMenu();
+  });
+
+  // Export session markdown context click
+  $("ctx-export-session")?.addEventListener("click", async () => {
+    if (activeSessionTarget) {
+      const sId = activeSessionTarget.id;
+      try {
+        const s = (currentSession && currentSession.id === sId)
+          ? currentSession
+          : await jget("/api/session/" + encodeURIComponent(sId));
+        if (s) {
+          const ok = await exportSessionToMarkdown(s);
+          if (ok !== false) showToast(L.exported || "Saved!");
+        }
+      } catch (e) {
+        console.error("Failed to export session:", e);
+        showToast("Failed to export session");
       }
     }
     hideContextMenu();
@@ -3859,6 +3886,10 @@ function setupSyncControls() {
   <div class="menu-item" id="ctx-brief-session" style="display: none;">
     <span class="menu-icon">🤖</span>
     <span class="menu-label" id="ctx-brief-session-label">Copy AI Brief</span>
+  </div>
+  <div class="menu-item" id="ctx-export-session" style="display: none;">
+    <span class="menu-icon">💾</span>
+    <span class="menu-label" id="ctx-export-session-label">Export .md</span>
   </div>
   <div class="menu-item" id="ctx-forget-session" style="display: none;">
     <span class="menu-icon">🗑️</span>
