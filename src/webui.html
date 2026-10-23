@@ -914,6 +914,28 @@
     align-items: center;
     margin-bottom: 8px;
   }
+  .file-hist-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .file-hist-filter-btn {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    color: var(--ink-2);
+    font-size: 11px;
+    padding: 2px 7px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .file-hist-filter-btn:hover {
+    color: var(--ink);
+    border-color: var(--accent);
+  }
   .file-hist-head h4 {
     margin: 0;
     font-size: 12px;
@@ -1424,6 +1446,8 @@ const I18N = {
     lastActivePrefix: "last",
     searchInChat: "Search in chat...",
     copyCodeBtn: "📋 Copy", copiedCode: "✓ Copied", copyCode: "Copy code",
+    ctxFindSessions: "Find all sessions", ctxCopyPath: "Copy file path", copiedPath: "✓ Copied file path",
+    fileFilterChip: (f) => `file: ${f}`, filterSidebarBtn: "Filter list", filterSidebarTip: "Show all sessions touching this file in sidebar",
   },
   ko: {
     loading: "인덱스 불러오는 중…",
@@ -1466,6 +1490,8 @@ const I18N = {
     lastActivePrefix: "최근",
     searchInChat: "이 대화에서 검색...",
     copyCodeBtn: "📋 복사", copiedCode: "✓ 복사됨", copyCode: "코드 복사",
+    ctxFindSessions: "모든 세션 찾기", ctxCopyPath: "파일 경로 복사", copiedPath: "✓ 파일 경로가 복사되었습니다",
+    fileFilterChip: (f) => `파일: ${f}`, filterSidebarBtn: "목록 필터링", filterSidebarTip: "이 파일을 수정한 모든 세션을 사이드바에 표시",
   },
   ja: {
     loading: "インデックスを読み込み中…",
@@ -1508,6 +1534,8 @@ const I18N = {
     lastActivePrefix: "最終",
     searchInChat: "チャット内を検索...",
     copyCodeBtn: "📋 コピー", copiedCode: "✓ コピー完了", copyCode: "コードをコピー",
+    ctxFindSessions: "すべてのセッションを検索", ctxCopyPath: "ファイルパスをコピー", copiedPath: "✓ ファイルパスをコピーしました",
+    fileFilterChip: (f) => `ファイル: ${f}`, filterSidebarBtn: "一覧をフィルター", filterSidebarTip: "このファイルを変更したすべてのセッションをサイドバーに表示",
   },
   zh: {
     loading: "正在加载索引…",
@@ -1550,6 +1578,8 @@ const I18N = {
     lastActivePrefix: "最后",
     searchInChat: "在当前对话中搜索...",
     copyCodeBtn: "📋 复制", copiedCode: "✓ 已复制", copyCode: "复制代码",
+    ctxFindSessions: "查找所有会话", ctxCopyPath: "复制文件路径", copiedPath: "✓ 已复制文件路径",
+    fileFilterChip: (f) => `文件: ${f}`, filterSidebarBtn: "筛选列表", filterSidebarTip: "在侧栏显示修改过此文件的所有会话",
   },
 };
 const lang = localStorage.getItem("sdx-lang")
@@ -1805,6 +1835,8 @@ function applyStaticStrings() {
   if ($("ctx-copy-text-label")) $("ctx-copy-text-label").textContent = L.ctxCopyText || "Copy as plain text";
   if ($("ctx-search-chat-label")) $("ctx-search-chat-label").textContent = L.ctxSearchChat || "Search in chat";
   if ($("ctx-search-google-label")) $("ctx-search-google-label").textContent = L.ctxSearchGoogle || "Search in Google";
+  if ($("ctx-find-file-label")) $("ctx-find-file-label").textContent = L.ctxFindSessions || "Find all sessions";
+  if ($("ctx-copy-path-label")) $("ctx-copy-path-label").textContent = L.ctxCopyPath || "Copy file path";
   for (const b of $("langmenu").children) {
     b.setAttribute("aria-selected", b.dataset.lang === lang ? "true" : "false");
   }
@@ -2511,12 +2543,17 @@ function renderCurrentSession(keepScroll) {
       box.replaceChildren();
       const top = el("div", "file-hist-head");
       top.appendChild(el("h4", "", L.fileHistory(base)));
+      const actions = el("div", "file-hist-head-actions");
+      const filterBtn = el("button", "file-hist-filter-btn", `🔍 ${L.filterSidebarBtn || "Filter list"}`);
+      filterBtn.title = L.filterSidebarTip || "Show all sessions touching this file in the sidebar";
+      filterBtn.onclick = () => filterByFile(filePath);
       const closeBtn = el("button", "file-hist-close", "×");
       closeBtn.onclick = () => {
         chip.classList.remove("on");
         box.remove();
       };
-      top.appendChild(closeBtn);
+      actions.append(filterBtn, closeBtn);
+      top.appendChild(actions);
       box.appendChild(top);
 
       const sessions = (hist && hist.sessions) || [];
@@ -2767,6 +2804,15 @@ function addKeywordFromInput() {
   refresh();
 }
 
+let currentFileTrace = null;
+
+function filterByFile(filePath) {
+  if (!filePath) return;
+  currentFileTrace = filePath.trim();
+  $("q").value = "";
+  refresh();
+}
+
 async function refresh() {
   const inputVal = $("q").value.trim();
   const tool = $("tool").value;
@@ -2777,11 +2823,25 @@ async function refresh() {
   const sParam = since ? `&since=${encodeURIComponent(since)}` : "";
   const uParam = until ? `&until=${encodeURIComponent(until)}` : "";
 
+  const filePrefixMatch = inputVal.match(/^(?:file|path):(.+)$/i);
+  if (filePrefixMatch) {
+    const targetPath = filePrefixMatch[1].trim();
+    if (targetPath.length >= 1) {
+      currentFileTrace = targetPath;
+      $("q").value = "";
+    }
+  }
+
   renderTagBar();
   let items = [];
-  const isSearchActive = searchKeywords.length > 0 || inputVal.length >= 2;
+  const isSearchActive = searchKeywords.length > 0 || inputVal.length >= 2 || !!currentFileTrace;
 
-  if (searchKeywords.length > 0) {
+  if (currentFileTrace) {
+    items = await jget(`/api/trace?path=${encodeURIComponent(currentFileTrace)}&limit=500${t}${sParam}${uParam}`);
+    if (tool) {
+      items = items.filter((row) => row.tool === tool);
+    }
+  } else if (searchKeywords.length > 0) {
     // Mode 3: Keyword filter chips via '+' -> cross-message session intersection!
     const sessionTermsParam = `&session_terms=${encodeURIComponent(searchKeywords.join(","))}`;
     const qParam = inputVal ? `&q=${encodeURIComponent(inputVal)}` : "";
@@ -2819,19 +2879,34 @@ async function refresh() {
 // A removable chip above the list when a tag filter is active.
 function renderTagBar() {
   let bar = $("tagbar");
-  if (!currentTag) { if (bar) bar.remove(); return; }
+  if (!currentTag && !currentFileTrace) { if (bar) bar.remove(); return; }
   if (!bar) {
     bar = el("div", "");
     bar.id = "tagbar";
-    bar.style.cssText = "padding:6px 14px;font-size:12px;color:var(--ink-2);border-bottom:1px solid var(--line)";
+    bar.style.cssText = "padding:6px 14px;font-size:12px;color:var(--ink-2);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;flex-wrap:wrap;";
     $("list").parentNode.insertBefore(bar, $("list"));
   }
   bar.replaceChildren();
-  const chip = el("span", "tagchip", "#" + currentTag);
-  const x = el("span", "", "  ✕");
-  x.style.cursor = "pointer";
-  x.onclick = () => { currentTag = null; renderAvailableTags(); refresh(); };
-  bar.append(document.createTextNode((L.filtering || "filtering") + ": "), chip, x);
+  bar.appendChild(document.createTextNode((L.filtering || "filtering") + ": "));
+  if (currentFileTrace) {
+    const parts = currentFileTrace.split(/[\\/]/);
+    const base = parts.pop() || currentFileTrace;
+    const chip = el("span", "tagchip", (L.fileFilterChip ? L.fileFilterChip(base) : `file: ${base}`));
+    chip.title = currentFileTrace;
+    const x = el("span", "", "  ✕");
+    x.style.cursor = "pointer";
+    x.onclick = () => { currentFileTrace = null; refresh(); };
+    chip.appendChild(x);
+    bar.appendChild(chip);
+  }
+  if (currentTag) {
+    const chip = el("span", "tagchip", "#" + currentTag);
+    const x = el("span", "", "  ✕");
+    x.style.cursor = "pointer";
+    x.onclick = () => { currentTag = null; renderAvailableTags(); refresh(); };
+    chip.appendChild(x);
+    bar.appendChild(chip);
+  }
 }
 
 if ($("sort-mode")) {
@@ -3272,15 +3347,47 @@ function setupContextMenu() {
 
   let activeSelectionText = "";
   let activeSelectionMd = "";
+  let activeFileTarget = null;
+
+  function showMenuAt(clientX, clientY) {
+    menu.style.display = "block";
+    const menuW = menu.offsetWidth || 250;
+    const menuH = menu.offsetHeight || 160;
+    let x = clientX;
+    let y = clientY;
+    if (x + menuW > window.innerWidth) x = window.innerWidth - menuW - 10;
+    if (y + menuH > window.innerHeight) y = window.innerHeight - menuH - 10;
+    menu.style.left = Math.max(10, x) + "px";
+    menu.style.top = Math.max(10, y) + "px";
+  }
 
   document.addEventListener("contextmenu", (e) => {
-    // Only show custom menu if text is selected inside the document/chat
-    const sel = window.getSelection();
-    const selectedText = sel ? sel.toString().trim() : "";
-
     // Ignore right-clicks inside text inputs/search
     if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) {
       hideContextMenu();
+      return;
+    }
+
+    const sel = window.getSelection();
+    const selectedText = sel ? sel.toString().trim() : "";
+    const chip = e.target.closest(".filechip");
+
+    if (chip) {
+      e.preventDefault();
+      activeFileTarget = chip.title || chip.textContent.trim();
+      activeSelectionText = activeFileTarget;
+      activeSelectionMd = activeFileTarget;
+
+      if ($("ctx-find-file")) $("ctx-find-file").style.display = "flex";
+      if ($("ctx-copy-path")) $("ctx-copy-path").style.display = "flex";
+      if ($("ctx-search-google")) $("ctx-search-google").style.display = "flex";
+      if ($("ctx-copy-md")) $("ctx-copy-md").style.display = selectedText ? "flex" : "none";
+      if ($("ctx-copy-text")) $("ctx-copy-text").style.display = selectedText ? "flex" : "none";
+      if ($("ctx-search-chat")) $("ctx-search-chat").style.display = "none";
+      if ($("ctx-divider-top")) $("ctx-divider-top").style.display = selectedText ? "block" : "none";
+      if ($("ctx-divider-bot")) $("ctx-divider-bot").style.display = "block";
+
+      showMenuAt(e.clientX, e.clientY);
       return;
     }
 
@@ -3288,18 +3395,24 @@ function setupContextMenu() {
       e.preventDefault();
       activeSelectionText = selectedText;
       activeSelectionMd = getSelectedMarkdown() || selectedText;
-      menu.style.display = "block";
-      const menuW = menu.offsetWidth || 250;
-      const menuH = menu.offsetHeight || 130;
-      let x = e.clientX;
-      let y = e.clientY;
-      if (x + menuW > window.innerWidth) x = window.innerWidth - menuW - 10;
-      if (y + menuH > window.innerHeight) y = window.innerHeight - menuH - 10;
-      menu.style.left = Math.max(10, x) + "px";
-      menu.style.top = Math.max(10, y) + "px";
-    } else {
-      hideContextMenu();
+
+      const looksLikeFile = !selectedText.includes("\n") && selectedText.length < 250 && /[\.\/\\]/.test(selectedText);
+      activeFileTarget = looksLikeFile ? selectedText : null;
+
+      if ($("ctx-find-file")) $("ctx-find-file").style.display = activeFileTarget ? "flex" : "none";
+      if ($("ctx-copy-path")) $("ctx-copy-path").style.display = activeFileTarget ? "flex" : "none";
+      if ($("ctx-copy-md")) $("ctx-copy-md").style.display = "flex";
+      if ($("ctx-copy-text")) $("ctx-copy-text").style.display = "flex";
+      if ($("ctx-search-chat")) $("ctx-search-chat").style.display = "flex";
+      if ($("ctx-search-google")) $("ctx-search-google").style.display = "flex";
+      if ($("ctx-divider-top")) $("ctx-divider-top").style.display = activeFileTarget ? "block" : "none";
+      if ($("ctx-divider-bot")) $("ctx-divider-bot").style.display = "block";
+
+      showMenuAt(e.clientX, e.clientY);
+      return;
     }
+
+    hideContextMenu();
   });
 
   document.addEventListener("click", (e) => {
@@ -3309,6 +3422,26 @@ function setupContextMenu() {
   });
 
   document.addEventListener("scroll", hideContextMenu, true);
+
+  // Find all sessions for file click
+  $("ctx-find-file")?.addEventListener("click", () => {
+    const target = activeFileTarget || activeSelectionText;
+    if (target) {
+      filterByFile(target);
+    }
+    hideContextMenu();
+  });
+
+  // Copy file path click
+  $("ctx-copy-path")?.addEventListener("click", () => {
+    const target = activeFileTarget || activeSelectionText;
+    if (target) {
+      navigator.clipboard?.writeText(target).then(() => {
+        showToast(L.copiedPath || "✓ Copied file path");
+      });
+    }
+    hideContextMenu();
+  });
 
   // Copy as Markdown click
   $("ctx-copy-md")?.addEventListener("click", () => {
@@ -3415,6 +3548,15 @@ function setupSyncControls() {
 })();
 </script>
 <div id="custom-context-menu" class="custom-context-menu" style="display: none;">
+  <div class="menu-item" id="ctx-find-file" style="display: none;">
+    <span class="menu-icon">🔍</span>
+    <span class="menu-label" id="ctx-find-file-label">Find all sessions</span>
+  </div>
+  <div class="menu-item" id="ctx-copy-path" style="display: none;">
+    <span class="menu-icon">📁</span>
+    <span class="menu-label" id="ctx-copy-path-label">Copy file path</span>
+  </div>
+  <div class="menu-separator" id="ctx-divider-top" style="display: none;"></div>
   <div class="menu-item" id="ctx-copy-md">
     <span class="menu-icon">📋</span>
     <span class="menu-label" id="ctx-copy-md-label">Copy as Markdown</span>
@@ -3425,7 +3567,7 @@ function setupSyncControls() {
     <span class="menu-label" id="ctx-copy-text-label">Copy as plain text</span>
     <span class="menu-shortcut">Ctrl+C</span>
   </div>
-  <div class="menu-separator"></div>
+  <div class="menu-separator" id="ctx-divider-bot"></div>
   <div class="menu-item" id="ctx-search-chat">
     <span class="menu-icon">🔍</span>
     <span class="menu-label" id="ctx-search-chat-label">Search in chat</span>
