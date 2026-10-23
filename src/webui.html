@@ -559,27 +559,35 @@
     stroke: var(--ink);
   }
   .fav-star-btn {
-    background: none;
-    border: none;
-    color: var(--ink-3);
-    font-size: 19px;
-    line-height: 1;
-    cursor: pointer;
-    padding: 2px 4px;
-    border-radius: 4px;
-    transition: color 0.15s, transform 0.1s;
-    user-select: none;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0 8px;
+    height: 24px;
+    min-width: 28px;
+    box-sizing: border-box;
+    font-size: 15px;
+    line-height: 1;
+    color: var(--ink-3);
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: all 0.15s ease;
+    user-select: none;
+    flex-shrink: 0;
   }
   .fav-star-btn:hover {
     color: #f59e0b;
-    transform: scale(1.2);
+    border-color: var(--ink-3);
+    background: var(--bg);
   }
   .fav-star-btn.active {
     color: #f59e0b;
-    text-shadow: 0 0 6px rgba(245, 158, 11, 0.4);
+    border-color: rgba(245, 158, 11, 0.45);
+    background: var(--bg-sunken);
+    text-shadow: 0 0 6px rgba(245, 158, 11, 0.35);
   }
   .item-fav-star {
     color: #f59e0b;
@@ -2439,39 +2447,6 @@ function renderCurrentSession(keepScroll) {
   tagsBar.appendChild(popover);
   actions.appendChild(tagsBar);
 
-  const isFav = favoriteSet.has(s.id) || !!s.favorite;
-  if (isFav) favoriteSet.add(s.id);
-  const favStarBtn = el("button", "fav-star-btn" + (isFav ? " active" : ""));
-  favStarBtn.id = "session-fav-star";
-  favStarBtn.title = isFav ? (L.remFromFav || "Remove from favorites") : (L.addToFav || "Add to favorites");
-  favStarBtn.textContent = isFav ? "★" : "☆";
-  favStarBtn.onclick = async () => {
-    const isFavNow = favoriteSet.has(s.id);
-    const next = !isFavNow;
-    try {
-      const res = await jget(`/api/favorite?id=${encodeURIComponent(s.id)}&fav=${next ? 1 : 0}`);
-      if (res && res.ok) {
-        if (next) {
-          favoriteSet.add(s.id);
-          s.favorite = true;
-        } else {
-          favoriteSet.delete(s.id);
-          s.favorite = false;
-        }
-        favStarBtn.textContent = next ? "★" : "☆";
-        favStarBtn.classList.toggle("active", next);
-        favStarBtn.title = next ? (L.remFromFav || "Remove from favorites") : (L.addToFav || "Add to favorites");
-        updateItemFavStar(s.id, next);
-        showToast(next ? (L.favAdded || "★ Added to favorites") : (L.favRemoved || "☆ Removed from favorites"));
-        if (currentOnlyFavorites) refresh();
-      }
-    } catch (e) {
-      console.error("Failed to toggle favorite:", e);
-      showToast("Failed to update favorite");
-    }
-  };
-  actions.appendChild(favStarBtn);
-
   const briefBtn = el("button", "brief-btn");
   briefBtn.id = "session-brief-btn";
   briefBtn.title = L.aiBriefTip || "Copy condensed markdown briefing for Claude / Cursor / agents";
@@ -2504,6 +2479,39 @@ function renderCurrentSession(keepScroll) {
   `;
   exportBtn.onclick = () => exportSessionToMarkdown(s, visibleMessages);
   actions.appendChild(exportBtn);
+
+  const isFav = favoriteSet.has(s.id) || !!s.favorite;
+  if (isFav) favoriteSet.add(s.id);
+  const favStarBtn = el("button", "fav-star-btn" + (isFav ? " active" : ""));
+  favStarBtn.id = "session-fav-star";
+  favStarBtn.title = isFav ? (L.remFromFav || "Remove from favorites") : (L.addToFav || "Add to favorites");
+  favStarBtn.textContent = isFav ? "★" : "☆";
+  favStarBtn.onclick = async () => {
+    const isFavNow = favoriteSet.has(s.id);
+    const next = !isFavNow;
+    try {
+      const res = await jget(`/api/favorite?id=${encodeURIComponent(s.id)}&fav=${next ? 1 : 0}`);
+      if (res && res.ok) {
+        if (next) {
+          favoriteSet.add(s.id);
+          s.favorite = true;
+        } else {
+          favoriteSet.delete(s.id);
+          s.favorite = false;
+        }
+        favStarBtn.textContent = next ? "★" : "☆";
+        favStarBtn.classList.toggle("active", next);
+        favStarBtn.title = next ? (L.remFromFav || "Remove from favorites") : (L.addToFav || "Add to favorites");
+        updateItemFavStar(s.id, next);
+        showToast(next ? (L.favAdded || "★ Added to favorites") : (L.favRemoved || "☆ Removed from favorites"));
+        if (currentOnlyFavorites) refresh();
+      }
+    } catch (e) {
+      console.error("Failed to toggle favorite:", e);
+      showToast("Failed to update favorite");
+    }
+  };
+  actions.appendChild(favStarBtn);
 
   chipsRow.appendChild(actions);
   head.appendChild(chipsRow);
