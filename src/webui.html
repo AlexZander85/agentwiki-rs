@@ -2824,12 +2824,18 @@ async function refresh() {
   const uParam = until ? `&until=${encodeURIComponent(until)}` : "";
 
   const filePrefixMatch = inputVal.match(/^(?:file|path):(.+)$/i);
+  const isRawFilePath = /^[a-zA-Z]:[\\/]/.test(inputVal) ||
+                        /^[\\\/]/.test(inputVal) ||
+                        (/[\/\\]/.test(inputVal) && /\.[a-zA-Z0-9]{1,8}$/.test(inputVal));
   if (filePrefixMatch) {
     const targetPath = filePrefixMatch[1].trim();
     if (targetPath.length >= 1) {
       currentFileTrace = targetPath;
       $("q").value = "";
     }
+  } else if (isRawFilePath && inputVal.length >= 3) {
+    currentFileTrace = inputVal;
+    $("q").value = "";
   }
 
   renderTagBar();

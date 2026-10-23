@@ -2917,27 +2917,42 @@ pub fn sessions_for_file(
     query: &str,
     limit: usize,
 ) -> Result<Vec<(SessionRow, String)>> {
-    let q = crate::util::nfc(query.trim().trim_start_matches("./"));
-    // Escape LIKE metacharacters: the query is a caller-supplied path (the MCP
-    // trace_file arg included), so a bare `%` must match a literal `%`, not act
-    // as a wildcard that enumerates the whole index.
-    let esc = q
+    let raw = query.trim().trim_matches('"');
+    let q = crate::util::nfc(raw.trim_start_matches("./"));
+    let q_slash = q.replace('\\', "/");
+    let q_backslash = q.replace('/', "\\");
+
+    // Escape LIKE metacharacters: '\' first, then '%' and '_'
+    let esc_slash = q_slash
         .replace('\\', "\\\\")
         .replace('%', "\\%")
         .replace('_', "\\_");
-    let suffix = format!("%/{esc}");
+    let esc_backslash = q_backslash
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_");
+
+    let suffix_slash = format!("%/{esc_slash}");
+    let suffix_backslash = format!("%\\\\{esc_backslash}");
+
     let mut stmt = conn.prepare(&format!(
         "SELECT f.session_id, f.tool, f.path, f.project, f.title, f.started, f.msg_count, f.kind,
                 {SUMMARY_SQL}, {TAGS_SQL}, t.path, (f.archived_at IS NOT NULL)
          FROM touched t JOIN files f ON f.session_id = t.session_id
-         WHERE t.path = ?1 OR t.path LIKE ?2 ESCAPE '\\'
+         WHERE t.path = ?1 OR t.path = ?2
+            OR t.path LIKE ?3 ESCAPE '\\'
+            OR t.path LIKE ?4 ESCAPE '\\'
+            OR trim(t.path, char(34)) = ?1 OR trim(t.path, char(34)) = ?2
             OR (length(?1) > length(t.path)
-                AND substr(?1, -length(t.path)) = t.path
-                AND substr(?1, -length(t.path)-1, 1) = '/')
+                AND (substr(?1, -length(t.path)) = t.path OR substr(?2, -length(t.path)) = t.path)
+                AND (substr(?1, -length(t.path)-1, 1) = '/' OR substr(?1, -length(t.path)-1, 1) = '\\'))
+            OR (length(?2) > length(t.path)
+                AND (substr(?2, -length(t.path)) = t.path OR substr(?1, -length(t.path)) = t.path)
+                AND (substr(?2, -length(t.path)-1, 1) = '/' OR substr(?2, -length(t.path)-1, 1) = '\\'))
          GROUP BY f.session_id
-         ORDER BY f.started DESC, f.session_id LIMIT ?3"
+         ORDER BY f.started DESC, f.session_id LIMIT ?5"
     ))?;
-    let rows = stmt.query_map(params![q, suffix, sql_limit(limit)], |r| {
+    let rows = stmt.query_map(params![q_slash, q_backslash, suffix_slash, suffix_backslash, sql_limit(limit)], |r| {
         Ok((
             SessionRow {
                 last_active: None,
