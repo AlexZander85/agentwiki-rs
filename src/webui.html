@@ -1216,6 +1216,74 @@
   .msg .body a { color: var(--accent); text-decoration: none; }
   .msg .body a:hover { text-decoration: underline; }
 
+  /* Pasted content blocks (Claude Code <pasted_content>) */
+  .pasted-content-block {
+    margin: 10px 0;
+    border: 1px solid var(--line);
+    background: var(--card);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .pasted-content-badge {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 12px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-2);
+    user-select: none;
+  }
+  .pasted-badge-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .pasted-badge-title .pasted-icon {
+    font-size: 13px;
+  }
+  .pasted-copy-btn {
+    font: 500 11px/1 inherit;
+    padding: 3px 8px;
+    border-radius: 5px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    color: var(--ink-2);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .pasted-copy-btn:hover {
+    color: var(--ink);
+    border-color: var(--line-strong);
+    background: var(--bg);
+  }
+  .pasted-copy-btn.copied {
+    color: #10b981;
+    border-color: #10b981;
+  }
+  .pasted-content-body {
+    padding: 12px 14px;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--ink);
+    word-break: break-word;
+  }
+  .pasted-content-body p {
+    margin: 0.6em 0;
+  }
+  .pasted-content-body p:first-child {
+    margin-top: 0;
+  }
+  .pasted-content-body p:last-child {
+    margin-bottom: 0;
+  }
+  .msg-text-seg {
+    margin: 4px 0;
+  }
+
   .toolrow { margin: 0 0 14px 36px; }
   .toolrow details {
     background: var(--bg-sunken);
@@ -1505,6 +1573,9 @@ const I18N = {
     deletedFromIndex: "✓ Session deleted from index",
     aiBriefBtn: "AI Brief", aiBriefTip: "Copy condensed markdown briefing for Claude / Cursor / agents",
     copiedBrief: (t) => `✓ Copied AI Brief (~${t} tokens)`, filterFavoritesChip: (n) => `⭐ Favorites (${n})`,
+    pastedContent: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Вставленный фрагмент" : "Pasted content",
+    copyPasted: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Копировать" : "Copy",
+    copiedPasted: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Скопировано" : "Copied",
   },
   ko: {
     loading: "인덱스 불러오는 중…",
@@ -1555,6 +1626,7 @@ const I18N = {
     deletedFromIndex: "✓ 세션이 인덱스에서 삭제되었습니다",
     aiBriefBtn: "AI 브리프", aiBriefTip: "Claude / Cursor용 요약 Markdown 브리핑 복사",
     copiedBrief: (t) => `✓ AI 브리프 복사됨 (~${t} 토큰)`, filterFavoritesChip: (n) => `⭐ 즐겨찾기 (${n})`,
+    pastedContent: "붙여넣은 내용", copyPasted: "복사", copiedPasted: "복사됨",
   },
   ja: {
     loading: "インデックスを読み込み中…",
@@ -1605,6 +1677,7 @@ const I18N = {
     deletedFromIndex: "✓ セッションをインデックスから削除しました",
     aiBriefBtn: "AI ブリーフ", aiBriefTip: "Claude / Cursor用の要約Markdownブリーフをコピー",
     copiedBrief: (t) => `✓ AI ブリーフをコピーしました (~${t} トークン)`, filterFavoritesChip: (n) => `⭐ お気に入り (${n})`,
+    pastedContent: "貼り付けられたコンテンツ", copyPasted: "コピー", copiedPasted: "コピー完了",
   },
   zh: {
     loading: "正在加载索引…",
@@ -1655,6 +1728,7 @@ const I18N = {
     deletedFromIndex: "✓ 会话已从索引中删除",
     aiBriefBtn: "AI 简报", aiBriefTip: "复制适用于 Claude / Cursor 的 Markdown 简报",
     copiedBrief: (t) => `✓ 已复制 AI 简报 (~${t} 词元)`, filterFavoritesChip: (n) => `⭐ 收藏夹 (${n})`,
+    pastedContent: "粘贴的内容", copyPasted: "复制", copiedPasted: "已复制",
   },
 };
 const lang = localStorage.getItem("sdx-lang")
@@ -2043,35 +2117,20 @@ function getMarkdownParser() {
   return mdParser;
 }
 
-const mdCache = new Map();
-const MAX_MD_CACHE_SIZE = 1000;
-
-function renderRichMarkdown(rawText, container) {
-  if (!rawText) return;
-  const parser = getMarkdownParser();
-  if (!parser) {
-    renderRichFallback(rawText, container);
-    return;
+let mdParserBreaks = null;
+function getMarkdownParserBreaks() {
+  if (!mdParserBreaks && typeof window.markdownit === "function") {
+    mdParserBreaks = window.markdownit({
+      html: false,
+      linkify: true,
+      breaks: true, // Preserve line breaks for pasted content
+      typographer: false,
+    });
   }
+  return mdParserBreaks;
+}
 
-  let html = mdCache.get(rawText);
-  if (!html) {
-    try {
-      html = parser.render(rawText);
-      if (mdCache.size >= MAX_MD_CACHE_SIZE) {
-        const firstKey = mdCache.keys().next().value;
-        mdCache.delete(firstKey);
-      }
-      mdCache.set(rawText, html);
-    } catch (e) {
-      console.warn("Markdown rendering failed, falling back:", e);
-      renderRichFallback(rawText, container);
-      return;
-    }
-  }
-
-  container.innerHTML = html;
-
+function postProcessMarkdown(container) {
   // Add copy button to code blocks (reposeek-app / MDHero style)
   container.querySelectorAll("pre").forEach((pre) => {
     if (!pre.querySelector(".copy-code-btn")) {
@@ -2111,6 +2170,116 @@ function renderRichMarkdown(rawText, container) {
     a.target = "_blank";
     a.rel = "noopener noreferrer";
   });
+}
+
+const mdCache = new Map();
+const MAX_MD_CACHE_SIZE = 1000;
+
+function renderRichMarkdown(rawText, container) {
+  if (!rawText) return;
+  const parser = getMarkdownParser();
+  if (!parser) {
+    renderRichFallback(rawText, container);
+    return;
+  }
+
+  // Check for Claude Code <pasted_content> XML wrapper
+  if (rawText.includes("<pasted_content")) {
+    const PASTED_RE = /<\s*pasted_content(?:\s+[^>]*)?>([\s\S]*?)<\s*\/\s*pasted_content(?:\s+[^>]*)?>/gi;
+    let lastIndex = 0;
+    let match;
+    let hasMatch = false;
+
+    while ((match = PASTED_RE.exec(rawText)) !== null) {
+      hasMatch = true;
+      const beforeText = rawText.slice(lastIndex, match.index).trim();
+      if (beforeText) {
+        const segDiv = document.createElement("div");
+        segDiv.className = "msg-text-seg";
+        renderRichMarkdown(beforeText, segDiv);
+        container.appendChild(segDiv);
+      }
+
+      const pastedText = match[1].trim();
+      const block = document.createElement("div");
+      block.className = "pasted-content-block";
+
+      const badge = document.createElement("div");
+      badge.className = "pasted-content-badge";
+      const badgeLabel = (typeof L !== "undefined" && L.pastedContent)
+        ? L.pastedContent
+        : ((typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Вставленный фрагмент" : "Pasted content");
+      const copyLabel = (typeof L !== "undefined" && L.copyPasted) ? L.copyPasted : "Copy";
+      const copiedLabel = (typeof L !== "undefined" && L.copiedPasted) ? L.copiedPasted : "Copied";
+
+      const titleSpan = document.createElement("div");
+      titleSpan.className = "pasted-badge-title";
+      titleSpan.innerHTML = `<span class="pasted-icon">📋</span><span>${badgeLabel}</span>`;
+      badge.appendChild(titleSpan);
+
+      const copyBtn = document.createElement("button");
+      copyBtn.type = "button";
+      copyBtn.className = "pasted-copy-btn";
+      copyBtn.textContent = copyLabel;
+      copyBtn.onclick = (e) => {
+        e.stopPropagation();
+        navigator.clipboard?.writeText(pastedText).then(() => {
+          copyBtn.textContent = `✓ ${copiedLabel}`;
+          copyBtn.classList.add("copied");
+          setTimeout(() => {
+            copyBtn.textContent = copyLabel;
+            copyBtn.classList.remove("copied");
+          }, 1500);
+        });
+      };
+      badge.appendChild(copyBtn);
+      block.appendChild(badge);
+
+      const body = document.createElement("div");
+      body.className = "pasted-content-body";
+      const breaksParser = getMarkdownParserBreaks() || parser;
+      try {
+        body.innerHTML = breaksParser.render(pastedText);
+      } catch (_) {
+        body.textContent = pastedText;
+      }
+      postProcessMarkdown(body);
+      block.appendChild(body);
+      container.appendChild(block);
+
+      lastIndex = PASTED_RE.lastIndex;
+    }
+
+    if (hasMatch) {
+      const remainingText = rawText.slice(lastIndex).trim();
+      if (remainingText) {
+        const segDiv = document.createElement("div");
+        segDiv.className = "msg-text-seg";
+        renderRichMarkdown(remainingText, segDiv);
+        container.appendChild(segDiv);
+      }
+      return;
+    }
+  }
+
+  let html = mdCache.get(rawText);
+  if (!html) {
+    try {
+      html = parser.render(rawText);
+      if (mdCache.size >= MAX_MD_CACHE_SIZE) {
+        const firstKey = mdCache.keys().next().value;
+        mdCache.delete(firstKey);
+      }
+      mdCache.set(rawText, html);
+    } catch (e) {
+      console.warn("Markdown rendering failed, falling back:", e);
+      renderRichFallback(rawText, container);
+      return;
+    }
+  }
+
+  container.innerHTML = html;
+  postProcessMarkdown(container);
 }
 
 function renderRichFallback(text, container) {
