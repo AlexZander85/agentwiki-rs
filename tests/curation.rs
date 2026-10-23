@@ -782,3 +782,23 @@ fn tags_are_nfc_normalized_on_add_filter_and_remove() {
     assert_eq!(index::remove_tag(&conn, "nfc1", nfd).unwrap(), 1);
     assert!(index::tag_counts(&conn).unwrap().is_empty());
 }
+
+
+#[test]
+fn favorites_lifecycle_and_table_ensure() {
+    let _g = LOCK.lock().unwrap();
+    let conn = fresh_index();
+    assert_eq!(index::list_favorites(&conn).unwrap().len(), 0);
+    assert!(!index::is_favorite(&conn, "sess1").unwrap());
+
+    index::set_favorite(&conn, "sess1", true).unwrap();
+    assert!(index::is_favorite(&conn, "sess1").unwrap());
+    assert_eq!(index::list_favorites(&conn).unwrap(), vec!["sess1"]);
+
+    index::set_favorite(&conn, "sess2", true).unwrap();
+    assert_eq!(index::list_favorites(&conn).unwrap().len(), 2);
+
+    index::set_favorite(&conn, "sess1", false).unwrap();
+    assert!(!index::is_favorite(&conn, "sess1").unwrap());
+    assert_eq!(index::list_favorites(&conn).unwrap(), vec!["sess2"]);
+}

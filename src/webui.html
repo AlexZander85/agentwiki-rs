@@ -382,48 +382,34 @@
   }
   .sidefoot .hint { color: var(--ink-3); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .list-count { color: var(--ink-2); font-size: 11px; font-weight: 550; white-space: nowrap; }
-  .footrow { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  .themebtn {
-    font: 500 11.5px/1.2 inherit;
+  .footrow { display: flex; justify-content: space-between; align-items: center; gap: 5px; }
+  .themebtn, .recentbtn, .favbtn, .langbtn {
+    font: 500 11px/1.2 inherit;
     color: var(--ink-2);
     background: var(--card);
     border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 7px 11px;
-    cursor: pointer;
-  }
-  .themebtn:hover { color: var(--ink); border-color: var(--line-strong); }
-
-  .recentbtn {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font: 500 11.5px/1.2 inherit;
-    color: var(--ink-2);
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 7px 10px;
+    border-radius: 7px;
+    padding: 6px 7px;
     cursor: pointer;
     white-space: nowrap;
-    transition: border-color .15s, color .15s;
+    transition: border-color .15s, color .15s, background .15s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    box-sizing: border-box;
+    height: 28px;
   }
-  .recentbtn:hover { color: var(--ink); border-color: var(--line-strong); }
+  .themebtn:hover, .recentbtn:hover, .favbtn:hover, .langbtn:hover {
+    color: var(--ink);
+    border-color: var(--line-strong);
+  }
   .recentbtn.on { border-color: var(--accent); color: var(--accent); }
+  .favbtn.active { border-color: #f59e0b; color: #f59e0b; background: var(--bg-sunken); }
+  .favbtn svg, .recentbtn svg { flex: none; }
 
   /* language picker */
   .langctl { position: relative; }
-  .langbtn {
-    display: inline-flex; align-items: center; gap: 6px;
-    font: 500 11.5px/1.2 inherit;
-    color: var(--ink-2);
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 7px 10px;
-    cursor: pointer;
-  }
-  .langbtn:hover { color: var(--ink); border-color: var(--line-strong); }
   .langbtn svg { color: var(--ink-3); flex: none; }
   .langbtn .chev { transition: transform .15s; }
   .langctl.open .langbtn .chev { transform: rotate(180deg); }
@@ -622,28 +608,7 @@
     border-color: var(--ink-3);
     background: var(--bg);
   }
-  .favbtn {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background: none;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    padding: 3px 8px;
-    font-size: 11px;
-    color: var(--ink-2);
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
-  .favbtn:hover {
-    color: var(--ink);
-    border-color: var(--ink-3);
-  }
-  .favbtn.active {
-    color: #f59e0b;
-    border-color: #f59e0b;
-    background: var(--bg-sunken);
-  }
+
   .header-actions {
     display: inline-flex;
     align-items: center;
@@ -2334,6 +2299,10 @@ function recordRecentlyViewed(s) {
 
 async function openSession(id) {
   const s = await jget("/api/session/" + encodeURIComponent(id));
+  if (s && s.favorite) {
+    favoriteSet.add(s.id);
+    updateItemFavStar(s.id, true);
+  }
   currentSession = s;
   recordRecentlyViewed(s);
   if ($("recentbtn")) $("recentbtn").classList.remove("on");
@@ -2468,22 +2437,35 @@ function renderCurrentSession(keepScroll) {
   tagsBar.appendChild(popover);
   actions.appendChild(tagsBar);
 
-  const favStarBtn = el("button", "fav-star-btn" + (favoriteSet.has(s.id) ? " active" : ""));
+  const isFav = favoriteSet.has(s.id) || !!s.favorite;
+  if (isFav) favoriteSet.add(s.id);
+  const favStarBtn = el("button", "fav-star-btn" + (isFav ? " active" : ""));
   favStarBtn.id = "session-fav-star";
-  favStarBtn.title = favoriteSet.has(s.id) ? (L.remFromFav || "Remove from favorites") : (L.addToFav || "Add to favorites");
-  favStarBtn.textContent = favoriteSet.has(s.id) ? "★" : "☆";
+  favStarBtn.title = isFav ? (L.remFromFav || "Remove from favorites") : (L.addToFav || "Add to favorites");
+  favStarBtn.textContent = isFav ? "★" : "☆";
   favStarBtn.onclick = async () => {
-    const isFav = favoriteSet.has(s.id);
-    const next = !isFav;
-    const res = await jget(`/api/favorite?id=${encodeURIComponent(s.id)}&fav=${next ? 1 : 0}`);
-    if (res && res.ok) {
-      if (next) favoriteSet.add(s.id);
-      else favoriteSet.delete(s.id);
-      favStarBtn.textContent = next ? "★" : "☆";
-      favStarBtn.classList.toggle("active", next);
-      favStarBtn.title = next ? (L.remFromFav || "Remove from favorites") : (L.addToFav || "Add to favorites");
-      updateItemFavStar(s.id, next);
-      showToast(next ? (L.favAdded || "★ Added to favorites") : (L.favRemoved || "☆ Removed from favorites"));
+    const isFavNow = favoriteSet.has(s.id);
+    const next = !isFavNow;
+    try {
+      const res = await jget(`/api/favorite?id=${encodeURIComponent(s.id)}&fav=${next ? 1 : 0}`);
+      if (res && res.ok) {
+        if (next) {
+          favoriteSet.add(s.id);
+          s.favorite = true;
+        } else {
+          favoriteSet.delete(s.id);
+          s.favorite = false;
+        }
+        favStarBtn.textContent = next ? "★" : "☆";
+        favStarBtn.classList.toggle("active", next);
+        favStarBtn.title = next ? (L.remFromFav || "Remove from favorites") : (L.addToFav || "Add to favorites");
+        updateItemFavStar(s.id, next);
+        showToast(next ? (L.favAdded || "★ Added to favorites") : (L.favRemoved || "☆ Removed from favorites"));
+        if (currentOnlyFavorites) refresh();
+      }
+    } catch (e) {
+      console.error("Failed to toggle favorite:", e);
+      showToast("Failed to update favorite");
     }
   };
   actions.appendChild(favStarBtn);
@@ -2960,7 +2942,7 @@ let favoriteSet = new Set();
 let currentOnlyFavorites = false;
 
 function updateItemFavStar(id, isFav) {
-  const item = document.querySelector(`.item[data-id="${id}"]`);
+  const item = document.querySelector(`.item[data-id="${CSS.escape(id)}"]`);
   if (!item) return;
   const title = item.querySelector(".title");
   if (!title) return;
@@ -3676,19 +3658,25 @@ function setupContextMenu() {
       const sId = activeSessionTarget.id;
       const isFav = favoriteSet.has(sId);
       const next = !isFav;
-      const res = await jget(`/api/favorite?id=${encodeURIComponent(sId)}&fav=${next ? 1 : 0}`);
-      if (res && res.ok) {
-        if (next) favoriteSet.add(sId);
-        else favoriteSet.delete(sId);
-        updateItemFavStar(sId, next);
-        const favStar = $("session-fav-star");
-        if (favStar && currentSession && currentSession.id === sId) {
-          favStar.textContent = next ? "★" : "☆";
-          favStar.classList.toggle("active", next);
-          favStar.title = next ? (L.remFromFav || "Remove from favorites") : (L.addToFav || "Add to favorites");
+      try {
+        const res = await jget(`/api/favorite?id=${encodeURIComponent(sId)}&fav=${next ? 1 : 0}`);
+        if (res && res.ok) {
+          if (next) favoriteSet.add(sId);
+          else favoriteSet.delete(sId);
+          updateItemFavStar(sId, next);
+          const favStar = $("session-fav-star");
+          if (favStar && currentSession && currentSession.id === sId) {
+            currentSession.favorite = next;
+            favStar.textContent = next ? "★" : "☆";
+            favStar.classList.toggle("active", next);
+            favStar.title = next ? (L.remFromFav || "Remove from favorites") : (L.addToFav || "Add to favorites");
+          }
+          showToast(next ? (L.favAdded || "★ Added to favorites") : (L.favRemoved || "☆ Removed from favorites"));
+          if (currentOnlyFavorites) refresh();
         }
-        showToast(next ? (L.favAdded || "★ Added to favorites") : (L.favRemoved || "☆ Removed from favorites"));
-        if (currentOnlyFavorites) refresh();
+      } catch (e) {
+        console.error("Failed to toggle favorite:", e);
+        showToast("Failed to update favorite");
       }
     }
     hideContextMenu();
