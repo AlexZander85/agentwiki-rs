@@ -281,7 +281,10 @@ fn api_trace(conn: &Connection, query: &str) -> Result<Boxed> {
     if path.is_empty() {
         return json_response(json!([]));
     }
-    let hits = index::sessions_for_file(conn, &path, 50)?;
+    let limit = param(query, "limit")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(200);
+    let hits = index::sessions_for_file(conn, &path, limit)?;
     json_response(json!(hits
         .iter()
         .map(|(r, matched)| {
