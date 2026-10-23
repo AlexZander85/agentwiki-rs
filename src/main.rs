@@ -41,6 +41,18 @@ enum Command {
         #[arg(long)]
         no_sync: bool,
     },
+    /// List bookmarked favorite sessions
+    Favorites {
+        /// Filter by project path substring
+        #[arg(long)]
+        project: Option<String>,
+        /// Max sessions to show
+        #[arg(short = 'n', long, default_value_t = 20)]
+        limit: usize,
+        /// Emit as a JSON array (agent-friendly, stable field names)
+        #[arg(long)]
+        json: bool,
+    },
     /// Search sessions; terms are ANDed within one message and quotes mark phrases
     Search {
         /// AND terms within a message; phrase whitespace follows the configured tokenizer
@@ -344,6 +356,11 @@ fn main() {
             json,
             no_sync,
         ),
+        Command::Favorites {
+            project,
+            limit,
+            json,
+        } => commands::favorites(project.as_deref(), limit, json),
         Command::Search {
             query,
             limit,

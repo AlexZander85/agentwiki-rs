@@ -229,6 +229,88 @@ pub fn list(
     Ok(())
 }
 
+/// List bookmarked favorite sessions, ordered by most recently bookmarked.
+pub fn favorites(project: Option<&str>, limit: usize, json: bool) -> Result<()> {
+    let conn = index::open_readonly()?;
+    let fav_ids = index::list_favorites(&conn)?;
+    let mut rows: Vec<index::SessionRow> = Vec::new();
+    for id in fav_ids {
+        if let Ok(matched) = index::resolve(&conn, &id) {
+            for row in matched {
+                if let Some(p) = project {
+                    if !row.project.to_lowercase().contains(&p.to_lowercase()) {
+                        continue;
+                    }
+                }
+                rows.push(row);
+                if rows.len() >= limit {
+                    break;
+                }
+            }
+        }
+        if rows.len() >= limit {
+            break;
+        }
+    }
+    if json {
+        println!("{}", serde_json::to_string(&rows)?);
+        return Ok(());
+    }
+    if rows.is_empty() {
+        println!("No favorite sessions found.");
+        return Ok(());
+    }
+    println!(
+        "{}",
+        bold(&format!(
+            "{:<13} {:<12} {:<10} {:>5}  {:<24} {}",
+            "ID", "TOOL", "WHEN", "MSGS", "PROJECT", "TITLE"
+        ))
+    );
+    for r in rows {
+        let when = r
+            .last_active
+            .as_deref()
+            .or(r.started.as_deref())
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+            .map(|t| t.with_timezone(&chrono::Utc));
+        let tags = r
+            .tags
+            .as_deref()
+            .map(|t| format!("  {}", dim(&format!("#{}", t.replace(',', " #")))))
+            .unwrap_or_default();
+        let account = r
+            .account
+            .as_deref()
+            .map(|a| format!("  {}", dim(&format!("@{a}"))))
+            .unwrap_or_default();
+        let archived = if r.archived {
+            format!("  {}", dim("[archived]"))
+        } else {
+            String::new()
+        };
+        let sub = if r.kind == "sub" {
+            format!("  {}", dim("[subagent]"))
+        } else {
+            String::new()
+        };
+        println!(
+            "{:<13} {:<12} {:<10} {:>5}  {:<24} {}{}{}{}{}",
+            yellow(&truncate(&r.session_id, 13)),
+            cyan(&r.tool),
+            rel_time(when),
+            r.msg_count,
+            truncate(&project_label(&r.project), 24),
+            truncate(&r.title, 60),
+            account,
+            tags,
+            archived,
+            sub,
+        );
+    }
+    Ok(())
+}
+
 pub struct SearchOptions<'a> {
     pub limit: usize,
     pub tool: Option<&'a str>,

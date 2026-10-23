@@ -121,6 +121,7 @@ read-only and 100% local (stdio, no sockets):
 
 - **`search_sessions`**, **`trace_file`**, **`get_session_brief`** &mdash; find a session and read a briefing of it.
 - **`recent_sessions`**, **`related_sessions`**, **`session_window`** &mdash; how one agent reads what a sibling session is doing: list who is around, find the relevant one, then pull its recent turns as a bounded, versioned JSON window (with a per-turn drill-down).
+- **`recall_solution`**, **`get_session_summary`**, **`list_favorites`** &mdash; long-term memory for coding agents: ask how a problem was solved before (prioritizing starred solutions), inspect session metadata/notes, or list bookmarked recipes.
 
 ```console
 claude mcp add sessionwiki -- sessionwiki mcp
@@ -151,6 +152,7 @@ GB). After that, updates are incremental and take seconds.
 |---|---|
 | `scan` | Discover session stores on this machine. Pure filesystem walk, instant. |
 | `list` | Recent sessions across all tools in one timeline. `--tool codex`, `--project api`, `--tag spike`, `-n 50`, `--all` (include subagent transcripts). |
+| `favorites` | List sessions starred/bookmarked with a gold star ⭐ as verified solutions. `--project`, `-n`, `--json`. |
 | `search <query>` | Search every message across tools. Terms are ANDed within one message; double quotes mark a phrase. Use `--role user,assistant` to search only the conversation, excluding tool output. Matching depends on the configured tokenizer (see `tokenizer`). |
 | `tokenizer [SPEC]` | Show the current FTS5 tokenizer, or set one and rebuild only the search index. |
 | `tool-output [MODE]` | Show or change whether full tool results are retained in this index. `summary` is the default; use `sessionwiki tool-output full` to retain them. |
@@ -367,6 +369,8 @@ one feature that touches an LLM is `summarize`, and it does so by running a CLI
 | gptme | `~/.local/share/gptme/logs/<session>/conversation.jsonl` | supported |
 | prodex (ChatGPT Pro consults) | per-repo `.bridge/tasks|results` via the `~/.local/share/prodex/bridges.json` registry (prodex >=0.11.0); `resume` opens the ChatGPT thread | supported |
 | aider | per-repo `.aider.chat.history.md` (markdown), found by a bounded walk of home; on macOS the walk skips Pictures, Movies, Music and the Trash (no code there, and each would raise a permission prompt) - set `SESSIONWIKI_AIDER_ROOTS` to search somewhere specific | supported |
+| Antigravity | `~/.gemini/antigravity/brain/*/transcript.jsonl` (incl. artifacts, tools, subagents) | supported |
+| Qoder | `%APPDATA%/com.qoder.app.stable/main.sqlite` (SQLite; `chat_sessions` & `chat_session_messages`) | supported |
 | Cursor, Zed, ... | | planned &mdash; PRs welcome |
 
 **Using a wrapper like oh-my-claudecode or oh-my-openagent?** Those run on top of
