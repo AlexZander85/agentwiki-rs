@@ -517,6 +517,10 @@ fn create_cache_schema_with_tokenizer(conn: &Connection, tokenizer: &str) -> Res
             note       TEXT NOT NULL,
             updated    TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS favorites(
+            session_id TEXT PRIMARY KEY,
+            created_at TEXT NOT NULL
+        );
         -- Archive (durable, never dropped on a schema bump). When the tool
         -- deletes a session's original file, we keep a self-contained copy
         -- here - the distilled transcript and provenance plus the metadata
@@ -2738,6 +2742,43 @@ pub fn tag_counts(conn: &Connection) -> Result<Vec<(String, i64)>> {
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }
 
+pub fn list_favorites(conn: &Connection) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT session_id FROM favorites ORDER BY created_at DESC")?;
+    let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+    let mut ids = Vec::new();
+    for id in rows {
+        ids.push(id?);
+    }
+    Ok(ids)
+}
+
+pub fn set_favorite(conn: &Connection, session_id: &str, favorite: bool) -> Result<()> {
+    if favorite {
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT OR REPLACE INTO favorites(session_id, created_at) VALUES (?1, ?2)",
+            params![session_id, now],
+        )?;
+    } else {
+        conn.execute(
+            "DELETE FROM favorites WHERE session_id = ?1",
+            params![session_id],
+        )?;
+    }
+    Ok(())
+}
+
+pub fn is_favorite(conn: &Connection, session_id: &str) -> Result<bool> {
+    let count: i64 = conn
+        .query_row(
+            "SELECT count(*) FROM favorites WHERE session_id = ?1",
+            params![session_id],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+    Ok(count > 0)
+}
+
 // --- provenance: sessions <-> the code they produced ---
 
 /// Files a session edited or created, in the order it first touched them.
@@ -3110,6 +3151,7 @@ pub fn forget(conn: &mut Connection, session_id: &str) -> Result<()> {
         "summaries",
         "tags",
         "notes",
+        "favorites",
     ] {
         tx.execute(
             &format!("DELETE FROM {table} WHERE session_id = ?1"),

@@ -66,6 +66,10 @@ pub fn serve(port: u16, no_open: bool, sync: bool) -> Result<()> {
             "/api/projects" => api_projects(&conn),
             "/api/tag" => api_tag(&conn, query),
             "/api/sync" => api_sync(&mut conn),
+            "/api/favorites" => api_favorites(&conn),
+            "/api/favorite" => api_favorite(&conn, query),
+            "/api/forget" => api_forget(&mut conn, query),
+            "/api/brief" => api_brief(&conn, query),
             p if p.starts_with("/api/related/") => {
                 api_related(&conn, p.trim_start_matches("/api/related/"))
             }
@@ -379,7 +383,64 @@ fn api_session(conn: &Connection, id: &str) -> Result<Boxed> {
     if let Some(note) = index::note_for(conn, &row.session_id)? {
         v["note"] = json!(note);
     }
+    if index::is_favorite(conn, &row.session_id)? {
+        v["favorite"] = json!(true);
+    }
     json_response(v)
+}
+
+fn api_favorites(conn: &Connection) -> Result<Boxed> {
+    let favs = index::list_favorites(conn)?;
+    json_response(json!(favs))
+}
+
+fn api_favorite(conn: &Connection, query: &str) -> Result<Boxed> {
+    let id = param(query, "id").unwrap_or_default();
+    if id.is_empty() {
+        return json_response(json!({ "ok": false, "error": "missing id" }));
+    }
+    let fav = param(query, "fav")
+        .map(|v| v == "1" || v == "true")
+        .unwrap_or(true);
+    index::set_favorite(conn, &id, fav)?;
+    json_response(json!({ "ok": true, "id": id, "favorite": fav }))
+}
+
+fn api_forget(conn: &mut Connection, query: &str) -> Result<Boxed> {
+    let id = param(query, "id").unwrap_or_default();
+    if id.is_empty() {
+        return json_response(json!({ "ok": false, "error": "missing id" }));
+    }
+    index::forget(conn, &id)?;
+    json_response(json!({ "ok": true, "id": id }))
+}
+
+fn api_brief(conn: &Connection, query: &str) -> Result<Boxed> {
+    let id = param(query, "id").unwrap_or_default();
+    if id.is_empty() {
+        return json_response(json!({ "ok": false, "error": "missing id" }));
+    }
+    let max_chars: usize = param(query, "max_chars")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(24000);
+    let include_tools = param(query, "tools")
+        .map(|v| v == "1" || v == "true")
+        .unwrap_or(false);
+
+    let matches = index::resolve(conn, &id)?;
+    let row = matches.first().context("session not found")?;
+    let mut session = commands::load_session(conn, row)?;
+    commands::redact_session_for_export(&mut session);
+    let markdown = commands::brief_markdown(&session, max_chars, include_tools);
+    let chars = markdown.len();
+    let est_tokens = chars / 4;
+    json_response(json!({
+        "ok": true,
+        "id": id,
+        "markdown": markdown,
+        "chars": chars,
+        "est_tokens": est_tokens
+    }))
 }
 
 /// Delegate to SessionRow's Serialize derive so the web JSON and the CLI

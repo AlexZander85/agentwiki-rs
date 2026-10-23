@@ -572,6 +572,78 @@
   .export-md-btn:hover svg {
     stroke: var(--ink);
   }
+  .fav-star-btn {
+    background: none;
+    border: none;
+    color: var(--ink-3);
+    font-size: 19px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: color 0.15s, transform 0.1s;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .fav-star-btn:hover {
+    color: #f59e0b;
+    transform: scale(1.2);
+  }
+  .fav-star-btn.active {
+    color: #f59e0b;
+    text-shadow: 0 0 6px rgba(245, 158, 11, 0.4);
+  }
+  .item-fav-star {
+    color: #f59e0b;
+    font-size: 12px;
+    margin-right: 4px;
+    display: inline-block;
+    vertical-align: middle;
+  }
+  .brief-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 11.5px;
+    color: var(--ink-2);
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+  .brief-btn:hover {
+    color: var(--ink);
+    border-color: var(--ink-3);
+    background: var(--bg);
+  }
+  .favbtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 11px;
+    color: var(--ink-2);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .favbtn:hover {
+    color: var(--ink);
+    border-color: var(--ink-3);
+  }
+  .favbtn.active {
+    color: #f59e0b;
+    border-color: #f59e0b;
+    background: var(--bg-sunken);
+  }
   .header-actions {
     display: inline-flex;
     align-items: center;
@@ -1370,6 +1442,12 @@
             <button role="option" data-lang="zh">中文</button>
           </div>
         </div>
+        <button class="favbtn" id="favbtn" title="View favorite sessions">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+            <path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25z"/>
+          </svg>
+          <span id="favlabel">Favorites</span>
+        </button>
         <button class="recentbtn" id="recentbtn" title="View recently opened and related sessions">
           <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6">
             <circle cx="8" cy="8" r="6.5"/>
@@ -1448,6 +1526,12 @@ const I18N = {
     copyCodeBtn: "📋 Copy", copiedCode: "✓ Copied", copyCode: "Copy code",
     ctxFindSessions: "Find all sessions", ctxCopyPath: "Copy file path", copiedPath: "✓ Copied file path",
     fileFilterChip: (f) => `file: ${f}`, filterSidebarBtn: "Filter list", filterSidebarTip: "Show all sessions touching this file in sidebar",
+    favlabel: "Favorites", favAdded: "★ Added to favorites", favRemoved: "☆ Removed from favorites",
+    addToFav: "Add to favorites", remFromFav: "Remove from favorites",
+    deleteFromIndex: "Delete from index", confirmForget: (t) => `Permanently delete "${t}" from search index?`,
+    deletedFromIndex: "✓ Session deleted from index",
+    aiBriefBtn: "AI Brief", aiBriefTip: "Copy condensed markdown briefing for Claude / Cursor / agents",
+    copiedBrief: (t) => `✓ Copied AI Brief (~${t} tokens)`, filterFavoritesChip: (n) => `⭐ Favorites (${n})`,
   },
   ko: {
     loading: "인덱스 불러오는 중…",
@@ -1492,6 +1576,12 @@ const I18N = {
     copyCodeBtn: "📋 복사", copiedCode: "✓ 복사됨", copyCode: "코드 복사",
     ctxFindSessions: "모든 세션 찾기", ctxCopyPath: "파일 경로 복사", copiedPath: "✓ 파일 경로가 복사되었습니다",
     fileFilterChip: (f) => `파일: ${f}`, filterSidebarBtn: "목록 필터링", filterSidebarTip: "이 파일을 수정한 모든 세션을 사이드바에 표시",
+    favlabel: "즐겨찾기", favAdded: "★ 즐겨찾기에 추가됨", favRemoved: "☆ 즐겨찾기에서 제거됨",
+    addToFav: "즐겨찾기에 추가", remFromFav: "즐겨찾기에서 제거",
+    deleteFromIndex: "인덱스에서 삭제", confirmForget: (t) => `"${t}" 세션을 검색 인덱스에서 영구적으로 삭제하시겠습니까?`,
+    deletedFromIndex: "✓ 세션이 인덱스에서 삭제되었습니다",
+    aiBriefBtn: "AI 브리프", aiBriefTip: "Claude / Cursor용 요약 Markdown 브리핑 복사",
+    copiedBrief: (t) => `✓ AI 브리프 복사됨 (~${t} 토큰)`, filterFavoritesChip: (n) => `⭐ 즐겨찾기 (${n})`,
   },
   ja: {
     loading: "インデックスを読み込み中…",
@@ -1536,6 +1626,12 @@ const I18N = {
     copyCodeBtn: "📋 コピー", copiedCode: "✓ コピー完了", copyCode: "コードをコピー",
     ctxFindSessions: "すべてのセッションを検索", ctxCopyPath: "ファイルパスをコピー", copiedPath: "✓ ファイルパスをコピーしました",
     fileFilterChip: (f) => `ファイル: ${f}`, filterSidebarBtn: "一覧をフィルター", filterSidebarTip: "このファイルを変更したすべてのセッションをサイドバーに表示",
+    favlabel: "お気に入り", favAdded: "★ お気に入りに追加しました", favRemoved: "☆ お気に入りから削除しました",
+    addToFav: "お気に入りに追加", remFromFav: "お気に入りから削除",
+    deleteFromIndex: "インデックスから削除", confirmForget: (t) => `セッション「${t}」を検索インデックスから完全に削除しますか？`,
+    deletedFromIndex: "✓ セッションをインデックスから削除しました",
+    aiBriefBtn: "AI ブリーフ", aiBriefTip: "Claude / Cursor用の要約Markdownブリーフをコピー",
+    copiedBrief: (t) => `✓ AI ブリーフをコピーしました (~${t} トークン)`, filterFavoritesChip: (n) => `⭐ お気に入り (${n})`,
   },
   zh: {
     loading: "正在加载索引…",
@@ -1580,6 +1676,12 @@ const I18N = {
     copyCodeBtn: "📋 复制", copiedCode: "✓ 已复制", copyCode: "复制代码",
     ctxFindSessions: "查找所有会话", ctxCopyPath: "复制文件路径", copiedPath: "✓ 已复制文件路径",
     fileFilterChip: (f) => `文件: ${f}`, filterSidebarBtn: "筛选列表", filterSidebarTip: "在侧栏显示修改过此文件的所有会话",
+    favlabel: "收藏夹", favAdded: "★ 已添加到收藏", favRemoved: "☆ 已从收藏中移除",
+    addToFav: "添加到收藏", remFromFav: "从收藏中移除",
+    deleteFromIndex: "从索引中删除", confirmForget: (t) => `确定要从搜索索引中永久删除会话“${t}”吗？`,
+    deletedFromIndex: "✓ 会话已从索引中删除",
+    aiBriefBtn: "AI 简报", aiBriefTip: "复制适用于 Claude / Cursor 的 Markdown 简报",
+    copiedBrief: (t) => `✓ 已复制 AI 简报 (~${t} 词元)`, filterFavoritesChip: (n) => `⭐ 收藏夹 (${n})`,
   },
 };
 const lang = localStorage.getItem("sdx-lang")
@@ -1837,6 +1939,10 @@ function applyStaticStrings() {
   if ($("ctx-search-google-label")) $("ctx-search-google-label").textContent = L.ctxSearchGoogle || "Search in Google";
   if ($("ctx-find-file-label")) $("ctx-find-file-label").textContent = L.ctxFindSessions || "Find all sessions";
   if ($("ctx-copy-path-label")) $("ctx-copy-path-label").textContent = L.ctxCopyPath || "Copy file path";
+  if ($("favlabel")) $("favlabel").textContent = L.favlabel || "Favorites";
+  if ($("ctx-fav-session-label")) $("ctx-fav-session-label").textContent = L.addToFav || "Add to favorites";
+  if ($("ctx-brief-session-label")) $("ctx-brief-session-label").textContent = L.aiBriefBtn || "Copy AI Brief";
+  if ($("ctx-forget-session-label")) $("ctx-forget-session-label").textContent = L.deleteFromIndex || "Delete from index";
   for (const b of $("langmenu").children) {
     b.setAttribute("aria-selected", b.dataset.lang === lang ? "true" : "false");
   }
@@ -2162,7 +2268,14 @@ function renderItems(rows, isSearch) {
     }
     const item = el("div", "item");
     item.dataset.id = r.id;
-    item.appendChild(el("div", "title", r.title || L.untitled));
+    const titleEl = el("div", "title");
+    if (favoriteSet.has(r.id)) {
+      const star = el("span", "item-fav-star", "★ ");
+      star.title = L.favlabel || "Favorite";
+      titleEl.appendChild(star);
+    }
+    titleEl.appendChild(document.createTextNode(r.title || L.untitled));
+    item.appendChild(titleEl);
     const meta = el("div", "meta");
     meta.appendChild(el("span", "dot " + r.tool));
     const sub = r.kind === "sub" ? ` · ${L.subagent}` : "";
@@ -2354,6 +2467,45 @@ function renderCurrentSession(keepScroll) {
   tagsBar.appendChild(addTagBtn);
   tagsBar.appendChild(popover);
   actions.appendChild(tagsBar);
+
+  const favStarBtn = el("button", "fav-star-btn" + (favoriteSet.has(s.id) ? " active" : ""));
+  favStarBtn.id = "session-fav-star";
+  favStarBtn.title = favoriteSet.has(s.id) ? (L.remFromFav || "Remove from favorites") : (L.addToFav || "Add to favorites");
+  favStarBtn.textContent = favoriteSet.has(s.id) ? "★" : "☆";
+  favStarBtn.onclick = async () => {
+    const isFav = favoriteSet.has(s.id);
+    const next = !isFav;
+    const res = await jget(`/api/favorite?id=${encodeURIComponent(s.id)}&fav=${next ? 1 : 0}`);
+    if (res && res.ok) {
+      if (next) favoriteSet.add(s.id);
+      else favoriteSet.delete(s.id);
+      favStarBtn.textContent = next ? "★" : "☆";
+      favStarBtn.classList.toggle("active", next);
+      favStarBtn.title = next ? (L.remFromFav || "Remove from favorites") : (L.addToFav || "Add to favorites");
+      updateItemFavStar(s.id, next);
+      showToast(next ? (L.favAdded || "★ Added to favorites") : (L.favRemoved || "☆ Removed from favorites"));
+    }
+  };
+  actions.appendChild(favStarBtn);
+
+  const briefBtn = el("button", "brief-btn");
+  briefBtn.id = "session-brief-btn";
+  briefBtn.title = L.aiBriefTip || "Copy condensed markdown briefing for Claude / Cursor / agents";
+  briefBtn.innerHTML = `<span>🤖</span><span>${L.aiBriefBtn || "AI Brief"}</span>`;
+  briefBtn.onclick = async () => {
+    try {
+      const res = await jget(`/api/brief?id=${encodeURIComponent(s.id)}&max_chars=24000`);
+      if (res && res.ok && res.markdown) {
+        await navigator.clipboard.writeText(res.markdown);
+        showToast(L.copiedBrief ? L.copiedBrief(res.est_tokens) : `✓ Copied AI Brief (~${res.est_tokens} tokens)`);
+      } else {
+        showToast(L.loadFailed || "Failed to generate brief");
+      }
+    } catch (e) {
+      showToast(L.loadFailed || "Failed to generate brief");
+    }
+  };
+  actions.appendChild(briefBtn);
 
   const exportBtn = el("button", "export-md-btn");
   exportBtn.id = "export-session-md";
@@ -2804,6 +2956,36 @@ function addKeywordFromInput() {
   refresh();
 }
 
+let favoriteSet = new Set();
+let currentOnlyFavorites = false;
+
+function updateItemFavStar(id, isFav) {
+  const item = document.querySelector(`.item[data-id="${id}"]`);
+  if (!item) return;
+  const title = item.querySelector(".title");
+  if (!title) return;
+  let star = title.querySelector(".item-fav-star");
+  if (isFav) {
+    if (!star) {
+      star = el("span", "item-fav-star", "★ ");
+      star.title = L.favlabel || "Favorite";
+      title.insertBefore(star, title.firstChild);
+    }
+  } else if (star) {
+    star.remove();
+  }
+}
+
+function setupFavoritesControls() {
+  const btn = $("favbtn");
+  if (!btn) return;
+  btn.onclick = () => {
+    currentOnlyFavorites = !currentOnlyFavorites;
+    btn.classList.toggle("active", currentOnlyFavorites);
+    refresh();
+  };
+}
+
 let currentFileTrace = null;
 
 function filterByFile(filePath) {
@@ -2861,6 +3043,10 @@ async function refresh() {
     items = await jget(`/api/sessions?limit=500${t}${sParam}${uParam}`);
   }
 
+  if (currentOnlyFavorites) {
+    items = items.filter((row) => favoriteSet.has(row.id));
+  }
+
   // Client-side date filter safeguard
   if (since || until) {
     items = items.filter((row) => {
@@ -2885,7 +3071,7 @@ async function refresh() {
 // A removable chip above the list when a tag filter is active.
 function renderTagBar() {
   let bar = $("tagbar");
-  if (!currentTag && !currentFileTrace) { if (bar) bar.remove(); return; }
+  if (!currentTag && !currentFileTrace && !currentOnlyFavorites) { if (bar) bar.remove(); return; }
   if (!bar) {
     bar = el("div", "");
     bar.id = "tagbar";
@@ -2902,6 +3088,18 @@ function renderTagBar() {
     const x = el("span", "", "  ✕");
     x.style.cursor = "pointer";
     x.onclick = () => { currentFileTrace = null; refresh(); };
+    chip.appendChild(x);
+    bar.appendChild(chip);
+  }
+  if (currentOnlyFavorites) {
+    const chip = el("span", "tagchip", (L.filterFavoritesChip ? L.filterFavoritesChip(favoriteSet.size) : `⭐ Favorites (${favoriteSet.size})`));
+    const x = el("span", "", "  ✕");
+    x.style.cursor = "pointer";
+    x.onclick = () => {
+      currentOnlyFavorites = false;
+      $("favbtn")?.classList.remove("active");
+      refresh();
+    };
     chip.appendChild(x);
     bar.appendChild(chip);
   }
@@ -3354,6 +3552,7 @@ function setupContextMenu() {
   let activeSelectionText = "";
   let activeSelectionMd = "";
   let activeFileTarget = null;
+  let activeSessionTarget = null;
 
   function showMenuAt(clientX, clientY) {
     menu.style.display = "block";
@@ -3373,6 +3572,48 @@ function setupContextMenu() {
       hideContextMenu();
       return;
     }
+
+    const sessionItem = e.target.closest(".item[data-id]");
+    if (sessionItem) {
+      e.preventDefault();
+      const sId = sessionItem.dataset.id;
+      const title = sessionItem.querySelector(".title")?.textContent.replace(/^★\s*/, "").trim() || "";
+      activeSessionTarget = { id: sId, title, element: sessionItem };
+      activeFileTarget = null;
+      activeSelectionText = "";
+
+      if ($("ctx-find-file")) $("ctx-find-file").style.display = "none";
+      if ($("ctx-copy-path")) $("ctx-copy-path").style.display = "none";
+      if ($("ctx-copy-md")) $("ctx-copy-md").style.display = "none";
+      if ($("ctx-copy-text")) $("ctx-copy-text").style.display = "none";
+      if ($("ctx-search-chat")) $("ctx-search-chat").style.display = "none";
+      if ($("ctx-search-google")) $("ctx-search-google").style.display = "none";
+      if ($("ctx-divider-top")) $("ctx-divider-top").style.display = "none";
+      if ($("ctx-divider-bot")) $("ctx-divider-bot").style.display = "none";
+      if ($("ctx-divider-session")) $("ctx-divider-session").style.display = "none";
+
+      const isFav = favoriteSet.has(sId);
+      if ($("ctx-fav-session")) {
+        $("ctx-fav-session").style.display = "flex";
+        $("ctx-fav-session-label").textContent = isFav ? (L.remFromFav || "Remove from favorites") : (L.addToFav || "Add to favorites");
+      }
+      if ($("ctx-brief-session")) {
+        $("ctx-brief-session").style.display = "flex";
+        $("ctx-brief-session-label").textContent = L.aiBriefBtn || "Copy AI Brief";
+      }
+      if ($("ctx-forget-session")) {
+        $("ctx-forget-session").style.display = "flex";
+        $("ctx-forget-session-label").textContent = L.deleteFromIndex || "Delete from index";
+      }
+
+      showMenuAt(e.clientX, e.clientY);
+      return;
+    }
+
+    if ($("ctx-fav-session")) $("ctx-fav-session").style.display = "none";
+    if ($("ctx-brief-session")) $("ctx-brief-session").style.display = "none";
+    if ($("ctx-forget-session")) $("ctx-forget-session").style.display = "none";
+    if ($("ctx-divider-session")) $("ctx-divider-session").style.display = "none";
 
     const sel = window.getSelection();
     const selectedText = sel ? sel.toString().trim() : "";
@@ -3428,6 +3669,70 @@ function setupContextMenu() {
   });
 
   document.addEventListener("scroll", hideContextMenu, true);
+
+  // Favorite session context click
+  $("ctx-fav-session")?.addEventListener("click", async () => {
+    if (activeSessionTarget) {
+      const sId = activeSessionTarget.id;
+      const isFav = favoriteSet.has(sId);
+      const next = !isFav;
+      const res = await jget(`/api/favorite?id=${encodeURIComponent(sId)}&fav=${next ? 1 : 0}`);
+      if (res && res.ok) {
+        if (next) favoriteSet.add(sId);
+        else favoriteSet.delete(sId);
+        updateItemFavStar(sId, next);
+        const favStar = $("session-fav-star");
+        if (favStar && currentSession && currentSession.id === sId) {
+          favStar.textContent = next ? "★" : "☆";
+          favStar.classList.toggle("active", next);
+          favStar.title = next ? (L.remFromFav || "Remove from favorites") : (L.addToFav || "Add to favorites");
+        }
+        showToast(next ? (L.favAdded || "★ Added to favorites") : (L.favRemoved || "☆ Removed from favorites"));
+        if (currentOnlyFavorites) refresh();
+      }
+    }
+    hideContextMenu();
+  });
+
+  // Brief session context click
+  $("ctx-brief-session")?.addEventListener("click", async () => {
+    if (activeSessionTarget) {
+      try {
+        const res = await jget(`/api/brief?id=${encodeURIComponent(activeSessionTarget.id)}&max_chars=24000`);
+        if (res && res.ok && res.markdown) {
+          await navigator.clipboard.writeText(res.markdown);
+          showToast(L.copiedBrief ? L.copiedBrief(res.est_tokens) : `✓ Copied AI Brief (~${res.est_tokens} tokens)`);
+        } else {
+          showToast(L.loadFailed || "Failed to generate brief");
+        }
+      } catch (e) {
+        showToast(L.loadFailed || "Failed to generate brief");
+      }
+    }
+    hideContextMenu();
+  });
+
+  // Forget session context click
+  $("ctx-forget-session")?.addEventListener("click", async () => {
+    if (activeSessionTarget) {
+      const sId = activeSessionTarget.id;
+      const title = activeSessionTarget.title;
+      const msg = L.confirmForget ? L.confirmForget(title) : `Permanently delete "${title}" from search index?`;
+      if (confirm(msg)) {
+        const res = await jget(`/api/forget?id=${encodeURIComponent(sId)}`);
+        if (res && res.ok) {
+          favoriteSet.delete(sId);
+          activeSessionTarget.element?.remove();
+          if (currentSession && currentSession.id === sId) {
+            $("main").replaceChildren(el("div", "placeholder", L.phTitle || "Pick a session on the left"));
+          }
+          showToast(L.deletedFromIndex || "✓ Session deleted from index");
+          refresh();
+        }
+      }
+    }
+    hideContextMenu();
+  });
 
   // Find all sessions for file click
   $("ctx-find-file")?.addEventListener("click", () => {
@@ -3548,12 +3853,30 @@ function setupSyncControls() {
 
 (async function init() {
   await loadStats();
+  try {
+    const favs = await jget("/api/favorites");
+    if (favs && Array.isArray(favs)) favoriteSet = new Set(favs);
+  } catch (e) {}
   setupSyncControls();
+  setupFavoritesControls();
   setupContextMenu();
   await refresh();
 })();
 </script>
 <div id="custom-context-menu" class="custom-context-menu" style="display: none;">
+  <div class="menu-item" id="ctx-fav-session" style="display: none;">
+    <span class="menu-icon">⭐</span>
+    <span class="menu-label" id="ctx-fav-session-label">Add to favorites</span>
+  </div>
+  <div class="menu-item" id="ctx-brief-session" style="display: none;">
+    <span class="menu-icon">🤖</span>
+    <span class="menu-label" id="ctx-brief-session-label">Copy AI Brief</span>
+  </div>
+  <div class="menu-item" id="ctx-forget-session" style="display: none;">
+    <span class="menu-icon">🗑️</span>
+    <span class="menu-label" id="ctx-forget-session-label">Delete from index</span>
+  </div>
+  <div class="menu-separator" id="ctx-divider-session" style="display: none;"></div>
   <div class="menu-item" id="ctx-find-file" style="display: none;">
     <span class="menu-icon">🔍</span>
     <span class="menu-label" id="ctx-find-file-label">Find all sessions</span>
