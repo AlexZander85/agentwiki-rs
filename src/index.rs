@@ -261,22 +261,25 @@ fn run_durable_migrations(conn: &Connection, migrations: &[Migration]) -> Result
     Ok(())
 }
 
-/// Ensure durable settings exist before the cache schema reads them.
+/// Ensure durable settings and metadata tables exist before the cache schema reads them.
 fn create_meta_schema(conn: &Connection) -> Result<()> {
-    let exists: bool = conn.query_row(
-        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'meta')",
-        [],
-        |row| row.get(0),
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS meta(
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );",
     )?;
-    if !exists {
-        // Durable key/value settings and versioning survive cache rebuilds.
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS meta(
-                key   TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            );",
-        )?;
-    }
+    ensure_favorites_table(conn)?;
+    Ok(())
+}
+
+pub fn ensure_favorites_table(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS favorites(
+            session_id TEXT PRIMARY KEY,
+            created_at TEXT NOT NULL
+        );",
+    )?;
     Ok(())
 }
 
@@ -2757,6 +2760,7 @@ pub fn tag_counts(conn: &Connection) -> Result<Vec<(String, i64)>> {
 }
 
 pub fn list_favorites(conn: &Connection) -> Result<Vec<String>> {
+    ensure_favorites_table(conn)?;
     let mut stmt = conn.prepare("SELECT session_id FROM favorites ORDER BY created_at DESC")?;
     let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
     let mut ids = Vec::new();
@@ -2767,6 +2771,7 @@ pub fn list_favorites(conn: &Connection) -> Result<Vec<String>> {
 }
 
 pub fn set_favorite(conn: &Connection, session_id: &str, favorite: bool) -> Result<()> {
+    ensure_favorites_table(conn)?;
     if favorite {
         let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
@@ -2783,6 +2788,7 @@ pub fn set_favorite(conn: &Connection, session_id: &str, favorite: bool) -> Resu
 }
 
 pub fn is_favorite(conn: &Connection, session_id: &str) -> Result<bool> {
+    ensure_favorites_table(conn)?;
     let count: i64 = conn
         .query_row(
             "SELECT count(*) FROM favorites WHERE session_id = ?1",
@@ -3155,6 +3161,7 @@ pub fn session_from_index(conn: &Connection, row: &SessionRow) -> Result<crate::
 /// All-or-nothing: a crash mid-forget must not leave the FTS index out of sync
 /// with `messages`, nor an `archive` row that would resurrect it on rebuild.
 pub fn forget(conn: &mut Connection, session_id: &str) -> Result<()> {
+    ensure_favorites_table(conn)?;
     let tx = conn.transaction()?;
     delete_session_msgs(&tx, session_id)?;
     for table in [
