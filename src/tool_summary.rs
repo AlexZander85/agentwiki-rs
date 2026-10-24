@@ -717,6 +717,7 @@ mod tests {
             text: "hello".into(),
             ts: None,
             tool: None,
+            is_rewound: false,
         };
         let value = serde_json::to_value(plain).unwrap();
         assert!(value.get("tool").is_none());

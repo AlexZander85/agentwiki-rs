@@ -316,6 +316,7 @@ mod tests {
             text: text.to_string(),
             ts: None,
             tool: None,
+            is_rewound: false,
         }
     }
 
