@@ -122,7 +122,7 @@ fn window_limits() -> (u64, u64, u64) {
     (MAX_SESSION_FILE_BYTES, WINDOW_HEAD_BYTES, WINDOW_TAIL_BYTES)
 }
 
-fn session_lines_windowed(
+pub(crate) fn session_lines_windowed(
     path: &Path,
     cap: u64,
     head_bytes: u64,
@@ -130,7 +130,7 @@ fn session_lines_windowed(
 ) -> Result<(Vec<String>, bool)> {
     use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
     let mut f = std::fs::File::open(path).with_context(|| format!("open {}", path.display()))?;
-    if path.extension().is_some_and(|x| x == "zst") {
+    if path.extension().is_some_and(|x| x == "zst" || x == "zstd") {
         let decoder = ruzstd::decoding::StreamingDecoder::new(BufReader::new(f))
             .map_err(|e| anyhow::anyhow!("decompress {}: {e}", path.display()))?;
         return decoded_lines_windowed(decoder, cap, head_bytes, tail_bytes)
@@ -230,7 +230,7 @@ fn window_lines(head: &[u8], tail: &[u8]) -> Vec<String> {
 pub fn for_each_line(path: &Path, mut f: impl FnMut(&str)) -> Result<()> {
     use std::io::{BufRead, BufReader};
     let file = std::fs::File::open(path).with_context(|| format!("open {}", path.display()))?;
-    let mut reader: Box<dyn BufRead> = if path.extension().is_some_and(|x| x == "zst") {
+    let mut reader: Box<dyn BufRead> = if path.extension().is_some_and(|x| x == "zst" || x == "zstd") {
         let decoder = ruzstd::decoding::StreamingDecoder::new(BufReader::new(file))
             .map_err(|e| anyhow::anyhow!("decompress {}: {e}", path.display()))?;
         Box::new(BufReader::new(decoder))

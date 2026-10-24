@@ -4,8 +4,11 @@ mod claude_code;
 mod cline;
 mod codex;
 mod continue_dev;
+mod deepseek;
 mod gajae;
 mod gemini;
+mod hermes;
+mod kimi;
 mod gptme;
 pub mod harness;
 mod opencode;
@@ -18,6 +21,9 @@ pub(crate) use codex::is_subagent_meta as codex_is_subagent_meta;
 pub use codex::{Codex, CodexHistory};
 pub(crate) use gemini::project_root as gemini_project_root;
 pub use prodex::thread_url_for_task as prodex_thread_url;
+pub use deepseek::DeepSeek;
+pub use hermes::Hermes;
+pub use kimi::Kimi;
 pub use qoder::Qoder;
 pub use zcode::ZCode;
 
@@ -164,6 +170,9 @@ pub fn all() -> Vec<Box<dyn Adapter>> {
         Box::new(prodex::Prodex),
         Box::new(qoder::Qoder),
         Box::new(zcode::ZCode),
+        Box::new(deepseek::DeepSeek),
+        Box::new(hermes::Hermes),
+        Box::new(kimi::Kimi),
     ]
 }
 
