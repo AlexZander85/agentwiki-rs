@@ -1327,7 +1327,7 @@
     color: #e53e3e;
   }
 
-  /* Pin Button on Assistant Messages */
+  /* Pin Button on Messages & Code Blocks */
   .msg-pin-btn {
     margin-left: auto;
     display: inline-flex;
@@ -1336,32 +1336,53 @@
     font-size: 11px;
     font-weight: 500;
     padding: 2px 8px;
-    border-radius: 4px;
+    border-radius: 5px;
     border: 1px solid var(--line);
     background: var(--card);
     color: var(--ink-2);
     cursor: pointer;
-    opacity: 0.6;
+    opacity: 0.55;
     transition: all 0.15s ease;
   }
-  .msg:hover .msg-pin-btn {
-    opacity: 1;
+  .msg-pin-btn .pin-icon,
+  .pin-code-btn .pin-icon {
+    display: inline-block;
+    line-height: 1;
+    font-size: 11px;
+    filter: grayscale(1) opacity(0.35);
+    transition: filter 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
+  }
+  .msg:hover .msg-pin-btn,
+  .toolrow:hover .msg-pin-btn {
+    opacity: 0.85;
   }
   .msg-pin-btn:hover {
+    opacity: 1;
     background: var(--card-subtle);
     color: var(--ink);
     border-color: var(--line-strong);
   }
+  .msg-pin-btn:hover .pin-icon,
+  .pin-code-btn:hover .pin-icon {
+    filter: grayscale(0.2) opacity(0.85);
+  }
   .msg-pin-btn.pinned {
     opacity: 1;
-    background: rgba(245, 158, 11, 0.12);
-    border-color: rgba(245, 158, 11, 0.4);
-    color: #b45309;
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #dc2626;
+    font-weight: 600;
+  }
+  .msg-pin-btn.pinned .pin-icon,
+  .pin-code-btn.pinned .pin-icon {
+    filter: none !important;
+    opacity: 1 !important;
+    transform: rotate(-10deg) scale(1.1);
   }
   [data-theme="dark"] .msg-pin-btn.pinned {
-    background: rgba(245, 158, 11, 0.2);
-    border-color: rgba(245, 158, 11, 0.5);
-    color: #fbbf24;
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.5);
+    color: #f87171;
   }
 
   /* Pin button on code pre blocks */
@@ -1389,14 +1410,15 @@
     color: var(--ink);
   }
   .msg .body pre .pin-code-btn.pinned {
-    color: #b45309;
-    border-color: rgba(245, 158, 11, 0.4);
-    background: rgba(245, 158, 11, 0.12);
+    color: #dc2626;
+    border-color: rgba(239, 68, 68, 0.4);
+    background: rgba(239, 68, 68, 0.12);
+    font-weight: 600;
   }
   [data-theme="dark"] .msg .body pre .pin-code-btn.pinned {
-    color: #fbbf24;
-    border-color: rgba(245, 158, 11, 0.5);
-    background: rgba(245, 158, 11, 0.2);
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.5);
+    background: rgba(239, 68, 68, 0.2);
   }
 
   /* Highlight pulse when jumping to a snippet */
@@ -2609,7 +2631,7 @@ function postProcessMarkdown(container) {
       pinBtn.className = "pin-code-btn";
       pinBtn.type = "button";
       pinBtn.title = L.pinSnippet || "📌 Pin code snippet";
-      pinBtn.textContent = "📌 Pin";
+      pinBtn.innerHTML = '<span class="pin-icon">📌</span> <span>' + (L.pinSnippetBtn || "Pin") + "</span>";
       pinBtn.onclick = async (e) => {
         e.stopPropagation();
         const code = pre.querySelector("code")?.textContent || pre.textContent;
@@ -2634,7 +2656,7 @@ function postProcessMarkdown(container) {
             message_ts: msgTs,
           });
           if (res && res.ok) {
-            pinBtn.textContent = "✓ Pinned";
+            pinBtn.innerHTML = '<span class="pin-icon">📌</span> <span>' + (L.pinnedSnippet || "Pinned") + "</span>";
             pinBtn.classList.add("pinned");
             showToast(L.snippetPinnedToast || "📌 Snippet saved to Knowledge Base");
             refreshSnippetsBadge();
@@ -3295,7 +3317,7 @@ function renderCurrentSession(keepScroll) {
       const pinBtn = el("button", "msg-pin-btn tool-pin-btn" + (isPinned ? " pinned" : ""));
       pinBtn.type = "button";
       pinBtn.title = isPinned ? (L.unpinSnippet || "Unpin from Snippets") : (L.pinSnippet || "📌 Pin snippet to Knowledge Base");
-      pinBtn.innerHTML = isPinned ? "📌 <span>" + (L.pinnedSnippet || "Pinned") + "</span>" : "📌 <span>" + (L.pinSnippetBtn || "Pin") + "</span>";
+      pinBtn.innerHTML = isPinned ? '<span class="pin-icon">📌</span> <span>' + (L.pinnedSnippet || "Pinned") + "</span>" : '<span class="pin-icon">📌</span> <span>' + (L.pinSnippetBtn || "Pin") + "</span>";
       pinBtn.onclick = async (e) => {
         e.stopPropagation();
         await togglePinMessage(s, msgIdx, m.text, pinBtn, pinnedSet, "tool", m.ts);
@@ -3334,7 +3356,7 @@ function renderCurrentSession(keepScroll) {
     const pinBtn = el("button", "msg-pin-btn" + (isPinned ? " pinned" : ""));
     pinBtn.type = "button";
     pinBtn.title = isPinned ? (L.unpinSnippet || "Unpin from Snippets") : (L.pinSnippet || "📌 Pin snippet to Knowledge Base");
-    pinBtn.innerHTML = isPinned ? "📌 <span>" + (L.pinnedSnippet || "Pinned") + "</span>" : "📌 <span>" + (L.pinSnippetBtn || "Pin") + "</span>";
+    pinBtn.innerHTML = isPinned ? '<span class="pin-icon">📌</span> <span>' + (L.pinnedSnippet || "Pinned") + "</span>" : '<span class="pin-icon">📌</span> <span>' + (L.pinSnippetBtn || "Pin") + "</span>";
     pinBtn.onclick = async (e) => {
       e.stopPropagation();
       await togglePinMessage(s, msgIdx, m.text, pinBtn, pinnedSet, m.role || "assistant", m.ts);
@@ -4881,7 +4903,7 @@ async function loadSnippets(query, lang) {
               const pinBtn = document.querySelector(`#msg-${snip.message_idx} .msg-pin-btn`);
               if (pinBtn) {
                 pinBtn.classList.remove("pinned");
-                pinBtn.innerHTML = "📌 <span>" + (L.pinSnippetBtn || "Pin") + "</span>";
+                pinBtn.innerHTML = '<span class="pin-icon">📌</span> <span>' + (L.pinSnippetBtn || "Pin") + "</span>";
               }
             }
           } catch (err) {
@@ -4973,7 +4995,7 @@ async function togglePinMessage(s, msgIdx, text, btn, pinnedSet, role, ts) {
         await jget(`/api/snippet/delete?id=${target.id}`);
         pinnedSet.delete(Number(msgIdx));
         btn.classList.remove("pinned");
-        btn.innerHTML = "📌 <span>" + (L.pinSnippetBtn || "Pin") + "</span>";
+        btn.innerHTML = '<span class="pin-icon">📌</span> <span>' + (L.pinSnippetBtn || "Pin") + "</span>";
         btn.title = L.pinSnippet || "📌 Pin snippet to Knowledge Base";
         showToast(L.snippetUnpinnedToast || "Snippet removed from Knowledge Base");
         refreshSnippetsBadge();
@@ -5005,7 +5027,7 @@ async function togglePinMessage(s, msgIdx, text, btn, pinnedSet, role, ts) {
       if (res && res.ok) {
         pinnedSet.add(Number(msgIdx));
         btn.classList.add("pinned");
-        btn.innerHTML = "📌 <span>" + (L.pinnedSnippet || "Pinned") + "</span>";
+        btn.innerHTML = '<span class="pin-icon">📌</span> <span>' + (L.pinnedSnippet || "Pinned") + "</span>";
         btn.title = L.unpinSnippet || "Unpin from Snippets";
         showToast(L.snippetPinnedToast || "📌 Snippet saved to Knowledge Base");
         refreshSnippetsBadge();
