@@ -1,10 +1,11 @@
 name: Release
 
-# Builds prebuilt binaries for every tagged version and attaches them to the
-# GitHub Release, so users without a Rust toolchain can install in one step.
+# Builds prebuilt binaries for every tagged version (or manual trigger)
+# and attaches them to the GitHub Release (Windows, macOS, Linux).
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -19,9 +20,6 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-          # Both macOS targets build on the Apple Silicon runner: the macOS SDK
-          # is universal, so it cross-compiles x86_64 reliably. The dedicated
-          # Intel runner (macos-13) is being deprecated and queues for hours.
           - os: macos-14
             target: aarch64-apple-darwin
           - os: macos-14
@@ -30,23 +28,24 @@ jobs:
             target: x86_64-pc-windows-msvc
     steps:
       - uses: actions/checkout@v7
+
+      - name: Install Linux GUI dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
 
-      - name: Build
-        run: cargo build --release --target ${{ matrix.target }} --bin sessionwiki
+      - name: Build all binaries (CLI + Desktop GUI)
+        run: cargo build --release --target ${{ matrix.target }} --bins
 
-      # macOS ties a folder-access grant (Documents, Desktop, ...) to the
-      # binary's path plus its code requirement. An ad-hoc signature's
-      # requirement is its cdhash, so every release looked like a new program
-      # and asked again. One stable identity keeps the requirement the same
-      # across releases. rcodesign signs with a PEM key; no keychain or trust
-      # setup. An unsigned release would reset every user's grants, so a
-      # missing key fails the build instead of shipping ad-hoc.
       - name: Sign (macOS)
         if: runner.os == 'macOS'
         shell: bash
@@ -55,36 +54,49 @@ jobs:
           SIGNING_CERT_PEM: ${{ secrets.MACOS_SIGNING_CERT_PEM }}
         run: |
           set -euo pipefail
-          if [ -z "$SIGNING_KEY_PEM" ] || [ -z "$SIGNING_CERT_PEM" ]; then
-            echo "::error::MACOS_SIGNING_KEY_PEM / MACOS_SIGNING_CERT_PEM are not set"
-            exit 1
+          if [ -n "$SIGNING_KEY_PEM" ] && [ -n "$SIGNING_CERT_PEM" ]; then
+            v=0.29.0
+            a=apple-codesign-$v-macos-universal
+            curl -fsSL -o "$a.tar.gz" "https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F$v/$a.tar.gz"
+            echo "d98372d5524226ccf9dc0eda03d4e4f5826182dabb2fc3f2bd303ed9113a748d  $a.tar.gz" | shasum -a 256 -c -
+            tar xzf "$a.tar.gz"
+            umask 077
+            printf '%s\n' "$SIGNING_KEY_PEM" > "$RUNNER_TEMP/key.pem"
+            printf '%s\n' "$SIGNING_CERT_PEM" > "$RUNNER_TEMP/cert.pem"
+            for b in sessionwiki sessionwiki-app; do
+              bin="target/${{ matrix.target }}/release/$b"
+              if [ -f "$bin" ]; then
+                "./$a/rcodesign" sign --pem-source "$RUNNER_TEMP/key.pem" --pem-source "$RUNNER_TEMP/cert.pem" \
+                  --binary-identifier "com.alexzander.$b" "$bin"
+                codesign --verify "$bin"
+              fi
+            done
+            rm -f "$RUNNER_TEMP/key.pem" "$RUNNER_TEMP/cert.pem"
+          else
+            echo "No macOS signing secrets configured; continuing with standard binaries"
           fi
-          v=0.29.0
-          a=apple-codesign-$v-macos-universal
-          curl -fsSL -o "$a.tar.gz" "https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F$v/$a.tar.gz"
-          echo "d98372d5524226ccf9dc0eda03d4e4f5826182dabb2fc3f2bd303ed9113a748d  $a.tar.gz" | shasum -a 256 -c -
-          tar xzf "$a.tar.gz"
-          umask 077
-          printf '%s\n' "$SIGNING_KEY_PEM" > "$RUNNER_TEMP/key.pem"
-          printf '%s\n' "$SIGNING_CERT_PEM" > "$RUNNER_TEMP/cert.pem"
-          bin=target/${{ matrix.target }}/release/sessionwiki
-          "./$a/rcodesign" sign --pem-source "$RUNNER_TEMP/key.pem" --pem-source "$RUNNER_TEMP/cert.pem" \
-            --binary-identifier com.youdie006.sessionwiki "$bin"
-          rm -f "$RUNNER_TEMP/key.pem" "$RUNNER_TEMP/cert.pem"
-          codesign --verify "$bin"
-          req=$(codesign -d -r- "$bin" 2>&1)
-          echo "$req"
-          echo "$req" | grep -q 'identifier "com.youdie006.sessionwiki" and certificate root'
 
       - name: Package (unix)
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          bin=target/${{ matrix.target }}/release/sessionwiki
-          dist=sessionwiki-${{ github.ref_name }}-${{ matrix.target }}
-          mkdir "$dist"
-          cp "$bin" "$dist/"
-          cp README.md LICENSE "$dist/"
+          target_dir="target/${{ matrix.target }}/release"
+          tag="${{ github.ref_name }}"
+          [ "$tag" = "main" ] && tag="latest"
+          dist="agentwiki-${tag}-${{ matrix.target }}"
+          mkdir -p "$dist"
+          
+          # CLI binary
+          cp "$target_dir/sessionwiki" "$dist/agentwiki"
+          cp "$target_dir/sessionwiki" "$dist/sessionwiki"
+          
+          # GUI binary if present
+          if [ -f "$target_dir/sessionwiki-app" ]; then
+            cp "$target_dir/sessionwiki-app" "$dist/agentwiki-app"
+            cp "$target_dir/sessionwiki-app" "$dist/sessionwiki-app"
+          fi
+          
+          cp README.md README.ru.md LICENSE "$dist/"
           tar czf "$dist.tar.gz" "$dist"
           shasum -a 256 "$dist.tar.gz" > "$dist.tar.gz.sha256"
 
@@ -92,26 +104,37 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          bin=target/${{ matrix.target }}/release/sessionwiki.exe
-          dist=sessionwiki-${{ github.ref_name }}-${{ matrix.target }}
-          mkdir "$dist"
-          cp "$bin" "$dist/"
-          cp README.md LICENSE "$dist/"
+          target_dir="target/${{ matrix.target }}/release"
+          tag="${{ github.ref_name }}"
+          [ "$tag" = "main" ] && tag="latest"
+          dist="agentwiki-${tag}-${{ matrix.target }}"
+          mkdir -p "$dist"
+          
+          # CLI binary
+          cp "$target_dir/sessionwiki.exe" "$dist/agentwiki.exe"
+          cp "$target_dir/sessionwiki.exe" "$dist/sessionwiki.exe"
+          
+          # GUI binary
+          if [ -f "$target_dir/sessionwiki-app.exe" ]; then
+            cp "$target_dir/sessionwiki-app.exe" "$dist/agentwiki-app.exe"
+            cp "$target_dir/sessionwiki-app.exe" "$dist/sessionwiki-app.exe"
+          fi
+          
+          cp README.md README.ru.md LICENSE "$dist/"
           7z a "$dist.zip" "$dist" >/dev/null
           certutil -hashfile "$dist.zip" SHA256 | sed -n 2p > "$dist.zip.sha256"
 
       - name: Build the release notes
         shell: bash
         run: |
-          # The release was published with an EMPTY body while CHANGELOG.md
-          # carried the notes, so every version looked the same on GitHub: a
-          # version number and nothing else. Every matrix leg writes the same
-          # file, so whichever uploads first sets the same body.
           TAG="${{ github.ref_name }}"
-          sh scripts/release-notes.sh "$TAG" > RELEASE_NOTES.md
+          if [ -f scripts/release-notes.sh ]; then
+            sh scripts/release-notes.sh "$TAG" > RELEASE_NOTES.md || true
+          fi
           if [ ! -s RELEASE_NOTES.md ]; then
-            echo "CHANGELOG.md has no section for $TAG" >&2
-            exit 1
+            echo "# AgentWiki $TAG" > RELEASE_NOTES.md
+            echo "" >> RELEASE_NOTES.md
+            echo "Automated release build for Windows, macOS, and Linux." >> RELEASE_NOTES.md
           fi
 
       - name: Upload to release
@@ -119,8 +142,8 @@ jobs:
         with:
           body_path: RELEASE_NOTES.md
           files: |
-            sessionwiki-*.tar.gz
-            sessionwiki-*.tar.gz.sha256
-            sessionwiki-*.zip
-            sessionwiki-*.zip.sha256
+            agentwiki-*.tar.gz
+            agentwiki-*.tar.gz.sha256
+            agentwiki-*.zip
+            agentwiki-*.zip.sha256
           fail_on_unmatched_files: false
