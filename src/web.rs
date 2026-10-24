@@ -614,6 +614,7 @@ pub(crate) fn open_browser(url: &str) {
         .chain(std::iter::once(0))
         .collect();
 
+    #[link(name = "shell32")]
     extern "system" {
         fn ShellExecuteW(
             hwnd: *mut std::ffi::c_void,
