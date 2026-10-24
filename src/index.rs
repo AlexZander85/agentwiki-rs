@@ -285,7 +285,7 @@ pub fn ensure_favorites_table(conn: &Connection) -> Result<()> {
 }
 
 pub fn ensure_snippets_table(conn: &Connection) -> Result<()> {
-    let _ = conn.execute_batch(
+    conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS snippets(
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id  TEXT NOT NULL,
@@ -297,11 +297,10 @@ pub fn ensure_snippets_table(conn: &Connection) -> Result<()> {
             created_at  TEXT NOT NULL,
             tool        TEXT,
             role        TEXT,
-            message_ts  TEXT,
             message_ts  TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_snippets_session ON snippets(session_id);",
-    );
+    )?;
     let _ = conn.execute("ALTER TABLE snippets ADD COLUMN tool TEXT", []);
     let _ = conn.execute("ALTER TABLE snippets ADD COLUMN role TEXT", []);
     let _ = conn.execute("ALTER TABLE snippets ADD COLUMN message_ts TEXT", []);
@@ -2913,7 +2912,8 @@ pub fn save_snippet(
                 params![session_id],
                 |r| r.get(0),
             )
-            .optional()?
+            .optional()
+            .unwrap_or(None)
             .or_else(|| {
                 conn.query_row(
                     "SELECT tool FROM archive WHERE session_id = ?1",
@@ -2938,7 +2938,8 @@ pub fn save_snippet(
                 params![session_id],
                 |r| r.get(0),
             )
-            .optional()?
+            .optional()
+            .unwrap_or(None)
             .flatten()
             .unwrap_or_else(|| now.clone()),
     };

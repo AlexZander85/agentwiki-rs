@@ -234,11 +234,12 @@ pub fn snippets(
     query: Option<&str>,
     lang: Option<&str>,
     session: Option<&str>,
+    role: Option<&str>,
     limit: usize,
     json: bool,
 ) -> Result<()> {
     let conn = index::open_readonly()?;
-    let items = index::list_snippets(&conn, query, lang, session, None, None, limit)?;
+    let items = index::list_snippets(&conn, query, lang, session, None, role, limit)?;
     if json {
         println!("{}", serde_json::to_string(&items)?);
         return Ok(());
@@ -265,6 +266,44 @@ pub fn snippets(
             truncate(&item.title, 24),
             dim(&item.created_at.chars().take(10).collect::<String>()),
         );
+    }
+    Ok(())
+}
+
+/// Save a durable memory or architectural insight into the knowledge base.
+pub fn remember(
+    title: &str,
+    content: &str,
+    session: Option<&str>,
+    tags: Option<&str>,
+    json: bool,
+) -> Result<()> {
+    let conn = index::open()?;
+    let effective_session = session.unwrap_or("global");
+    let id = index::save_snippet(
+        &conn,
+        effective_session,
+        0,
+        title,
+        Some("markdown"),
+        content,
+        tags,
+        Some("assistant"),
+        Some("assistant_memory"),
+        None,
+    )?;
+    if json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "ok": true,
+                "id": id,
+                "title": title,
+                "role": "assistant_memory"
+            })
+        );
+    } else {
+        println!("Saved assistant memory #{} [{}]", id, title);
     }
     Ok(())
 }

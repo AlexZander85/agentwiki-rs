@@ -7,6 +7,8 @@ use rusqlite::params;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
+static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 fn seed(dir: &std::path::Path) {
     std::env::set_var("SESSIONWIKI_DATA", dir);
     let conn = sessionwiki::index::open().unwrap();
@@ -45,6 +47,7 @@ bug','2026-06-10T10:00:00+00:00','2026-06-10T10:00:00+00:00',1,'main')",
 
 #[test]
 fn golden_handshake_search_and_stream_purity() {
+    let _guard = TEST_LOCK.lock().unwrap();
     let dir = std::env::temp_dir().join("sessionwiki-test-mcp-e2e");
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
@@ -90,7 +93,7 @@ fn golden_handshake_search_and_stream_purity() {
     assert_eq!(lines[0]["id"], 1);
     assert_eq!(lines[0]["result"]["protocolVersion"], "2025-06-18");
     assert_eq!(lines[1]["id"], "two");
-    assert_eq!(lines[1]["result"]["tools"].as_array().unwrap().len(), 10);
+    assert_eq!(lines[1]["result"]["tools"].as_array().unwrap().len(), 11);
     assert_eq!(lines[2]["id"], 3);
     let text = lines[2]["result"]["content"][0]["text"].as_str().unwrap();
     assert!(
@@ -102,4 +105,49 @@ fn golden_handshake_search_and_stream_purity() {
         !text.contains('\u{1b}'),
         "ESC in the seeded title is stripped"
     );
+}
+
+#[test]
+fn test_mcp_remember_and_list_snippets() {
+    let _guard = TEST_LOCK.lock().unwrap();
+    let dir = std::env::temp_dir().join("sessionwiki-test-mcp-remember");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    seed(&dir);
+
+    let requests = [
+        r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}"#,
+        r#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"remember","arguments":{"title":"Auth Architecture","content":"Use Ed25519 tokens","session_id":"s1","tags":"auth,crypto"}}}"#,
+        r#"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_snippets","arguments":{"role":"assistant_memory"}}}"#,
+    ];
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_sessionwiki"))
+        .arg("mcp")
+        .env("SESSIONWIKI_DATA", &dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    {
+        let mut stdin = child.stdin.take().unwrap();
+        for r in requests {
+            writeln!(stdin, "{r}").unwrap();
+        }
+    }
+    let out = child.wait_with_output().unwrap();
+    assert!(out.status.success());
+    let stdout = String::from_utf8(out.stdout).unwrap();
+    let lines: Vec<serde_json::Value> = stdout
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| serde_json::from_str(l).expect("valid JSON"))
+        .collect();
+    assert_eq!(lines.len(), 3);
+    assert_eq!(lines[1]["id"], 2);
+    let rem_text = lines[1]["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(rem_text.contains("Successfully saved memory"));
+    assert_eq!(lines[2]["id"], 3);
+    let list_text = lines[2]["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(list_text.contains("Auth Architecture"));
+    assert!(list_text.contains("assistant_memory"));
 }

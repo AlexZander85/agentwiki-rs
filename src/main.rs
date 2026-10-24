@@ -64,10 +64,33 @@ enum Command {
         /// Filter by origin session ID
         #[arg(long)]
         session: Option<String>,
+        /// Filter by role (assistant_memory, user, assistant, tool)
+        #[arg(short = 'r', long)]
+        role: Option<String>,
         /// Max snippets to return
         #[arg(short = 'n', long, default_value_t = 20)]
         limit: usize,
         /// Emit as a JSON array
+        #[arg(long)]
+        json: bool,
+    },
+    /// Save a durable memory or architectural decision into the knowledge base
+    Remember {
+        /// Title of the memory or decision
+        title: String,
+        /// Memory content (markdown)
+        #[arg(short = 'c', long)]
+        content: Option<String>,
+        /// Read content from file
+        #[arg(short = 'f', long)]
+        file: Option<std::path::PathBuf>,
+        /// Optional session ID to associate this memory with
+        #[arg(short = 's', long)]
+        session: Option<String>,
+        /// Comma-separated tags (e.g. "auth, architecture, bugfix")
+        #[arg(short = 't', long)]
+        tags: Option<String>,
+        /// Emit created snippet as JSON
         #[arg(long)]
         json: bool,
     },
@@ -392,15 +415,34 @@ fn main() {
             query,
             lang,
             session,
+            role,
             limit,
             json,
         } => commands::snippets(
             query.as_deref(),
             lang.as_deref(),
             session.as_deref(),
+            role.as_deref(),
             limit,
             json,
         ),
+        Command::Remember {
+            title,
+            content,
+            file,
+            session,
+            tags,
+            json,
+        } => (|| -> anyhow::Result<()> {
+            let body = if let Some(c) = content {
+                c
+            } else if let Some(f) = file {
+                std::fs::read_to_string(&f)?
+            } else {
+                anyhow::bail!("either --content (-c) or --file (-f) must be provided");
+            };
+            commands::remember(&title, &body, session.as_deref(), tags.as_deref(), json)
+        })(),
         Command::Search {
             query,
             limit,

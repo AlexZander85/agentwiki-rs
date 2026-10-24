@@ -227,7 +227,7 @@ fn tools_list() -> Value {
         {
             "name": "list_snippets",
             "title": "List pinned code snippets and solutions",
-            "description": "Query curated code snippets, configurations, and insights bookmarked by the user across AI sessions. Filterable by query terms, language (rust, python, bash, dockerfile...), or session ID. Read-only, local.",
+            "description": "Query curated code snippets, configurations, and insights bookmarked by the user across AI sessions. Filterable by query terms, language (rust, python, bash, dockerfile...), session ID, or role (e.g. 'assistant_memory' for durable agent memories). Read-only, local.",
             "annotations": {"readOnlyHint": true},
             "inputSchema": {
                 "type": "object",
@@ -235,8 +235,24 @@ fn tools_list() -> Value {
                     "query": {"type": "string", "description": "Search terms to match in snippet title, tags, or code content."},
                     "lang": {"type": "string", "description": "Optional language filter (e.g. bash, rust, python, dockerfile, sql)."},
                     "session_id": {"type": "string", "description": "Optional session ID to get snippets pinned from that specific session."},
+                    "role": {"type": "string", "description": "Optional role filter (e.g. 'assistant_memory' to fetch only AI-remembered insights, or 'user', 'assistant')."},
                     "limit": {"type": "integer", "description": "Max snippets to return, 1-50 (default 20)."}
                 }
+            }
+        },
+        {
+            "name": "remember",
+            "title": "Remember an architectural decision or solution",
+            "description": "Store a durable memory, key conclusion, or architectural insight into SessionWiki's knowledge base (Bookmarks / Закладки). The memory is indexed, taggable, queryable by coding agents in future sessions via list_snippets(role='assistant_memory'), and viewable in the Web UI under 'assistant memory'.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Short, descriptive title of the memory or decision (e.g. 'Auth JWT Refresh Token Policy' or 'Fix SQLite WAL Lock Timeout')."},
+                    "content": {"type": "string", "description": "Markdown text with the synthesized conclusion, root cause, implementation pattern, or code snippet."},
+                    "session_id": {"type": "string", "description": "Optional session ID to link this memory to."},
+                    "tags": {"type": "string", "description": "Optional comma-separated tags (e.g. 'architecture, auth, sqlite')."}
+                },
+                "required": ["title", "content"]
             }
         }
     ]})
@@ -464,6 +480,7 @@ fn tool_call(conn: &mut Option<Connection>, params: &Value) -> Result<Value, (i6
         "get_session_summary" => Ok(tool_summary(conn, &args)),
         "list_favorites" => Ok(tool_favorites(conn, &args)),
         "list_snippets" => Ok(tool_snippets(conn, &args)),
+        "remember" => Ok(tool_remember(conn, &args)),
         other => Err((-32602, format!("Unknown tool: {other}"))),
     }
 }
@@ -1127,12 +1144,13 @@ fn tool_snippets(conn: &mut Option<Connection>, args: &Value) -> Value {
     let query = args.get("query").and_then(Value::as_str);
     let lang = args.get("lang").and_then(Value::as_str);
     let session_id = args.get("session_id").and_then(Value::as_str);
+    let role = args.get("role").and_then(Value::as_str);
 
     let Some(conn) = get_conn(conn) else {
         return text_result("[]".into(), false);
     };
 
-    let items = match crate::index::list_snippets(conn, query, lang, session_id, None, None, limit) {
+    let items = match crate::index::list_snippets(conn, query, lang, session_id, None, role, limit) {
         Ok(items) => items,
         Err(e) => {
             return text_result(
@@ -1164,6 +1182,46 @@ fn tool_snippets(conn: &mut Option<Connection>, args: &Value) -> Value {
     json_result(rows)
 }
 
+
+fn tool_remember(_conn: &mut Option<Connection>, args: &Value) -> Value {
+    let title = args.get("title").and_then(Value::as_str).unwrap_or("").trim();
+    if title.is_empty() {
+        return text_result("title is required".into(), true);
+    }
+    let content = args.get("content").and_then(Value::as_str).unwrap_or("").trim();
+    if content.is_empty() {
+        return text_result("content is required".into(), true);
+    }
+    let session_id = args.get("session_id").and_then(Value::as_str).unwrap_or("global").trim();
+    let tags = args.get("tags").and_then(Value::as_str);
+
+    let write_conn = match crate::index::open() {
+        Ok(c) => c,
+        Err(e) => return text_result(format!("failed to open database for writing: {e}"), true),
+    };
+
+    match crate::index::save_snippet(
+        &write_conn,
+        if session_id.is_empty() { "global" } else { session_id },
+        0,
+        title,
+        Some("markdown"),
+        content,
+        tags,
+        Some("assistant"),
+        Some("assistant_memory"),
+        None,
+    ) {
+        Ok(id) => json_result(vec![json!({
+            "ok": true,
+            "id": id,
+            "title": title,
+            "role": "assistant_memory",
+            "message": format!("Successfully saved memory #{id} [{title}] to SessionWiki knowledge base.")
+        })]),
+        Err(e) => text_result(format!("save memory failed: {}", safe_text(&e.to_string())), true),
+    }
+}
 /// The blocking stdio serve loop. Owns every byte written to stdout; EOF on
 /// stdin exits cleanly.
 pub fn serve() {

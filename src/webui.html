@@ -1310,6 +1310,11 @@
     border-color: rgba(59, 130, 246, 0.3);
     color: #2563eb;
   }
+  .snippet-card-badge.role-assistant_memory {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.35);
+    color: #d97706;
+  }
   .snippet-card-badge.role-tool {
     background: rgba(168, 85, 247, 0.1);
     border-color: rgba(168, 85, 247, 0.3);
@@ -1892,6 +1897,7 @@
             <option value="user,assistant">user and assistant</option>
             <option value="user">user messages</option>
             <option value="assistant">assistant replies</option>
+            <option value="assistant_memory">assistant memory</option>
             <option value="tool">tool output</option>
           </select>
         </div>
@@ -2001,6 +2007,8 @@ const I18N = {
     conversationRoles: "пользователь и ассистент",
     userRole: "сообщения пользователя",
     assistantRole: "ответы ассистента",
+    assistantMemoryRole: "память ассистента",
+    assistantMemoryBadge: "🧠 память",
     toolRole: "вывод инструментов",
     groups: { today: "Сегодня", yesterday: "Вчера", week: "На этой неделе", month: "В этом месяце", earlier: "Ранее" },
     msgs: (n) => `${n} сообщ.`,
@@ -2066,6 +2074,8 @@ const I18N = {
     conversationRoles: "user and assistant",
     userRole: "user messages",
     assistantRole: "assistant replies",
+    assistantMemoryRole: "assistant memory",
+    assistantMemoryBadge: "🧠 memory",
     toolRole: "tool output",
     groups: { today: "Today", yesterday: "Yesterday", week: "This week", month: "This month", earlier: "Earlier" },
     msgs: (n) => `${n} msgs`,
@@ -2616,7 +2626,8 @@ function applyStaticStrings() {
     $("snippet-role").options[1].textContent = L.conversationRoles;
     $("snippet-role").options[2].textContent = L.userRole;
     $("snippet-role").options[3].textContent = L.assistantRole;
-    $("snippet-role").options[4].textContent = L.toolRole;
+    $("snippet-role").options[4].textContent = L.assistantMemoryRole || "assistant memory";
+    $("snippet-role").options[5].textContent = L.toolRole;
   }
   if ($("snippet-date-mode")) {
     $("snippet-date-mode").options[0].textContent = L.allDates || "all dates";
@@ -5189,7 +5200,10 @@ async function loadSnippets(query, lang) {
 
       const badges = el("div", "snippet-card-badges");
       if (snip.role) {
-        badges.appendChild(el("span", "snippet-card-badge role-" + snip.role, snip.role));
+        const badgeLabel = snip.role === "assistant_memory"
+          ? (L.assistantMemoryBadge || "🧠 memory")
+          : snip.role;
+        badges.appendChild(el("span", "snippet-card-badge role-" + snip.role, badgeLabel));
       }
       if (snip.tool) {
         badges.appendChild(el("span", "snippet-card-badge tool", snip.tool));
