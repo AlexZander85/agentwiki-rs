@@ -29,72 +29,105 @@ pub fn serve(port: u16, no_open: bool, sync: bool) -> Result<()> {
         println!("(WSL detected - open the URL above in your browser; auto-open is off here to avoid stray windows)");
     }
 
-    for mut request in server.incoming_requests() {
-        // Defend against DNS rebinding: a page on a malicious site can rebind its
-        // own hostname to 127.0.0.1 and have the browser fetch this server, then
-        // read your sessions same-origin. Such a request carries the attacker's
-        // hostname in the Host header, so only serve requests addressed to the
-        // loopback name we actually bound.
-        let host = request
-            .headers()
-            .iter()
-            .find(|h| h.field.equiv("Host"))
-            .map(|h| h.value.as_str().to_string());
-        let origin = request
-            .headers()
-            .iter()
-            .find(|h| h.field.equiv("Origin"))
-            .map(|h| h.value.as_str().to_string());
-        // Host check defeats DNS rebinding (an attacker hostname rebound to
-        // 127.0.0.1 carries its name in Host). The Origin check is a second layer
-        // against a plain cross-origin fetch from a malicious site, which the
-        // browser stamps with its Origin - we don't rely on the same-origin
-        // policy alone.
-        if !host_matches(host.as_deref(), port) || !origin_ok(origin.as_deref(), port) {
-            let _ = request.respond(Response::from_string("forbidden").with_status_code(403));
-            continue;
-        }
-        let url = request.url().to_string();
-        let (path, query) = url.split_once('?').unwrap_or((url.as_str(), ""));
-        let result = match path {
-            "/" => html(INDEX_HTML),
-            "/api/stats" => api_stats(&conn),
-            "/api/sessions" => api_sessions(&conn, query),
-            "/api/search" => api_search(&conn, query),
-            "/api/trace" => api_trace(&conn, query),
-            "/api/file" => api_file(&conn, query),
-            "/api/projects" => api_projects(&conn),
-            "/api/tag" => api_tag(&conn, query),
-            "/api/sync" => api_sync(&mut conn),
-            "/api/favorites" => api_favorites(&conn),
-            "/api/favorite" => api_favorite(&conn, query),
-            "/api/forget" => api_forget(&mut conn, query),
-            "/api/brief" => api_brief(&conn, query),
-            "/api/snippets" => api_snippets(&conn, query),
-            "/api/snippet/save" => api_snippet_save(&conn, &mut request, query),
-            "/api/snippet/delete" => api_snippet_delete(&conn, query),
-            "/api/snippet/rename" => api_snippet_rename(&conn, &mut request, query),
-            "/api/subagents" => api_subagents(&conn, query),
-            "/api/analytics" => api_analytics(&conn),
-            p if p.starts_with("/api/related/") => {
-                api_related(&conn, p.trim_start_matches("/api/related/"))
+    // Several handlers, each with its own connection: WAL lets them read side
+    // by side, so a sync or a slow search no longer stalls every other request
+    // (the desktop app's whole UI) until it finishes.
+    let server = std::sync::Arc::new(server);
+    let sync_lock = std::sync::Arc::new(std::sync::Mutex::new(()));
+    for _ in 1..WEB_WORKERS {
+        let server = server.clone();
+        let sync_lock = sync_lock.clone();
+        std::thread::spawn(move || {
+            let mut conn = match index::open() {
+                Ok(conn) => conn,
+                Err(e) => {
+                    eprintln!("web: handler could not open the index: {e:#}");
+                    return;
+                }
+            };
+            for request in server.incoming_requests() {
+                handle_request(&mut conn, request, port, &sync_lock);
             }
-            p if p.starts_with("/api/session/") => {
-                api_session(&conn, p.trim_start_matches("/api/session/"))
-            }
-            _ => Ok(Response::from_string("not found")
-                .with_status_code(404)
-                .boxed()),
-        };
-        let response = match result {
-            Ok(r) => r,
-            Err(e) => Response::from_string(json!({ "error": e.to_string() }).to_string())
-                .with_status_code(500)
-                .boxed(),
-        };
-        let _ = request.respond(response);
+        });
+    }
+    for request in server.incoming_requests() {
+        handle_request(&mut conn, request, port, &sync_lock);
     }
     Ok(())
+}
+
+/// Request handler threads `serve` runs, the calling thread included.
+const WEB_WORKERS: usize = 4;
+
+fn handle_request(
+    conn: &mut Connection,
+    mut request: tiny_http::Request,
+    port: u16,
+    sync_lock: &std::sync::Mutex<()>,
+) {
+    // Defend against DNS rebinding: a page on a malicious site can rebind its
+    // own hostname to 127.0.0.1 and have the browser fetch this server, then
+    // read your sessions same-origin. Such a request carries the attacker's
+    // hostname in the Host header, so only serve requests addressed to the
+    // loopback name we actually bound.
+    let host = request
+        .headers()
+        .iter()
+        .find(|h| h.field.equiv("Host"))
+        .map(|h| h.value.as_str().to_string());
+    let origin = request
+        .headers()
+        .iter()
+        .find(|h| h.field.equiv("Origin"))
+        .map(|h| h.value.as_str().to_string());
+    // Host check defeats DNS rebinding (an attacker hostname rebound to
+    // 127.0.0.1 carries its name in Host). The Origin check is a second layer
+    // against a plain cross-origin fetch from a malicious site, which the
+    // browser stamps with its Origin - we don't rely on the same-origin
+    // policy alone.
+    if !host_matches(host.as_deref(), port) || !origin_ok(origin.as_deref(), port) {
+        let _ = request.respond(Response::from_string("forbidden").with_status_code(403));
+        return;
+    }
+    let url = request.url().to_string();
+    let (path, query) = url.split_once('?').unwrap_or((url.as_str(), ""));
+    let result = match path {
+        "/" => html(INDEX_HTML),
+        "/api/stats" => api_stats(&conn),
+        "/api/sessions" => api_sessions(&conn, query),
+        "/api/search" => api_search(&conn, query),
+        "/api/trace" => api_trace(&conn, query),
+        "/api/file" => api_file(&conn, query),
+        "/api/projects" => api_projects(&conn),
+        "/api/tag" => api_tag(&conn, query),
+        "/api/sync" => api_sync(conn, sync_lock),
+        "/api/favorites" => api_favorites(&conn),
+        "/api/favorite" => api_favorite(&conn, query),
+        "/api/forget" => api_forget(conn, query),
+        "/api/brief" => api_brief(&conn, query),
+        "/api/snippets" => api_snippets(&conn, query),
+        "/api/snippet/save" => api_snippet_save(&conn, &mut request, query),
+        "/api/snippet/delete" => api_snippet_delete(&conn, query),
+        "/api/snippet/rename" => api_snippet_rename(&conn, &mut request, query),
+        "/api/subagents" => api_subagents(&conn, query),
+        "/api/analytics" => api_analytics(&conn),
+        p if p.starts_with("/api/related/") => {
+            api_related(&conn, p.trim_start_matches("/api/related/"))
+        }
+        p if p.starts_with("/api/session/") => {
+            api_session(&conn, p.trim_start_matches("/api/session/"))
+        }
+        _ => Ok(Response::from_string("not found")
+            .with_status_code(404)
+            .boxed()),
+    };
+    let response = match result {
+        Ok(r) => r,
+        Err(e) => Response::from_string(json!({ "error": e.to_string() }).to_string())
+            .with_status_code(500)
+            .boxed(),
+    };
+    let _ = request.respond(response);
 }
 
 type Boxed = Response<Box<dyn std::io::Read + Send>>;
@@ -369,7 +402,10 @@ fn api_tag(conn: &Connection, query: &str) -> Result<Boxed> {
     json_response(json!({ "ok": true, "session_id": row.session_id, "tags": tags, "all_tags": all_tags }))
 }
 
-fn api_sync(conn: &mut Connection) -> Result<Boxed> {
+fn api_sync(conn: &mut Connection, sync_lock: &std::sync::Mutex<()>) -> Result<Boxed> {
+    // Auto-sync and the Sync button can overlap; the second waits for the
+    // first and then finds little left to do, instead of failing on the lock.
+    let _guard = sync_lock.lock().unwrap_or_else(|e| e.into_inner());
     index::sync(conn, None)?;
     let count: i64 = conn
         .query_row("SELECT count(*) FROM files WHERE kind = 'main'", [], |r| {
