@@ -270,16 +270,34 @@ fn create_meta_schema(conn: &Connection) -> Result<()> {
         );",
     )?;
     ensure_favorites_table(conn)?;
+    ensure_snippets_table(conn)?;
     Ok(())
 }
 
 pub fn ensure_favorites_table(conn: &Connection) -> Result<()> {
-    conn.execute_batch(
+    let _ = conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS favorites(
             session_id TEXT PRIMARY KEY,
             created_at TEXT NOT NULL
         );",
-    )?;
+    );
+    Ok(())
+}
+
+pub fn ensure_snippets_table(conn: &Connection) -> Result<()> {
+    let _ = conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS snippets(
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id  TEXT NOT NULL,
+            message_idx INTEGER NOT NULL,
+            title       TEXT NOT NULL,
+            lang        TEXT,
+            content     TEXT NOT NULL,
+            tags        TEXT,
+            created_at  TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_snippets_session ON snippets(session_id);",
+    );
     Ok(())
 }
 
@@ -538,6 +556,17 @@ fn create_cache_schema_with_tokenizer(conn: &Connection, tokenizer: &str) -> Res
             session_id TEXT PRIMARY KEY,
             created_at TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS snippets(
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id  TEXT NOT NULL,
+            message_idx INTEGER NOT NULL,
+            title       TEXT NOT NULL,
+            lang        TEXT,
+            content     TEXT NOT NULL,
+            tags        TEXT,
+            created_at  TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_snippets_session ON snippets(session_id);
         -- Archive (durable, never dropped on a schema bump). When the tool
         -- deletes a session's original file, we keep a self-contained copy
         -- here - the distilled transcript and provenance plus the metadata
@@ -2394,7 +2423,7 @@ fn search_like_terms(
             let text: String = r.get(9)?;
             Ok(Hit {
                 row: SessionRow {
-                    last_active: r.get(12)?, 
+                    last_active: r.get(11)?, 
                     session_id: r.get(0)?,
                     tool: r.get(1)?,
                     path: r.get(2)?,
@@ -2799,6 +2828,108 @@ pub fn is_favorite(conn: &Connection, session_id: &str) -> Result<bool> {
     Ok(count > 0)
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Snippet {
+    pub id: i64,
+    pub session_id: String,
+    pub message_idx: usize,
+    pub title: String,
+    pub lang: Option<String>,
+    pub content: String,
+    pub tags: Option<String>,
+    pub created_at: String,
+}
+
+pub fn save_snippet(
+    conn: &Connection,
+    session_id: &str,
+    message_idx: usize,
+    title: &str,
+    lang: Option<&str>,
+    content: &str,
+    tags: Option<&str>,
+) -> Result<i64> {
+    ensure_snippets_table(conn)?;
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO snippets(session_id, message_idx, title, lang, content, tags, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![session_id, message_idx as i64, title, lang, content, tags, now],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+pub fn delete_snippet(conn: &Connection, id: i64) -> Result<bool> {
+    ensure_snippets_table(conn)?;
+    let count = conn.execute("DELETE FROM snippets WHERE id = ?1", params![id])?;
+    Ok(count > 0)
+}
+
+pub fn list_snippets(
+    conn: &Connection,
+    query: Option<&str>,
+    lang: Option<&str>,
+    session_id: Option<&str>,
+    limit: usize,
+) -> Result<Vec<Snippet>> {
+    ensure_snippets_table(conn)?;
+    let mut sql = String::from("SELECT id, session_id, message_idx, title, lang, content, tags, created_at FROM snippets WHERE 1=1");
+    let mut params_vec: Vec<rusqlite::types::Value> = Vec::new();
+
+    if let Some(s) = session_id {
+        if !s.is_empty() {
+            sql.push_str(" AND session_id = ?");
+            params_vec.push(rusqlite::types::Value::Text(s.to_string()));
+        }
+    }
+    if let Some(l) = lang {
+        if !l.is_empty() && l != "all" {
+            sql.push_str(" AND lower(lang) = lower(?)");
+            params_vec.push(rusqlite::types::Value::Text(l.to_string()));
+        }
+    }
+    if let Some(q) = query {
+        let q_trim = q.trim();
+        if !q_trim.is_empty() {
+            sql.push_str(" AND (title LIKE ? OR content LIKE ? OR tags LIKE ?)");
+            let pattern = format!("%{}%", q_trim);
+            params_vec.push(rusqlite::types::Value::Text(pattern.clone()));
+            params_vec.push(rusqlite::types::Value::Text(pattern.clone()));
+            params_vec.push(rusqlite::types::Value::Text(pattern));
+        }
+    }
+    sql.push_str(" ORDER BY id DESC LIMIT ?");
+    params_vec.push(rusqlite::types::Value::Integer(limit as i64));
+
+    let mut stmt = match conn.prepare(&sql) {
+        Ok(s) => s,
+        Err(_) => return Ok(Vec::new()),
+    };
+    let rows = stmt.query_map(rusqlite::params_from_iter(params_vec), |r| {
+        Ok(Snippet {
+            id: r.get(0)?,
+            session_id: r.get(1)?,
+            message_idx: r.get::<_, i64>(2)? as usize,
+            title: r.get(3)?,
+            lang: r.get(4)?,
+            content: r.get(5)?,
+            tags: r.get(6)?,
+            created_at: r.get(7)?,
+        })
+    })?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+pub fn snippet_indices_for_session(conn: &Connection, session_id: &str) -> Result<Vec<usize>> {
+    ensure_snippets_table(conn)?;
+    let mut stmt = match conn.prepare("SELECT message_idx FROM snippets WHERE session_id = ?1") {
+        Ok(s) => s,
+        Err(_) => return Ok(Vec::new()),
+    };
+    let rows = stmt.query_map(params![session_id], |r| Ok(r.get::<_, i64>(0)? as usize))?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
 // --- provenance: sessions <-> the code they produced ---
 
 /// Files a session edited or created, in the order it first touched them.
@@ -3162,6 +3293,7 @@ pub fn session_from_index(conn: &Connection, row: &SessionRow) -> Result<crate::
 /// with `messages`, nor an `archive` row that would resurrect it on rebuild.
 pub fn forget(conn: &mut Connection, session_id: &str) -> Result<()> {
     ensure_favorites_table(conn)?;
+    ensure_snippets_table(conn)?;
     let tx = conn.transaction()?;
     delete_session_msgs(&tx, session_id)?;
     for table in [
@@ -3173,6 +3305,7 @@ pub fn forget(conn: &mut Connection, session_id: &str) -> Result<()> {
         "tags",
         "notes",
         "favorites",
+        "snippets",
     ] {
         tx.execute(
             &format!("DELETE FROM {table} WHERE session_id = ?1"),

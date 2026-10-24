@@ -39,7 +39,7 @@ sessionwiki <command> --json
 
 ## 2. MCP Tools Reference
 
-SessionWiki exposes 9 read-only tools to connected agents:
+SessionWiki exposes 10 read-only tools to connected agents:
 
 ### 🌟 1. `recall_solution` (High-Level Problem Solving)
 Synthesizes a solution from past sessions in a single call.
@@ -77,14 +77,24 @@ Lists sessions explicitly starred by the human user with a gold star (⭐).
   - `limit` *(integer, optional, default 20)*: Max sessions to return.
 - **Returns:** An array of session objects containing `id`, `tool`, `project`, `title`, `note`, `tags`, and `files_touched`.
 
-### 📋 3. `get_session_summary` (Lightweight Session Inspector)
+### 📌 3. `list_snippets` (Knowledge Base & Solution Snippets)
+Lists concise solution snippets, Dockerfiles, regexes, configs, and commands saved directly from session turns.
+- **When to use:** Retrieve reusable snippets and targeted solutions without loading full transcripts.
+- **Arguments:**
+  - `query` *(string, optional)*: Substring filter across title, code content, and tags.
+  - `lang` *(string, optional)*: Filter by language (e.g. `bash`, `rust`, `python`, `typescript`, `dockerfile`).
+  - `session_id` *(string, optional)*: Restrict snippets to a specific session.
+  - `limit` *(integer, optional, default 20)*: Max snippets to return.
+- **Returns:** An array of snippet objects containing `id`, `session_id`, `message_idx`, `title`, `lang`, `content`, `tags`, and `created_at`.
+
+### 📋 4. `get_session_summary` (Lightweight Session Inspector)
 Returns high-level metadata, synopsis, notes, and touched files by session ID.
 - **When to use:** Inspecting a candidate session without loading heavy transcript payloads.
 - **Arguments:**
   - `id` *(string, required)*: Session ID or prefix (from search, recall, or trace).
 - **Returns:** Single JSON object with `is_favorite`, `note`, `tags`, `summary`, `files_touched`, and turn count.
 
-### 🔍 4. `search_sessions` (Full-Text Search)
+### 🔍 5. `search_sessions` (Full-Text Search)
 Full-text search across every message and turn in all indexed sessions.
 - **When to use:** Finding specific function names, error codes, URLs, or discussion points.
 - **Arguments:**
@@ -94,20 +104,20 @@ Full-text search across every message and turn in all indexed sessions.
   - `roles` *(array of string, optional)*: `["user", "assistant", "tool"]`. Use `["user", "assistant"]` to omit tool execution output.
   - `limit` *(integer, optional, default 10)*: Max results (1–50).
 
-### 📁 5. `trace_file` (File Provenance)
+### 📁 6. `trace_file` (File Provenance)
 Finds sessions that created, edited, or touched a specific file.
 - **When to use:** When you need to understand *why* a file was written the way it is, or find the conversation behind recent edits.
 - **Arguments:**
   - `path` *(string, required)*: Relative or absolute path (e.g. `src/auth.rs` or `auth.rs`).
 
-### 📄 6. `get_session_brief` (Bounded Session Briefing)
+### 📄 7. `get_session_brief` (Bounded Session Briefing)
 Returns a head-and-tail markdown summary of a session.
 - **When to use:** Reading the essential context of an older session within a strict token budget.
 - **Arguments:**
   - `id` *(string, required)*: Session ID or prefix.
   - `max_chars` *(integer, optional, default 4000)*: Character budget.
 
-### 🪟 7. `session_window` (Live Sibling Observation)
+### 🪟 8. `session_window` (Live Sibling Observation)
 Reads the real recent turns of another session directly from disk (0-delay).
 - **When to use:** Checking what a concurrent sibling agent or running session is currently doing.
 - **Arguments:**
@@ -115,11 +125,11 @@ Reads the real recent turns of another session directly from disk (0-delay).
   - `budget_tokens` *(integer, optional, default 1500)*: Token budget for recent tail.
   - `turn` *(integer, optional)*: Drill down into a specific turn's untruncated text.
 
-### 🔗 8. `related_sessions`
+### 🔗 9. `related_sessions`
 Finds sessions related to a given session by shared project, touched files, or tags.
 - **Arguments:** `id` *(string, required)*, `limit` *(integer, default 8)*, `exclude_id` *(optional)*.
 
-### ⏱️ 9. `recent_sessions`
+### ⏱️ 10. `recent_sessions`
 Lists the most recent sessions across all tools ("who is around").
 - **Arguments:** `limit` *(integer, default 10)*, `tool` *(optional)*, `exclude_id` *(optional)*.
 
@@ -132,6 +142,7 @@ When operating from bash or PowerShell, invoke `sessionwiki` directly:
 | Command | Usage | Description |
 |---|---|---|
 | `favorites` | `sessionwiki favorites [--project <p>] [--json]` | List starred ⭐ verified solutions |
+| `snippets` | `sessionwiki snippets [--query <q>] [--lang <l>] [--json]` | Query pinned 📌 snippets in Knowledge Base |
 | `recall` | `sessionwiki recall "<query>" [-n 5] [--json]` | Search and brief top matching session |
 | `search` | `sessionwiki search "<query>" [--role user,assistant] [--json]` | Full-text search across conversations |
 | `trace` | `sessionwiki trace <path>` | Find sessions that modified a file |

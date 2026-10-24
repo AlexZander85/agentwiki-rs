@@ -107,7 +107,7 @@ Claude Code에 프로젝트의 장기 기억을 더합니다: SessionStart 훅�
 
 - **`search_sessions`**, **`trace_file`**, **`get_session_brief`** &mdash; 세션을 찾고 브리핑으로 읽습니다.
 - **`recent_sessions`**, **`related_sessions`**, **`session_window`** &mdash; 한 에이전트가 다른 세션이 뭘 하는지 읽는 방법: 누가 있는지 나열하고, 관련 세션을 찾은 뒤, 최근 대화를 경계 있는 버전 JSON 윈도우로(턴별 드릴다운 포함) 가져옵니다.
-- **`recall_solution`**, **`get_session_summary`**, **`list_favorites`** &mdash; 코딩 에이전트를 위한 장기 기억: 이전에 문제를 어떻게 해결했는지 검색(즐겨찾기 우선), 세션 메타데이터/노트 확인, 즐겨찾기된 솔루션 목록 조회.
+- **`recall_solution`**, **`list_snippets`**, **`get_session_summary`**, **`list_favorites`** &mdash; 코딩 에이전트를 위한 장기 기억: 이전에 문제를 어떻게 해결했는지 검색(즐겨찾기 우선), 지식 베이스의 고정된 솔루션 스니펫 조회, 세션 메타데이터/노트 확인, 즐겨찾기된 솔루션 목록 조회.
 
 ```console
 claude mcp add sessionwiki -- sessionwiki mcp
@@ -137,6 +137,7 @@ sessionwiki web                 # 또는 로컬 웹 UI로 전부 둘러보기
 | `scan` | 이 머신의 세션 저장소를 발견. 파일시스템만 훑으므로 즉시 끝납니다. |
 | `list` | 모든 툴의 최근 세션을 한 타임라인으로. `--tool codex`, `--project api`, `--tag spike`, `-n 50`, `--all`(서브에이전트 트랜스크립트 포함). |
 | `favorites` | 골드 스타 ⭐ 즐겨찾기된 검증 솔루션 세션 목록 조회. `--project`, `-n`, `--json`. |
+| `snippets` | 지식 베이스의 고정된 📌 솔루션 스니펫 목록 조회. `--query <q>`, `--lang <l>`, `--session <s>`, `-n`, `--json`. |
 | `search <검색어>` | 모든 툴의 모든 메시지를 전문 검색. 최소 3글자. |
 | `recall <검색어>` | 검색하고, 매치를 나열하고, 1순위를 한 명령으로 브리핑 &mdash; 과거 세션으로 가장 빠르게 복귀하는 길. `--tool`, `--project`, `-n`, `--json`(에이전트용). |
 | `show <id>` | 세션 하나를 읽기 좋은 트랜스크립트로. `--full`은 툴 호출 전체 표시, `--json`은 파싱 결과 출력, `--outline`은 다이제스트(내가 던진 질문 전부 + 어떻게 끝났는지). |

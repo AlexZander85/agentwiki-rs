@@ -1101,6 +1101,280 @@
     border-color: var(--accent);
   }
 
+  /* Sidebar Modes (Sessions vs Snippets Segmented Switcher) */
+  .sidebar-modes {
+    display: flex;
+    padding: 0 14px 10px;
+    gap: 6px;
+  }
+  .mode-tab {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 5px 8px;
+    font-size: 11.5px;
+    font-weight: 500;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink-2);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .mode-tab:hover {
+    background: var(--card-subtle);
+    color: var(--ink);
+  }
+  .mode-tab.active {
+    background: var(--card-subtle);
+    color: var(--ink);
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  .snippets-badge {
+    background: var(--line);
+    color: var(--ink-1);
+    font-size: 10px;
+    padding: 0px 5px;
+    border-radius: 10px;
+    font-weight: 600;
+  }
+  .mode-tab.active .snippets-badge {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  /* Snippets Container & Cards */
+  .snippets-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .snippets-controls {
+    padding: 0 14px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .snippet-lang-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding-top: 2px;
+  }
+  .snippet-lang-chip {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink-2);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .snippet-lang-chip:hover {
+    background: var(--card-subtle);
+    color: var(--ink);
+  }
+  .snippet-lang-chip.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .snippets-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .empty-snippets {
+    text-align: center;
+    padding: 30px 14px;
+    color: var(--ink-2);
+  }
+  .snippet-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 9px 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    cursor: pointer;
+  }
+  .snippet-card:hover {
+    border-color: var(--line-strong);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  }
+  .snippet-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .snippet-card-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+  .snippet-card-lang {
+    font-size: 9.5px;
+    font-family: var(--font-mono);
+    background: var(--card-subtle);
+    border: 1px solid var(--line);
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: var(--ink-2);
+    text-transform: uppercase;
+  }
+  .snippet-card-code {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.4;
+    background: var(--card-subtle);
+    border-radius: 4px;
+    padding: 6px 8px;
+    max-height: 85px;
+    overflow: hidden;
+    color: var(--ink-1);
+    white-space: pre-wrap;
+    word-break: break-all;
+    position: relative;
+  }
+  .snippet-card-code::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 20px;
+    background: linear-gradient(transparent, var(--card-subtle));
+    pointer-events: none;
+  }
+  .snippet-card-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 10.5px;
+    color: var(--ink-3);
+    margin-top: 1px;
+  }
+  .snippet-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .snippet-btn-action {
+    background: transparent;
+    border: none;
+    font-size: 11px;
+    color: var(--ink-2);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all 0.15s;
+  }
+  .snippet-btn-action:hover {
+    background: var(--hover);
+    color: var(--ink);
+  }
+  .snippet-btn-action.del:hover {
+    color: #e53e3e;
+  }
+
+  /* Pin Button on Assistant Messages */
+  .msg-pin-btn {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink-2);
+    cursor: pointer;
+    opacity: 0.6;
+    transition: all 0.15s ease;
+  }
+  .msg:hover .msg-pin-btn {
+    opacity: 1;
+  }
+  .msg-pin-btn:hover {
+    background: var(--card-subtle);
+    color: var(--ink);
+    border-color: var(--line-strong);
+  }
+  .msg-pin-btn.pinned {
+    opacity: 1;
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.4);
+    color: #b45309;
+  }
+  [data-theme="dark"] .msg-pin-btn.pinned {
+    background: rgba(245, 158, 11, 0.2);
+    border-color: rgba(245, 158, 11, 0.5);
+    color: #fbbf24;
+  }
+
+  /* Pin button on code pre blocks */
+  .msg .body pre .pin-code-btn {
+    position: absolute;
+    top: 6px;
+    right: 76px;
+    font-size: 11px;
+    padding: 2px 7px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    color: var(--ink-2);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s;
+    user-select: none;
+    z-index: 2;
+  }
+  .msg .body pre:hover .pin-code-btn {
+    opacity: 1;
+  }
+  .msg .body pre .pin-code-btn:hover {
+    background: var(--card-subtle);
+    color: var(--ink);
+  }
+  .msg .body pre .pin-code-btn.pinned {
+    color: #b45309;
+    border-color: rgba(245, 158, 11, 0.4);
+    background: rgba(245, 158, 11, 0.12);
+  }
+  [data-theme="dark"] .msg .body pre .pin-code-btn.pinned {
+    color: #fbbf24;
+    border-color: rgba(245, 158, 11, 0.5);
+    background: rgba(245, 158, 11, 0.2);
+  }
+
+  /* Highlight pulse when jumping to a snippet */
+  @keyframes highlight-pulse-anim {
+    0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.8); }
+    50% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0.35); }
+    100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+  }
+  .highlight-pulse {
+    animation: highlight-pulse-anim 1.8s ease-out;
+    border-radius: 8px;
+  }
+
   /* Clean GFM Tables (GitHub/MDHero Grid style with clear column dividers) */
   .table-wrap {
     width: 100%;
@@ -1414,6 +1688,14 @@
       </label>
       <span id="last-sync-time" class="last-sync-time" title="Last sync timestamp"></span>
     </div>
+    <div class="sidebar-modes">
+      <button type="button" class="mode-tab active" id="tab-sessions" data-mode="sessions">
+        <span>💬</span> <span id="tab-sessions-label">Sessions</span>
+      </button>
+      <button type="button" class="mode-tab" id="tab-snippets" data-mode="snippets">
+        <span>📌</span> <span id="tab-snippets-label">Snippets</span> <span id="snippets-badge" class="snippets-badge" style="display:none">0</span>
+      </button>
+    </div>
     <div class="controls">
       <div class="filter-row">
         <select id="tool" aria-label="Filter by tool">
@@ -1462,6 +1744,16 @@
       <div id="available-tags" class="available-tags-row" style="display:none"></div>
     </div>
     <nav id="list"></nav>
+    <div id="snippets-container" class="snippets-container" style="display:none">
+      <div class="snippets-controls">
+        <div class="searchwrap">
+          <svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="5"/><path d="m11 11 3.5 3.5"/></svg>
+          <input type="search" id="snippet-q" placeholder="Search pinned snippets..." autocomplete="off">
+        </div>
+        <div id="snippet-lang-chips" class="snippet-lang-chips" style="display:none"></div>
+      </div>
+      <div id="snippets-list" class="snippets-list"></div>
+    </div>
     <div class="sidefoot">
       <div class="hint-row">
         <span class="hint" id="hint">read-only view &middot; refresh: sessionwiki list</span>
@@ -1576,6 +1868,18 @@ const I18N = {
     pastedContent: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Вставленный фрагмент" : "Pasted content",
     copyPasted: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Копировать" : "Copy",
     copiedPasted: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Скопировано" : "Copied",
+    snippetsTab: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Сниппеты" : "Snippets",
+    sessionsTab: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Сессии" : "Sessions",
+    searchSnippets: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Поиск по сниппетам..." : "Search pinned snippets...",
+    pinSnippet: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "📌 Сохранить в сниппеты / базу знаний" : "Pin snippet to Knowledge Base",
+    unpinSnippet: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Удалить из сниппетов" : "Unpin snippet",
+    pinnedSnippet: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "В сниппетах" : "Pinned",
+    pinSnippetBtn: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Сниппет" : "Pin",
+    snippetPinnedToast: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "📌 Сниппет сохранён в базу знаний" : "📌 Snippet saved to Knowledge Base",
+    snippetUnpinnedToast: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Сниппет удалён" : "Snippet removed from Knowledge Base",
+    noSnippets: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Закладок пока нет" : "No pinned snippets yet.",
+    noSnippetsSub: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Нажмите 📌 Сниппет на сообщении ассистента или блоке кода, чтобы сохранить ключевое решение сюда." : "Click 📌 Pin on assistant messages or code blocks to save key solutions here.",
+    allLangs: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Все" : "All",
   },
   ko: {
     loading: "인덱스 불러오는 중…",
@@ -1627,6 +1931,15 @@ const I18N = {
     aiBriefBtn: "AI 브리프", aiBriefTip: "Claude / Cursor용 요약 Markdown 브리핑 복사",
     copiedBrief: (t) => `✓ AI 브리프 복사됨 (~${t} 토큰)`, filterFavoritesChip: (n) => `⭐ 즐겨찾기 (${n})`,
     pastedContent: "붙여넣은 내용", copyPasted: "복사", copiedPasted: "복사됨",
+    snippetsTab: "스니펫", sessionsTab: "세션",
+    searchSnippets: "고정된 스니펫 검색...",
+    pinSnippet: "지식 베이스에 스니펫 고정", unpinSnippet: "스니펫 고정 해제",
+    pinnedSnippet: "고정됨", pinSnippetBtn: "고정",
+    snippetPinnedToast: "📌 스니펫이 지식 베이스에 저장되었습니다",
+    snippetUnpinnedToast: "스니펫이 지식 베이스에서 삭제되었습니다",
+    noSnippets: "고정된 스니펫이 없습니다.",
+    noSnippetsSub: "어시스턴트 메시지나 코드 블록의 📌 고정 버튼을 눌러 중요한 솔루션을 여기에 저장하세요.",
+    allLangs: "전체",
   },
   ja: {
     loading: "インデックスを読み込み中…",
@@ -1678,6 +1991,15 @@ const I18N = {
     aiBriefBtn: "AI ブリーフ", aiBriefTip: "Claude / Cursor用の要約Markdownブリーフをコピー",
     copiedBrief: (t) => `✓ AI ブリーフをコピーしました (~${t} トークン)`, filterFavoritesChip: (n) => `⭐ お気に入り (${n})`,
     pastedContent: "貼り付けられたコンテンツ", copyPasted: "コピー", copiedPasted: "コピー完了",
+    snippetsTab: "スニペット", sessionsTab: "セッション",
+    searchSnippets: "固定されたスニペットを検索...",
+    pinSnippet: "ナレッジベースにスニペットを保存", unpinSnippet: "スニペットの保存を解除",
+    pinnedSnippet: "固定済み", pinSnippetBtn: "固定",
+    snippetPinnedToast: "📌 スニペットをナレッジベースに保存しました",
+    snippetUnpinnedToast: "スニペットをナレッジベースから削除しました",
+    noSnippets: "固定されたスニペットはありません。",
+    noSnippetsSub: "アシスタントメッセージやコードブロックの 📌 ボタンを押して重要な解決策を保存してください。",
+    allLangs: "すべて",
   },
   zh: {
     loading: "正在加载索引…",
@@ -1729,6 +2051,15 @@ const I18N = {
     aiBriefBtn: "AI 简报", aiBriefTip: "复制适用于 Claude / Cursor 的 Markdown 简报",
     copiedBrief: (t) => `✓ 已复制 AI 简报 (~${t} 词元)`, filterFavoritesChip: (n) => `⭐ 收藏夹 (${n})`,
     pastedContent: "粘贴的内容", copyPasted: "复制", copiedPasted: "已复制",
+    snippetsTab: "代码片段", sessionsTab: "会话",
+    searchSnippets: "搜索收藏的代码片段...",
+    pinSnippet: "收藏代码片段到知识库", unpinSnippet: "取消收藏代码片段",
+    pinnedSnippet: "已收藏", pinSnippetBtn: "收藏",
+    snippetPinnedToast: "📌 代码片段已保存至知识库",
+    snippetUnpinnedToast: "代码片段已从知识库删除",
+    noSnippets: "暂无收藏的代码片段。",
+    noSnippetsSub: "点击助理消息或代码块上的 📌 按钮，将关键解决方案保存至此处。",
+    allLangs: "全部",
   },
 };
 const lang = localStorage.getItem("sdx-lang")
@@ -1992,6 +2323,9 @@ function applyStaticStrings() {
   if ($("ctx-brief-session-label")) $("ctx-brief-session-label").textContent = L.aiBriefBtn || "Copy AI Brief";
   if ($("ctx-export-session-label")) $("ctx-export-session-label").textContent = L.exportMdBtn || "Export .md";
   if ($("ctx-forget-session-label")) $("ctx-forget-session-label").textContent = L.deleteFromIndex || "Delete from index";
+  if ($("tab-sessions-label")) $("tab-sessions-label").textContent = L.sessionsTab || "Sessions";
+  if ($("tab-snippets-label")) $("tab-snippets-label").textContent = L.snippetsTab || "Snippets";
+  if ($("snippet-q")) $("snippet-q").placeholder = L.searchSnippets || "Search pinned snippets...";
   for (const b of $("langmenu").children) {
     b.setAttribute("aria-selected", b.dataset.lang === lang ? "true" : "false");
   }
@@ -2045,6 +2379,16 @@ $("recentbtn").onclick = () => showRecentView();
 /* ---------- helpers ---------- */
 async function jget(url) {
   const r = await fetch(url);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+async function jpost(url, data) {
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
@@ -2152,6 +2496,42 @@ function postProcessMarkdown(container) {
         });
       };
       pre.appendChild(copyBtn);
+    }
+    if (!pre.querySelector(".pin-code-btn")) {
+      const pinBtn = document.createElement("button");
+      pinBtn.className = "pin-code-btn";
+      pinBtn.type = "button";
+      pinBtn.title = L.pinSnippet || "📌 Pin code snippet";
+      pinBtn.textContent = "📌 Pin";
+      pinBtn.onclick = async (e) => {
+        e.stopPropagation();
+        const code = pre.querySelector("code")?.textContent || pre.textContent;
+        const msgEl = pre.closest(".msg");
+        const msgIdx = parseInt(msgEl?.dataset.msgIdx || "0", 10);
+        const langMatch = (pre.querySelector("code")?.className || "").match(/language-([a-zA-Z0-9_\-#+]+)/);
+        const lang = langMatch ? langMatch[1].toLowerCase() : "";
+        const title = (currentSession?.title || "Snippet") + (lang ? " (" + lang + ")" : "");
+        try {
+          const res = await jpost("/api/snippet/save", {
+            session_id: currentSession?.id,
+            message_idx: msgIdx,
+            title: title,
+            lang: lang || null,
+            content: code,
+            tags: lang || null,
+          });
+          if (res && res.ok) {
+            pinBtn.textContent = "✓ Pinned";
+            pinBtn.classList.add("pinned");
+            showToast(L.snippetPinnedToast || "📌 Snippet saved to Knowledge Base");
+            refreshSnippetsBadge();
+            if (currentSidebarMode === "snippets") loadSnippets();
+          }
+        } catch (err) {
+          showToast("Failed to save snippet");
+        }
+      };
+      pre.appendChild(pinBtn);
     }
   });
 
@@ -2788,11 +3168,15 @@ function renderCurrentSession(keepScroll) {
   window.currentLazyObserver = lazyObserver;
 
   const EAGER_MSG_COUNT = 30; // First 30 messages render eagerly for instant zero-lag open
+  const pinnedSet = new Set((s.pinned_indices || []).map(Number));
 
   for (let vi = 0; vi < visibleMessages.length; vi++) {
-    const { m } = visibleMessages[vi];
+    const { m, origIndex } = visibleMessages[vi];
+    const msgIdx = origIndex != null ? origIndex : vi;
     if (m.role === "tool") {
       const row = el("div", "toolrow");
+      row.dataset.msgIdx = msgIdx;
+      row.id = "msg-" + msgIdx;
       const sum = el("summary", "", m.text.split("\n")[0].slice(0, 140));
       const summary = m.tool?.kind === "summary" ? m.tool.value : null;
       const compact = m.text.startsWith("→ ") && m.text.includes(" ⇒ ") && !m.text.includes("\n");
@@ -2811,6 +3195,8 @@ function renderCurrentSession(keepScroll) {
     }
     const wrap = el("div", "msg " + m.role);
     wrap.dataset.rawText = m.text;
+    wrap.dataset.msgIdx = msgIdx;
+    wrap.id = "msg-" + msgIdx;
     const av = el("div", "avatar", m.role === "user" ? "U" : "A");
     if (m.ts) av.title = fmtDateTime(m.ts);
     const content = el("div", "content");
@@ -2818,6 +3204,18 @@ function renderCurrentSession(keepScroll) {
     whoEl.appendChild(el("span", "role-name", m.role));
     if (m.ts) {
       whoEl.appendChild(el("span", "msg-time", " · " + fmtDateTime(m.ts)));
+    }
+    if (m.role === "assistant") {
+      const isPinned = pinnedSet.has(Number(msgIdx));
+      const pinBtn = el("button", "msg-pin-btn" + (isPinned ? " pinned" : ""));
+      pinBtn.type = "button";
+      pinBtn.title = isPinned ? (L.unpinSnippet || "Unpin from Snippets") : (L.pinSnippet || "📌 Pin snippet to Knowledge Base");
+      pinBtn.innerHTML = isPinned ? "📌 <span>" + (L.pinnedSnippet || "Pinned") + "</span>" : "📌 <span>" + (L.pinSnippetBtn || "Pin") + "</span>";
+      pinBtn.onclick = async (e) => {
+        e.stopPropagation();
+        await togglePinMessage(s, msgIdx, m.text, pinBtn, pinnedSet);
+      };
+      whoEl.appendChild(pinBtn);
     }
     content.appendChild(whoEl);
     const body = el("div", "body");
@@ -4043,6 +4441,260 @@ function setupSyncControls() {
   manageAutoSync(savedAuto);
 }
 
+/* ---------- snippets & knowledge base ---------- */
+let currentSidebarMode = "sessions"; // "sessions" | "snippets"
+let snippetsSelectedLang = "";
+let snippetSearchTimer = null;
+
+function switchSidebarMode(mode) {
+  currentSidebarMode = mode;
+  const tabSessions = $("tab-sessions");
+  const tabSnippets = $("tab-snippets");
+  const controls = document.querySelector("#sidebar .controls");
+  const list = $("list");
+  const snippetsContainer = $("snippets-container");
+  const sidefootHint = $("hint");
+  const sidefootCount = $("list-count");
+
+  if (mode === "snippets") {
+    tabSessions?.classList.remove("active");
+    tabSnippets?.classList.add("active");
+    if (controls) controls.style.display = "none";
+    if (list) list.style.display = "none";
+    if (snippetsContainer) snippetsContainer.style.display = "flex";
+    if (sidefootHint) sidefootHint.style.display = "none";
+    if (sidefootCount) sidefootCount.style.display = "none";
+    loadSnippets($("snippet-q")?.value || "", snippetsSelectedLang);
+  } else {
+    tabSessions?.classList.add("active");
+    tabSnippets?.classList.remove("active");
+    if (controls) controls.style.display = "";
+    if (list) list.style.display = "";
+    if (snippetsContainer) snippetsContainer.style.display = "none";
+    if (sidefootHint) sidefootHint.style.display = "";
+    if (sidefootCount) sidefootCount.style.display = "";
+  }
+}
+
+async function refreshSnippetsBadge() {
+  try {
+    const snips = await jget("/api/snippets?limit=200");
+    const badge = $("snippets-badge");
+    if (badge && snips && Array.isArray(snips)) {
+      if (snips.length > 0) {
+        badge.textContent = snips.length;
+        badge.style.display = "inline-block";
+      } else {
+        badge.style.display = "none";
+      }
+    }
+  } catch (e) {}
+}
+
+async function loadSnippets(query, lang) {
+  const list = $("snippets-list");
+  if (!list) return;
+  list.innerHTML = `<div class="file-hist-empty">${L.loading || "Loading snippets..."}</div>`;
+  try {
+    let url = "/api/snippets?limit=150";
+    if (query) url += "&q=" + encodeURIComponent(query);
+    if (lang) url += "&lang=" + encodeURIComponent(lang);
+    const snips = await jget(url);
+    if (!snips || !snips.length) {
+      const isFiltered = !!(query || lang);
+      list.innerHTML = `
+        <div class="empty-snippets">
+          <div style="font-size: 28px; margin-bottom: 8px;">📌</div>
+          <div style="font-weight: 600; color: var(--ink); margin-bottom: 4px;">${isFiltered ? (L.noMatches || "No matches.") : (L.noSnippets || "No pinned snippets yet.")}</div>
+          <div style="font-size: 11.5px; color: var(--ink-2); line-height: 1.4;">${isFiltered ? "" : (L.noSnippetsSub || "Click 📌 Pin on assistant messages or code blocks to save key solutions here.")}</div>
+        </div>
+      `;
+      return;
+    }
+
+    renderSnippetLangChips(snips);
+
+    list.replaceChildren();
+    for (const snip of snips) {
+      const card = el("div", "snippet-card");
+      card.onclick = () => jumpToSnippet(snip.session_id, snip.message_idx);
+
+      const head = el("div", "snippet-card-head");
+      const title = el("div", "snippet-card-title", snip.title || "Snippet");
+      title.title = snip.title;
+      head.appendChild(title);
+      if (snip.lang) {
+        head.appendChild(el("span", "snippet-card-lang", snip.lang));
+      }
+      card.appendChild(head);
+
+      const previewText = snip.content.length > 300 ? snip.content.slice(0, 300) + "…" : snip.content;
+      const codePreview = el("div", "snippet-card-code", previewText);
+      card.appendChild(codePreview);
+
+      const foot = el("div", "snippet-card-foot");
+      const time = el("span", "snippet-card-time", snip.created_at ? fmtDate(snip.created_at) : "");
+      foot.appendChild(time);
+
+      const actions = el("div", "snippet-card-actions");
+      const copyBtn = el("button", "snippet-btn-action", "📋 " + (L.copyPasted || "Copy"));
+      copyBtn.type = "button";
+      copyBtn.title = L.copyCode || "Copy snippet";
+      copyBtn.onclick = async (e) => {
+        e.stopPropagation();
+        try {
+          await navigator.clipboard.writeText(snip.content);
+          copyBtn.textContent = "✓ " + (L.copied || "Copied");
+          setTimeout(() => { copyBtn.textContent = "📋 " + (L.copyPasted || "Copy"); }, 1200);
+        } catch (err) {}
+      };
+
+      const delBtn = el("button", "snippet-btn-action del", "🗑️");
+      delBtn.type = "button";
+      delBtn.title = L.unpinSnippet || "Delete snippet";
+      delBtn.onclick = async (e) => {
+        e.stopPropagation();
+        if (confirm("Delete snippet \"" + (snip.title || "Snippet") + "\"?")) {
+          try {
+            await jget(`/api/snippet/delete?id=${snip.id}`);
+            showToast(L.snippetUnpinnedToast || "Snippet removed");
+            refreshSnippetsBadge();
+            loadSnippets($("snippet-q")?.value || "", snippetsSelectedLang);
+            if (currentSession && currentSession.id === snip.session_id) {
+              const pinBtn = document.querySelector(`#msg-${snip.message_idx} .msg-pin-btn`);
+              if (pinBtn) {
+                pinBtn.classList.remove("pinned");
+                pinBtn.innerHTML = "📌 <span>" + (L.pinSnippetBtn || "Pin") + "</span>";
+              }
+            }
+          } catch (err) {
+            showToast("Failed to delete snippet");
+          }
+        }
+      };
+
+      actions.append(copyBtn, delBtn);
+      foot.appendChild(actions);
+      card.appendChild(foot);
+      list.appendChild(card);
+    }
+  } catch (e) {
+    list.innerHTML = `<div class="file-hist-empty">${L.loadFailed || "Failed to load snippets"}</div>`;
+  }
+}
+
+function renderSnippetLangChips(allSnippets) {
+  const container = $("snippet-lang-chips");
+  if (!container) return;
+  const langs = new Set();
+  allSnippets.forEach((s) => {
+    if (s.lang) langs.add(s.lang.toLowerCase());
+  });
+  if (langs.size === 0) {
+    container.style.display = "none";
+    return;
+  }
+  container.style.display = "flex";
+  container.replaceChildren();
+
+  const allChip = el("button", "snippet-lang-chip" + (!snippetsSelectedLang ? " active" : ""), L.allLangs || "All");
+  allChip.type = "button";
+  allChip.onclick = () => {
+    snippetsSelectedLang = "";
+    loadSnippets($("snippet-q")?.value || "", "");
+  };
+  container.appendChild(allChip);
+
+  Array.from(langs).sort().forEach((l) => {
+    const chip = el("button", "snippet-lang-chip" + (snippetsSelectedLang === l ? " active" : ""), l);
+    chip.type = "button";
+    chip.onclick = () => {
+      snippetsSelectedLang = (snippetsSelectedLang === l ? "" : l);
+      loadSnippets($("snippet-q")?.value || "", snippetsSelectedLang);
+    };
+    container.appendChild(chip);
+  });
+}
+
+async function jumpToSnippet(sessionId, messageIdx) {
+  await openSession(sessionId);
+  setTimeout(() => {
+    const target = document.getElementById("msg-" + messageIdx) || document.querySelector(`[data-msg-idx="${messageIdx}"]`);
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.classList.add("highlight-pulse");
+      setTimeout(() => target.classList.remove("highlight-pulse"), 2200);
+    }
+  }, 120);
+}
+
+async function togglePinMessage(s, msgIdx, text, btn, pinnedSet) {
+  const isPinned = pinnedSet.has(Number(msgIdx));
+  if (isPinned) {
+    try {
+      const snips = await jget(`/api/snippets?session_id=${encodeURIComponent(s.id)}`);
+      const target = (snips || []).find((x) => Number(x.message_idx) === Number(msgIdx));
+      if (target) {
+        await jget(`/api/snippet/delete?id=${target.id}`);
+        pinnedSet.delete(Number(msgIdx));
+        btn.classList.remove("pinned");
+        btn.innerHTML = "📌 <span>" + (L.pinSnippetBtn || "Pin") + "</span>";
+        btn.title = L.pinSnippet || "📌 Pin snippet to Knowledge Base";
+        showToast(L.snippetUnpinnedToast || "Snippet removed from Knowledge Base");
+        refreshSnippetsBadge();
+        if (currentSidebarMode === "snippets") loadSnippets();
+      }
+    } catch (e) {
+      showToast("Failed to remove snippet");
+    }
+  } else {
+    try {
+      const fenceMatch = text.match(/```([a-zA-Z0-9_\-#+]+)/);
+      const detectedLang = fenceMatch ? fenceMatch[1].toLowerCase() : (text.includes("SELECT ") || text.includes("FROM ") ? "sql" : "markdown");
+      const lines = text.trim().split("\n");
+      const firstLine = lines[0].replace(/^[#*\s`>-]+/, "").trim();
+      const title = firstLine ? firstLine.slice(0, 60) : (s.title || "Snippet");
+
+      const res = await jpost("/api/snippet/save", {
+        session_id: s.id,
+        message_idx: msgIdx,
+        title: title,
+        lang: detectedLang,
+        content: text,
+        tags: detectedLang !== "markdown" ? detectedLang : null,
+      });
+      if (res && res.ok) {
+        pinnedSet.add(Number(msgIdx));
+        btn.classList.add("pinned");
+        btn.innerHTML = "📌 <span>" + (L.pinnedSnippet || "Pinned") + "</span>";
+        btn.title = L.unpinSnippet || "Unpin from Snippets";
+        showToast(L.snippetPinnedToast || "📌 Snippet saved to Knowledge Base");
+        refreshSnippetsBadge();
+        if (currentSidebarMode === "snippets") loadSnippets();
+      }
+    } catch (e) {
+      showToast("Failed to save snippet");
+    }
+  }
+}
+
+function setupSnippetsControls() {
+  $("tab-sessions")?.addEventListener("click", () => switchSidebarMode("sessions"));
+  $("tab-snippets")?.addEventListener("click", () => switchSidebarMode("snippets"));
+
+  const snippetQ = $("snippet-q");
+  if (snippetQ) {
+    snippetQ.addEventListener("input", () => {
+      clearTimeout(snippetSearchTimer);
+      snippetSearchTimer = setTimeout(() => {
+        loadSnippets(snippetQ.value.trim(), snippetsSelectedLang);
+      }, 180);
+    });
+  }
+
+  refreshSnippetsBadge();
+}
+
 (async function init() {
   await loadStats();
   try {
@@ -4051,6 +4703,7 @@ function setupSyncControls() {
   } catch (e) {}
   setupSyncControls();
   setupFavoritesControls();
+  setupSnippetsControls();
   setupContextMenu();
   await refresh();
 })();

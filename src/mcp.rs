@@ -1,5 +1,5 @@
 //! A hand-rolled, stdio-only MCP server: newline-delimited JSON-RPC 2.0,
-//! nine read-only tools over the local session index. No network (stdio only),
+//! ten read-only tools over the local session index. No network (stdio only),
 //! no sync, no writes (the DB handle is read-only). The server owns every byte
 //! written to stdout; all logging goes to stderr.
 
@@ -221,6 +221,21 @@ fn tools_list() -> Value {
                 "properties": {
                     "project": {"type": "string", "description": "Optional project path substring to filter by."},
                     "limit": {"type": "integer", "description": "Max results to return, 1-50 (default 20)."}
+                }
+            }
+        },
+        {
+            "name": "list_snippets",
+            "title": "List pinned code snippets and solutions",
+            "description": "Query curated code snippets, configurations, and insights bookmarked by the user across AI sessions. Filterable by query terms, language (rust, python, bash, dockerfile...), or session ID. Read-only, local.",
+            "annotations": {"readOnlyHint": true},
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search terms to match in snippet title, tags, or code content."},
+                    "lang": {"type": "string", "description": "Optional language filter (e.g. bash, rust, python, dockerfile, sql)."},
+                    "session_id": {"type": "string", "description": "Optional session ID to get snippets pinned from that specific session."},
+                    "limit": {"type": "integer", "description": "Max snippets to return, 1-50 (default 20)."}
                 }
             }
         }
@@ -448,6 +463,7 @@ fn tool_call(conn: &mut Option<Connection>, params: &Value) -> Result<Value, (i6
         "recall_solution" => Ok(tool_recall(conn, &args)),
         "get_session_summary" => Ok(tool_summary(conn, &args)),
         "list_favorites" => Ok(tool_favorites(conn, &args)),
+        "list_snippets" => Ok(tool_snippets(conn, &args)),
         other => Err((-32602, format!("Unknown tool: {other}"))),
     }
 }
@@ -1103,6 +1119,45 @@ fn tool_favorites(conn: &mut Option<Connection>, args: &Value) -> Value {
             break;
         }
     }
+    json_result(rows)
+}
+
+fn tool_snippets(conn: &mut Option<Connection>, args: &Value) -> Value {
+    let limit = clamp_arg(args, "limit", 20, 1, 50) as usize;
+    let query = args.get("query").and_then(Value::as_str);
+    let lang = args.get("lang").and_then(Value::as_str);
+    let session_id = args.get("session_id").and_then(Value::as_str);
+
+    let Some(conn) = get_conn(conn) else {
+        return text_result("[]".into(), false);
+    };
+
+    let items = match crate::index::list_snippets(conn, query, lang, session_id, limit) {
+        Ok(items) => items,
+        Err(e) => {
+            return text_result(
+                format!("list snippets failed: {}", safe_text(&e.to_string())),
+                true,
+            );
+        }
+    };
+
+    let rows: Vec<Value> = items
+        .iter()
+        .map(|s| {
+            json!({
+                "id": s.id,
+                "session_id": s.session_id,
+                "message_idx": s.message_idx,
+                "title": crate::commands::neutralize_field(&s.title),
+                "lang": s.lang.as_deref().map(|l| crate::commands::neutralize_field(l)),
+                "content": safe_text(&s.content),
+                "tags": s.tags.as_deref().map(|t| crate::commands::neutralize_field(t)),
+                "created_at": s.created_at,
+            })
+        })
+        .collect();
+
     json_result(rows)
 }
 
@@ -1784,7 +1839,7 @@ mod tests {
     }
 
     #[test]
-    fn tools_list_has_nine_readonly_tools() {
+    fn tools_list_has_ten_readonly_tools() {
         let v = call(r#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#).unwrap();
         let tools = v["result"]["tools"].as_array().unwrap();
         let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
@@ -1803,7 +1858,8 @@ mod tests {
                 "recent_sessions",
                 "recall_solution",
                 "get_session_summary",
-                "list_favorites"
+                "list_favorites",
+                "list_snippets"
             ]
         );
         for t in tools {
@@ -1811,6 +1867,32 @@ mod tests {
             assert_eq!(t["inputSchema"]["type"], "object");
         }
         assert!(v["result"].get("nextCursor").is_none());
+    }
+
+    #[test]
+    fn list_snippets_returns_saved_snippets() {
+        let _lock = LOCK.lock().unwrap();
+        let c = seed("sessionwiki-test-mcp-snippets");
+        crate::index::save_snippet(
+            &c,
+            "s1",
+            0,
+            "CORS fix snippet",
+            Some("typescript"),
+            "res.setHeader('Access-Control-Allow-Origin', '*');",
+            Some("cors,auth"),
+        )
+        .unwrap();
+        drop(c);
+
+        let (v, text) = tool("list_snippets", json!({"query": "CORS"}));
+        assert_ne!(v["result"]["isError"], true, "not error: {v}");
+        let arr: Value = serde_json::from_str(&text).expect("valid json");
+        assert_eq!(arr.as_array().unwrap().len(), 1);
+        assert_eq!(arr[0]["title"], "CORS fix snippet");
+        assert_eq!(arr[0]["lang"], "typescript");
+        assert!(arr[0]["content"].as_str().unwrap().contains("Access-Control-Allow-Origin"));
+        assert_eq!(arr[0]["session_id"], "s1");
     }
 
     #[test]

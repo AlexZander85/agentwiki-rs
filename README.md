@@ -121,7 +121,7 @@ read-only and 100% local (stdio, no sockets):
 
 - **`search_sessions`**, **`trace_file`**, **`get_session_brief`** &mdash; find a session and read a briefing of it.
 - **`recent_sessions`**, **`related_sessions`**, **`session_window`** &mdash; how one agent reads what a sibling session is doing: list who is around, find the relevant one, then pull its recent turns as a bounded, versioned JSON window (with a per-turn drill-down).
-- **`recall_solution`**, **`get_session_summary`**, **`list_favorites`** &mdash; long-term memory for coding agents: ask how a problem was solved before (prioritizing starred solutions), inspect session metadata/notes, or list bookmarked recipes.
+- **`recall_solution`**, **`list_snippets`**, **`get_session_summary`**, **`list_favorites`** &mdash; long-term memory for coding agents: ask how a problem was solved before (prioritizing starred solutions), query pinned solution snippets from the knowledge base, inspect session metadata/notes, or list bookmarked recipes.
 
 ```console
 claude mcp add sessionwiki -- sessionwiki mcp
@@ -153,6 +153,7 @@ GB). After that, updates are incremental and take seconds.
 | `scan` | Discover session stores on this machine. Pure filesystem walk, instant. |
 | `list` | Recent sessions across all tools in one timeline. `--tool codex`, `--project api`, `--tag spike`, `-n 50`, `--all` (include subagent transcripts). |
 | `favorites` | List sessions starred/bookmarked with a gold star ⭐ as verified solutions. `--project`, `-n`, `--json`. |
+| `snippets` | Query pinned 📌 solution snippets from the knowledge base. `--query <q>`, `--lang <l>`, `--session <s>`, `-n`, `--json`. |
 | `search <query>` | Search every message across tools. Terms are ANDed within one message; double quotes mark a phrase. Use `--role user,assistant` to search only the conversation, excluding tool output. Matching depends on the configured tokenizer (see `tokenizer`). |
 | `tokenizer [SPEC]` | Show the current FTS5 tokenizer, or set one and rebuild only the search index. |
 | `tool-output [MODE]` | Show or change whether full tool results are retained in this index. `summary` is the default; use `sessionwiki tool-output full` to retain them. |
