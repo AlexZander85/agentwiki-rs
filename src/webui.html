@@ -1043,6 +1043,7 @@
   .msg .who {
     display: flex;
     align-items: center;
+    flex-wrap: nowrap;
     font-size: 11px;
     font-weight: 600;
     letter-spacing: .05em;
@@ -1050,13 +1051,23 @@
     color: var(--ink-3);
     margin-bottom: 5px;
   }
+  .msg .who .role-name {
+    flex-shrink: 0;
+  }
   .msg .who .msg-time {
+    flex-shrink: 0;
+    white-space: nowrap;
     font-weight: 400;
     letter-spacing: normal;
     text-transform: none;
-    color: var(--ink-3);
-    opacity: 0.85;
+    color: var(--ink-2);
     margin-left: 4px;
+  }
+  .msg .who .msg-pin-btn {
+    margin-left: 16px;
+    flex-shrink: 0;
+    text-transform: none;
+    letter-spacing: normal;
   }
   .msg .body {
     white-space: normal;
@@ -1358,9 +1369,7 @@
     cursor: pointer;
     transition: all 0.15s ease;
   }
-  .msg .who .msg-pin-btn {
-    margin-left: 14px;
-  }
+
   .tool-pin-btn {
     margin-bottom: 5px;
   }
@@ -2629,6 +2638,13 @@ async function jpost(url, data) {
   return r.json();
 }
 
+const PIN_SVG = `<svg class="pin-svg" viewBox="0 0 16 16" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M9.828.722a.5.5 0 0 1 .354.146l4.95 4.95a.5.5 0 0 1 0 .708l-2.122 2.12c-.2.2-.47.31-.75.31H11.5l-2.12 2.12 1.414 1.415a.5.5 0 0 1-.708.708l-2.12-2.122-3.183 3.182a.5.5 0 0 1-.707 0l-.707-.707a.5.5 0 0 1 0-.707l3.182-3.182-2.122-2.12a.5.5 0 0 1 .708-.708l1.414 1.414 2.12-2.121v-.757c0-.28.11-.55.31-.75l2.12-2.122a.5.5 0 0 1 .355-.146z"/></svg>`;
+
+function pinBtnHtml(isPinned) {
+  const label = isPinned ? (L.pinnedSnippet || "Pinned") : (L.pinSnippetBtn || "Pin");
+  return `${PIN_SVG}<span>${label}</span>`;
+}
+
 function fmtBytes(n) {
   const u = ["B", "KB", "MB", "GB", "TB"];
   let i = 0;
@@ -3074,12 +3090,7 @@ function setActive(elm) {
 }
 
 /* ---------- transcript ---------- */
-const PIN_SVG = `<svg class="pin-svg" viewBox="0 0 16 16" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M9.828.722a.5.5 0 0 1 .354.146l4.95 4.95a.5.5 0 0 1 0 .708l-2.122 2.12c-.2.2-.47.31-.75.31H11.5l-2.12 2.12 1.414 1.415a.5.5 0 0 1-.708.708l-2.12-2.122-3.183 3.182a.5.5 0 0 1-.707 0l-.707-.707a.5.5 0 0 1 0-.707l3.182-3.182-2.122-2.12a.5.5 0 0 1 .708-.708l1.414 1.414 2.12-2.121v-.757c0-.28.11-.55.31-.75l2.12-2.122a.5.5 0 0 1 .355-.146z"/></svg>`;
 
-function pinBtnHtml(isPinned) {
-  const label = isPinned ? (L.pinnedSnippet || "Pinned") : (L.pinSnippetBtn || "Pin");
-  return `${PIN_SVG}<span>${label}</span>`;
-}
 
 let currentSession = null;
 
@@ -3463,8 +3474,9 @@ function renderCurrentSession(keepScroll) {
     const content = el("div", "content");
     const whoEl = el("div", "who");
     whoEl.appendChild(el("span", "role-name", m.role));
-    if (m.ts) {
-      whoEl.appendChild(el("span", "msg-time", " · " + fmtDateTime(m.ts)));
+    const msgTs = m.ts || s.started;
+    if (msgTs) {
+      whoEl.appendChild(el("span", "msg-time", " · " + fmtDateTime(msgTs)));
     }
     const isPinned = pinnedSet.has(Number(msgIdx));
     const pinBtn = el("button", "msg-pin-btn" + (isPinned ? " pinned" : ""));
@@ -3473,7 +3485,7 @@ function renderCurrentSession(keepScroll) {
     pinBtn.innerHTML = pinBtnHtml(isPinned);
     pinBtn.onclick = async (e) => {
       e.stopPropagation();
-      await togglePinMessage(s, msgIdx, m.text, pinBtn, pinnedSet, m.role || "assistant", m.ts);
+      await togglePinMessage(s, msgIdx, m.text, pinBtn, pinnedSet, m.role || "assistant", msgTs);
     };
     whoEl.appendChild(pinBtn);
     content.appendChild(whoEl);
