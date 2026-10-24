@@ -11,6 +11,7 @@ pub mod harness;
 mod opencode;
 mod prodex;
 mod qoder;
+mod zcode;
 pub use antigravity::Antigravity;
 pub use claude_code::ClaudeCode;
 pub(crate) use codex::is_subagent_meta as codex_is_subagent_meta;
@@ -18,6 +19,7 @@ pub use codex::{Codex, CodexHistory};
 pub(crate) use gemini::project_root as gemini_project_root;
 pub use prodex::thread_url_for_task as prodex_thread_url;
 pub use qoder::Qoder;
+pub use zcode::ZCode;
 
 use crate::model::{Session, StoreReport};
 use anyhow::Result;
@@ -161,6 +163,7 @@ pub fn all() -> Vec<Box<dyn Adapter>> {
         Box::new(aider::Aider::default()),
         Box::new(prodex::Prodex),
         Box::new(qoder::Qoder),
+        Box::new(zcode::ZCode),
     ]
 }
 
