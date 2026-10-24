@@ -10,6 +10,9 @@
     --bg: #faf9f6;
     --bg-sunken: #f3f1ec;
     --card: #ffffff;
+    --card-bg: var(--card);
+    --bg-alt: var(--bg-sunken);
+    --card-subtle: rgba(30, 29, 26, 0.04);
     --ink: #1e1d1a;
     --ink-2: #6e6b62;
     --ink-3: #a3a097;
@@ -29,6 +32,9 @@
     --bg: #101013;
     --bg-sunken: #16161b;
     --card: #1b1b21;
+    --card-bg: var(--card);
+    --bg-alt: var(--bg-sunken);
+    --card-subtle: rgba(255, 255, 255, 0.06);
     --ink: #e7e7ec;
     --ink-2: #9b9ba8;
     --ink-3: #686874;
@@ -1447,6 +1453,13 @@
     align-items: center;
     gap: 4px;
   }
+  [data-theme="dark"] .heatmap-cell {
+    background: #252530;
+  }
+  [data-theme="dark"] .heatmap-cell.l1 { background: #0e4429; }
+  [data-theme="dark"] .heatmap-cell.l2 { background: #006d32; }
+  [data-theme="dark"] .heatmap-cell.l3 { background: #26a641; }
+  [data-theme="dark"] .heatmap-cell.l4 { background: #39d353; }
 
   /* Two Column Grid */
   .analytics-two-col {
@@ -2498,7 +2511,7 @@ const I18N = {
     agentDistribution: "Доля агентов",
     topTouchedFiles: "Топ затронутых файлов",
     less: "Меньше",
-    more: "Больше", actNavTitle: "Навигация", actNavSummary: "Сводка показателей", actNavHeatmap: "Календарь активности", actNavHourly: "Активность по часам", actNavAgents: "Доли агентов", actNavFiles: "Топ затронутых файлов", actSummary: "Сводка",
+    retry: "Повторить", more: "Больше", actNavTitle: "Навигация", actNavSummary: "Сводка показателей", actNavHeatmap: "Календарь активности", actNavHourly: "Активность по часам", actNavAgents: "Доли агентов", actNavFiles: "Топ затронутых файлов", actSummary: "Сводка",
     searchSnippets: "Поиск по сохранённым сниппетам...",
     pinSnippet: "📌 Сохранить в сниппеты / базу знаний", unpinSnippet: "Удалить из сниппетов",
     pinnedSnippet: "В сниппетах", pinSnippetBtn: "Сниппет",
@@ -2590,7 +2603,7 @@ const I18N = {
     agentDistribution: "Agent Share",
     topTouchedFiles: "Most Touched Files",
     less: "Less",
-    more: "More", actNavTitle: "Navigation", actNavSummary: "Summary", actNavHeatmap: "Contribution Heatmap", actNavHourly: "Hourly Activity", actNavAgents: "Agent Distribution", actNavFiles: "Top Touched Files", actSummary: "Quick Recap",
+    retry: "Retry", more: "More", actNavTitle: "Navigation", actNavSummary: "Summary", actNavHeatmap: "Contribution Heatmap", actNavHourly: "Hourly Activity", actNavAgents: "Agent Distribution", actNavFiles: "Top Touched Files", actSummary: "Quick Recap",
     searchSnippets: "Search pinned snippets...",
     pinSnippet: "Pin snippet to Knowledge Base",
     unpinSnippet: "Unpin snippet",
@@ -6019,12 +6032,23 @@ async function loadActivityAnalytics() {
   try {
     const data = await jget("/api/analytics");
     if (!data || !data.summary) {
-      main.replaceChildren(el("div", "placeholder", L.loadFailed || "Failed to load analytics"));
+      const errBox = el("div", "placeholder", "");
+      errBox.innerHTML = `
+        <div style="margin-bottom:12px;color:var(--ink-2);">${L.loadFailed || "Failed to load analytics"}</div>
+        <button type="button" class="btn primary" onclick="loadActivityAnalytics()">${L.retry || "Retry"}</button>
+      `;
+      main.replaceChildren(errBox);
       return;
     }
     renderActivityDashboard(data);
   } catch (err) {
-    main.replaceChildren(el("div", "placeholder", L.loadFailed || "Failed to load analytics"));
+    const errBox = el("div", "placeholder", "");
+    errBox.innerHTML = `
+      <div style="margin-bottom:8px;font-weight:600;color:var(--ink);">${L.loadFailed || "Failed to load analytics"}</div>
+      <div style="margin-bottom:14px;font-size:12px;color:var(--ink-3);">${err.message || String(err)}</div>
+      <button type="button" class="btn primary" onclick="loadActivityAnalytics()">${L.retry || "Retry"}</button>
+    `;
+    main.replaceChildren(errBox);
   }
 }
 
