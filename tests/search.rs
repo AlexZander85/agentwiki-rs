@@ -385,6 +385,7 @@ impl Adapter for SearchAdapter {
                 text: std::fs::read_to_string(path)?,
                 ts: None,
                 tool: None,
+                is_rewound: false,
             }],
             touched: vec![],
             edits: vec![],

@@ -9,7 +9,52 @@ use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
-pub struct Antigravity;
+#[derive(Clone, Debug)]
+pub struct Antigravity {
+    root: Option<PathBuf>,
+    dir: &'static str,
+}
+
+impl Default for Antigravity {
+    fn default() -> Self {
+        Self::ide()
+    }
+}
+
+impl Antigravity {
+    /// Stock Antigravity IDE transcripts rooted at `~/.gemini/antigravity/brain`.
+    pub fn ide() -> Self {
+        Antigravity {
+            root: None,
+            dir: "antigravity",
+        }
+    }
+
+    /// Antigravity CLI (`agy`, which replaced Gemini CLI for personal accounts)
+    /// rooted at `~/.gemini/antigravity-cli/brain`.
+    pub fn cli() -> Self {
+        Antigravity {
+            root: None,
+            dir: "antigravity-cli",
+        }
+    }
+
+    /// An adapter for Antigravity IDE transcripts under `home/.gemini/antigravity/brain`.
+    pub fn in_home(home: impl Into<PathBuf>) -> Self {
+        Antigravity {
+            root: Some(home.into().join(".gemini").join("antigravity").join("brain")),
+            dir: "antigravity",
+        }
+    }
+
+    /// An adapter for Antigravity CLI (`agy`) transcripts under `home/.gemini/antigravity-cli/brain`.
+    pub fn cli_in_home(home: impl Into<PathBuf>) -> Self {
+        Antigravity {
+            root: Some(home.into().join(".gemini").join("antigravity-cli").join("brain")),
+            dir: "antigravity-cli",
+        }
+    }
+}
 
 const SNIPPET_CAP: usize = 200;
 
@@ -104,10 +149,13 @@ impl Adapter for Antigravity {
     }
 
     fn root(&self) -> Option<PathBuf> {
+        if let Some(r) = &self.root {
+            return Some(r.clone());
+        }
         Some(
             crate::util::home_dir()?
                 .join(".gemini")
-                .join("antigravity")
+                .join(self.dir)
                 .join("brain"),
         )
     }
@@ -319,4 +367,51 @@ mod tests {
         assert_eq!(wev.path, "d:/project/new.rs");
         assert!(wev.snippet.contains("let a = 123;"));
     }
+
+    #[test]
+    fn test_antigravity_cli_discovery_and_parse() {
+        let temp = tempfile::tempdir().unwrap();
+        let session_dir = temp
+            .path()
+            .join(".gemini")
+            .join("antigravity-cli")
+            .join("brain")
+            .join("cli_session_jwt_test")
+            .join(".system_generated")
+            .join("logs");
+        std::fs::create_dir_all(&session_dir).unwrap();
+        let transcript_path = session_dir.join("transcript.jsonl");
+
+        let content = r#"{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-10-24T12:00:00.000Z","content":"<USER_REQUEST>Refactor auth module with JWT support</USER_REQUEST>"}
+{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-10-24T12:00:05.000Z","content":"Updating auth implementation now.","tool_calls":[{"name":"edit_file","args":{"Path":"d:/crypto/src/auth.rs","Replacement":"pub fn verify_jwt(token: &str) -> bool { true }","Target":"pub fn verify_token() {}"}}]}
+{"step_index":2,"source":"GENERIC","type":"GENERIC","status":"DONE","created_at":"2026-10-24T12:00:06.000Z","content":"Successfully edited file d:/crypto/src/auth.rs"}
+{"step_index":3,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-10-24T12:00:10.000Z","content":"Authentication refactoring complete with JWT support."}
+"#;
+        std::fs::write(&transcript_path, content).unwrap();
+
+        let cli_adapter = Antigravity::cli_in_home(temp.path());
+        assert_eq!(cli_adapter.name(), "antigravity");
+        assert!(cli_adapter.root().unwrap().ends_with(Path::new(".gemini").join("antigravity-cli").join("brain")));
+
+        let discovered = cli_adapter.discover();
+        assert!(!discovered.had_error);
+        assert_eq!(discovered.files.len(), 1);
+        assert_eq!(discovered.files[0], transcript_path);
+
+        let session = cli_adapter.parse(&transcript_path).expect("parse should succeed");
+        assert_eq!(session.tool, "antigravity");
+        assert_eq!(session.id, "cli_session_jwt_test");
+        assert_eq!(session.title, "Refactor auth module with JWT support");
+        assert_eq!(session.messages.len(), 5);
+        assert_eq!(session.touched, vec!["d:/crypto/src/auth.rs"]);
+        assert_eq!(session.edits.len(), 1);
+        assert_eq!(session.edits[0].path, "d:/crypto/src/auth.rs");
+        assert_eq!(session.edits[0].kind, EditKind::Edit);
+
+        // Verify IDE adapter ignores the CLI directory
+        let ide_adapter = Antigravity::in_home(temp.path());
+        let ide_discovered = ide_adapter.discover();
+        assert_eq!(ide_discovered.files.len(), 0);
+    }
+
 }
