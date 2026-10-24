@@ -2207,6 +2207,20 @@
     opacity: 1;
     transform: translateY(0);
   }
+  /* Long transcripts: skip layout and paint for rows far off-screen. The
+     "auto" size remembers a row's real height once it has been laid out. */
+  .doc > .msg, .doc > .toolrow {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 90px;
+  }
+  /* Role filter and rewound toggle as CSS state, so switching them does not
+     rebuild thousands of rows. */
+  .doc[data-rf="user"] > [data-role]:not([data-role="user"]),
+  .doc[data-rf="assistant"] > [data-role]:not([data-role="assistant"]),
+  .doc[data-rf="tool"] > [data-role]:not([data-role="tool"]),
+  .doc[data-rf="user,assistant"] > [data-role]:not([data-role="user"]):not([data-role="assistant"]),
+  .doc:not(.show-rewound) > .rewound { display: none; }
+  .more-sentinel { text-align: center; color: var(--ink-3, #888); font-size: 12px; padding: 18px 0; }
 </style>
 </head>
 <body>
@@ -3704,9 +3718,20 @@ function renderItems(rows, isSearch) {
       for (const t of r.tags) tg.appendChild(el("span", "tagchip", "#" + t));
       item.appendChild(tg);
     }
-    item.onclick = () => { openSession(r.id); setActive(item); };
+    item.onclick = () => {
+      openSession(r.id, isSearch ? { highlight: sidebarSearchTerm() } : {});
+      setActive(item);
+    };
     list.appendChild(item);
   }
+}
+
+/** The term a sidebar search matched on, to highlight in the opened chat. */
+function sidebarSearchTerm() {
+  if (currentFileTrace) return null;
+  const raw = $("q").value.trim() || searchKeywords[0] || "";
+  const term = raw.replace(/^"+|"+$/g, "").trim();
+  return term.length >= 2 ? term : null;
 }
 
 function setActive(elm) {
@@ -3733,7 +3758,7 @@ function recordRecentlyViewed(s) {
     tool: s.tool,
     project: s.project || "-",
     started: s.started,
-    msgs: s.messages ? s.messages.length : (s.msgs || 0),
+    msgs: s.total_messages != null ? s.total_messages : (s.messages ? s.messages.length : (s.msgs || 0)),
     time: Date.now()
   });
   if (recents.length > 50) recents = recents.slice(0, 50);
@@ -3742,8 +3767,72 @@ function recordRecentlyViewed(s) {
   } catch (_) {}
 }
 
-async function openSession(id) {
-  const s = await jget("/api/session/" + encodeURIComponent(id));
+// Messages per request. A long agent session runs to thousands of messages
+// and tens of MB of JSON; the first page renders while the rest streams in.
+const SESSION_PAGE = 300;
+// Raw message text for lazily rendered bodies, kept off the DOM: a data
+// attribute would hold a second copy of every message as a DOM string.
+let rawTextOf = new WeakMap();
+// Per-render state the incremental loaders append into.
+let sessionView = null;
+let loadingMore = null;
+
+function sessionFullyLoaded(s) {
+  return !s || s.total_messages == null || s.messages.length >= s.total_messages;
+}
+
+/** Fetch the next page of the open session (or, with `all`, every remaining
+ * page) and append its rows. Concurrent callers share the in-flight load. */
+async function loadMoreMessages(all) {
+  const s = currentSession;
+  if (!s || sessionFullyLoaded(s)) return;
+  if (!loadingMore) {
+    loadingMore = (async () => {
+      const start = s.messages.length;
+      const limit = all ? 2000 : SESSION_PAGE;
+      const page = await jget(`/api/session/${encodeURIComponent(s.id)}?offset=${start}&limit=${limit}`);
+      if (currentSession !== s || !page || page.offset !== start || !page.messages || !page.messages.length) {
+        s.total_messages = s.messages.length; // nothing more to get; stop asking
+        return;
+      }
+      for (const m of page.messages) s.messages.push(m);
+      s.total_messages = page.total_messages;
+      appendMessageRows(start);
+    })();
+  }
+  try {
+    await loadingMore;
+  } finally {
+    loadingMore = null;
+  }
+  if (all && currentSession === s && !sessionFullyLoaded(s)) await loadMoreMessages(true);
+}
+
+// Backup for the sentinel observer: also load the next page when a scroll
+// brings the end of the loaded rows near.
+$("main").addEventListener("scroll", () => {
+  const main = $("main");
+  if (currentSession && !sessionFullyLoaded(currentSession)
+      && main.scrollTop + main.clientHeight > main.scrollHeight - 3000) {
+    loadMoreMessages(false);
+  }
+}, { passive: true });
+
+async function ensureFullyLoaded() {
+  await loadMoreMessages(true);
+}
+
+/** Load pages until message `idx` exists, then return its element. */
+async function loadThrough(idx) {
+  const s = currentSession;
+  while (s && currentSession === s && s.messages.length <= idx && !sessionFullyLoaded(s)) {
+    await loadMoreMessages(false);
+  }
+  return document.getElementById("msg-" + idx);
+}
+
+async function openSession(id, opts = {}) {
+  const s = await jget(`/api/session/${encodeURIComponent(id)}?offset=0&limit=${SESSION_PAGE}`);
   if (s && s.favorite) {
     favoriteSet.add(s.id);
     updateItemFavStar(s.id, true);
@@ -3752,12 +3841,18 @@ async function openSession(id) {
   recordRecentlyViewed(s);
   if ($("recentbtn")) $("recentbtn").classList.remove("on");
   renderCurrentSession(false);
+  if (opts.highlight) {
+    const q = $("chat-q");
+    if (q) {
+      q.value = opts.highlight;
+      doChatSearch(opts.highlight);
+    }
+  }
 }
 
 function renderCurrentSession(keepScroll) {
   if (!currentSession) return;
   const s = currentSession;
-  const roleFilter = $("role").value;
 
   const head = el("div", "doc-head");
   const topRow = el("div", "doc-head-top");
@@ -3784,33 +3879,9 @@ function renderCurrentSession(keepScroll) {
   chips.appendChild(el("span", "chip", fmtDate(s.started)));
   if (s.ended) chips.appendChild(el("span", "chip", (L.lastActivePrefix || "last") + " " + fmtDate(s.ended)));
 
-  // Message filtering by selected role and rewound status
-  const showRewound = $("show-rewound-cb") && $("show-rewound-cb").checked;
-  const visibleMessages = [];
-  for (let i = 0; i < s.messages.length; i++) {
-    const m = s.messages[i];
-    if (m.is_rewound && !showRewound) {
-      continue;
-    }
-    let show = true;
-    if (roleFilter === "user,assistant") {
-      show = (m.role === "user" || m.role === "assistant");
-    } else if (roleFilter === "user") {
-      show = (m.role === "user");
-    } else if (roleFilter === "assistant") {
-      show = (m.role === "assistant");
-    } else if (roleFilter === "tool") {
-      show = (m.role === "tool");
-    }
-    if (show) {
-      visibleMessages.push({ m, origIndex: i });
-    }
-  }
-
-  const countStr = roleFilter && visibleMessages.length !== s.messages.length
-    ? `${visibleMessages.length} / ${s.messages.length}`
-    : `${s.messages.length}`;
-  chips.appendChild(el("span", "chip", L.messages(countStr)));
+  const countChip = el("span", "chip", "");
+  countChip.id = "msg-count-chip";
+  chips.appendChild(countChip);
 
   if (s.parent || s.parent_id) {
     const pId = s.parent ? s.parent.id : s.parent_id;
@@ -3931,7 +4002,10 @@ function renderCurrentSession(keepScroll) {
     </svg>
     <span>${L.exportMdBtn || "Export .md"}</span>
   `;
-  exportBtn.onclick = () => exportSessionToMarkdown(s, visibleMessages);
+  exportBtn.onclick = async () => {
+    await ensureFullyLoaded();
+    exportSessionToMarkdown(s, visibleMessagesOf(s));
+  };
   actions.appendChild(exportBtn);
 
   const isFav = favoriteSet.has(s.id) || !!s.favorite;
@@ -4017,6 +4091,28 @@ function renderCurrentSession(keepScroll) {
     head.appendChild(det);
   }
 
+  // Related sessions (shared files, tags, project), filled in the background
+  // and shown only when there are any.
+  const relDet = el("details", "subagents-details related-details");
+  relDet.style.display = "none";
+  const relSum = el("summary", "", `🔗 ${L.seeAlso || "Related sessions"}`);
+  const relList = el("div", "subagents-list");
+  relDet.append(relSum, relList);
+  head.appendChild(relDet);
+  jget("/api/related/" + encodeURIComponent(s.id)).then((rel) => {
+    if (currentSession !== s || !rel || !rel.length) return;
+    relSum.textContent = `🔗 ${L.seeAlso || "Related sessions"} (${rel.length})`;
+    for (const r of rel) {
+      const item = el("div", "subagent-item");
+      item.appendChild(el("span", "dot " + r.tool));
+      item.appendChild(el("span", "subagent-name", r.title || L.untitled));
+      item.appendChild(el("span", "subagent-meta", `${r.tool} · ${fmtDate(r.started)} · ${L.msgs(r.msgs)}`));
+      item.onclick = () => openSession(r.id);
+      relList.appendChild(item);
+    }
+    relDet.style.display = "";
+  }).catch(() => {});
+
   if (s.note) {
     head.appendChild(el("div", "note", s.note));
   }
@@ -4039,142 +4135,64 @@ function renderCurrentSession(keepScroll) {
 
   const doc = el("div", "doc");
 
-  // Outline: user turns from visible messages
-  const userTurns = [];
-  visibleMessages.forEach(({ m }, vi) => {
+  // Outline: user turns. The server sends it for the whole session, so it is
+  // complete before every page has loaded; an entry not loaded yet loads first.
+  const userTurns = s.outline || s.messages.flatMap((m, i) => {
     const t = m.text.trimStart();
-    if (m.role === "user" && !t.startsWith("<") && !t.startsWith("[Request interrupted")) {
-      userTurns.push({ vi, text: m.text });
-    }
+    return m.role === "user" && !t.startsWith("<") && !t.startsWith("[Request interrupted")
+      ? [{ i, text: m.text.replace(/\s+/g, " ").slice(0, 110) }] : [];
   });
-  const anchors = {};
   if (userTurns.length >= 3) {
     const det = el("details", "outline");
     det.appendChild(el("summary", "", L.outline(userTurns.length)));
     const ol = el("ol");
     for (const ut of userTurns) {
-      const li = el("li", "", ut.text.replace(/\s+/g, " ").slice(0, 110));
-      li.onclick = () => anchors[ut.vi] && anchors[ut.vi].scrollIntoView({ behavior: "smooth", block: "start" });
+      const li = el("li", "", ut.text);
+      li.onclick = async () => {
+        const target = await loadThrough(ut.i);
+        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      };
       ol.appendChild(li);
     }
     det.appendChild(ol);
     doc.appendChild(det);
   }
 
-  if (visibleMessages.length === 0) {
-    const emptyMsg = el("div", "empty", `No messages matching role filter "${roleFilter}".`);
-    doc.appendChild(emptyMsg);
+  if (!s.messages.length) {
+    doc.appendChild(el("div", "empty", L.noMessages || "No messages."));
   }
 
-  if (window.currentLazyObserver) {
-    window.currentLazyObserver.disconnect();
-    window.currentLazyObserver = null;
+  if (sessionView) {
+    sessionView.lazyObserver.disconnect();
+    sessionView.moreObserver.disconnect();
   }
+  rawTextOf = new WeakMap();
 
-  // High-performance lazy observer inspired by reposeek-app / MDHero:
-  // Render visible messages immediately and lazy-render off-screen messages as user scrolls
+  // Off-screen bodies render as they near the viewport.
   const lazyObserver = new IntersectionObserver((entries) => {
     for (const entry of entries) {
-      if (entry.isIntersecting) {
-        const target = entry.target;
-        lazyObserver.unobserve(target);
-        const bodyEl = target.querySelector(".body");
-        const rawText = target.dataset.rawText;
-        if (bodyEl && rawText && !bodyEl.dataset.rendered) {
-          bodyEl.dataset.rendered = "true";
-          bodyEl.style.opacity = "";
-          bodyEl.replaceChildren();
-          renderRichMarkdown(rawText, bodyEl);
-        }
-      }
+      if (entry.isIntersecting) renderLazyBody(entry.target);
     }
   }, {
     rootMargin: "600px 0px 600px 0px" // Pre-render 600px before scrolling into viewport
   });
-  window.currentLazyObserver = lazyObserver;
+  // The next page is fetched well before the reader reaches the end.
+  const sentinel = el("div", "more-sentinel", L.loading || "Loading...");
+  const moreObserver = new IntersectionObserver((entries) => {
+    if (entries.some((e) => e.isIntersecting)) loadMoreMessages(false);
+  }, { rootMargin: "2000px 0px 2000px 0px" });
 
-  const EAGER_MSG_COUNT = 30; // First 30 messages render eagerly for instant zero-lag open
-  const pinnedSet = new Set((s.pinned_indices || []).map(Number));
-
-  for (let vi = 0; vi < visibleMessages.length; vi++) {
-    const { m, origIndex } = visibleMessages[vi];
-    const msgIdx = origIndex != null ? origIndex : vi;
-    if (m.role === "tool") {
-      const row = el("div", "toolrow" + (m.is_rewound ? " rewound" : ""));
-      row.dataset.msgIdx = msgIdx;
-      row.dataset.role = "tool";
-      row.id = "msg-" + msgIdx;
-      const isPinned = pinnedSet.has(Number(msgIdx));
-      const pinBtn = el("button", "msg-pin-btn tool-pin-btn" + (isPinned ? " pinned" : ""));
-      pinBtn.type = "button";
-      pinBtn.title = isPinned ? (L.unpinSnippet || "Unpin from Snippets") : (L.pinSnippet || "📌 Pin snippet to Knowledge Base");
-      pinBtn.innerHTML = pinBtnHtml(isPinned);
-      pinBtn.onclick = async (e) => {
-        e.stopPropagation();
-        await togglePinMessage(s, msgIdx, m.text, pinBtn, pinnedSet, "tool", m.ts);
-      };
-      row.appendChild(pinBtn);
-      const sum = el("summary", "", m.text.split("\n")[0].slice(0, 140));
-      const summary = m.tool?.kind === "summary" ? m.tool.value : null;
-      const compact = m.text.startsWith("→ ") && m.text.includes(" ⇒ ") && !m.text.includes("\n");
-      const output = typeof summary?.output === "string" ? summary.output : (compact ? "" : m.text);
-      if (output) {
-        const det = el("details");
-        const body = el("div", "body", output);
-        det.append(sum, body);
-        row.appendChild(det);
-      } else {
-        row.appendChild(el("div", "toolline", m.text));
-      }
-      doc.appendChild(row);
-      anchors[vi] = row;
-      continue;
-    }
-    const wrap = el("div", "msg " + m.role + (m.is_rewound ? " rewound" : ""));
-    wrap.dataset.rawText = m.text;
-    wrap.dataset.msgIdx = msgIdx;
-    wrap.dataset.role = m.role || "assistant";
-    wrap.id = "msg-" + msgIdx;
-    const av = el("div", "avatar", m.role === "user" ? "U" : "A");
-    if (m.ts) av.title = fmtDateTime(m.ts);
-    const content = el("div", "content");
-    const whoEl = el("div", "who");
-    whoEl.appendChild(el("span", "role-name", m.role));
-    if (m.is_rewound) {
-      whoEl.appendChild(el("span", "badge-rewound", "↩ " + (L.rewound || "rewound")));
-    }
-    const msgTs = m.ts || s.started;
-    if (msgTs) {
-      whoEl.appendChild(el("span", "msg-time", " · " + fmtDateTime(msgTs)));
-    }
-    const isPinned = pinnedSet.has(Number(msgIdx));
-    const pinBtn = el("button", "msg-pin-btn" + (isPinned ? " pinned" : ""));
-    pinBtn.type = "button";
-    pinBtn.title = isPinned ? (L.unpinSnippet || "Unpin from Snippets") : (L.pinSnippet || "📌 Pin snippet to Knowledge Base");
-    pinBtn.innerHTML = pinBtnHtml(isPinned);
-    pinBtn.onclick = async (e) => {
-      e.stopPropagation();
-      await togglePinMessage(s, msgIdx, m.text, pinBtn, pinnedSet, m.role || "assistant", msgTs);
-    };
-    whoEl.appendChild(pinBtn);
-    content.appendChild(whoEl);
-    const body = el("div", "body");
-
-    if (vi < EAGER_MSG_COUNT) {
-      body.dataset.rendered = "true";
-      renderRichMarkdown(m.text, body);
-    } else {
-      // Lazy placeholder with truncated text preview until scrolled into view
-      body.textContent = m.text.slice(0, 160) + (m.text.length > 160 ? "…" : "");
-      body.style.opacity = "0.75";
-      lazyObserver.observe(wrap);
-    }
-
-    content.appendChild(body);
-    wrap.append(av, content);
-    doc.appendChild(wrap);
-    anchors[vi] = wrap;
-  }
+  sessionView = {
+    s,
+    doc,
+    sentinel,
+    lazyObserver,
+    moreObserver,
+    pinnedSet: new Set((s.pinned_indices || []).map(Number)),
+  };
+  doc.appendChild(sentinel);
+  appendMessageRows(0);
+  moreObserver.observe(sentinel);
 
   const EDITS_SHOWN = 6;
   function showFileHistory(filePath, chip) {
@@ -4244,7 +4262,160 @@ function renderCurrentSession(keepScroll) {
 
   const prevScroll = keepScroll ? $("main").scrollTop : 0;
   $("main").replaceChildren(head, doc);
+  applyMessageFilters();
   $("main").scrollTop = prevScroll;
+}
+
+const EAGER_MSG_COUNT = 30; // First 30 messages render eagerly for instant zero-lag open
+
+/** Render one lazily placed message body now (scrolled near, or a search hit). */
+function renderLazyBody(wrap) {
+  const bodyEl = wrap.querySelector(".body");
+  const raw = rawTextOf.get(wrap);
+  if (bodyEl && raw && !bodyEl.dataset.rendered) {
+    bodyEl.dataset.rendered = "true";
+    bodyEl.style.opacity = "";
+    bodyEl.replaceChildren();
+    renderRichMarkdown(raw, bodyEl);
+  }
+  if (sessionView) sessionView.lazyObserver.unobserve(wrap);
+}
+
+/** Append rows for messages[start..] of the open session, before the sentinel. */
+function appendMessageRows(start) {
+  const view = sessionView;
+  if (!view || view.s !== currentSession) return;
+  const { s, doc, sentinel } = view;
+  const frag = document.createDocumentFragment();
+  for (let i = start; i < s.messages.length; i++) {
+    frag.appendChild(buildMessageRow(s, s.messages[i], i));
+  }
+  doc.insertBefore(frag, sentinel);
+  sentinel.style.display = sessionFullyLoaded(s) ? "none" : "";
+  updateMessageCountChip();
+}
+
+function buildMessageRow(s, m, msgIdx) {
+  const { pinnedSet, lazyObserver } = sessionView;
+  if (m.role === "tool") {
+    const row = el("div", "toolrow" + (m.is_rewound ? " rewound" : ""));
+    row.dataset.msgIdx = msgIdx;
+    row.dataset.role = "tool";
+    row.id = "msg-" + msgIdx;
+    const isPinned = pinnedSet.has(Number(msgIdx));
+    const pinBtn = el("button", "msg-pin-btn tool-pin-btn" + (isPinned ? " pinned" : ""));
+    pinBtn.type = "button";
+    pinBtn.title = isPinned ? (L.unpinSnippet || "Unpin from Snippets") : (L.pinSnippet || "📌 Pin snippet to Knowledge Base");
+    pinBtn.innerHTML = pinBtnHtml(isPinned);
+    pinBtn.onclick = async (e) => {
+      e.stopPropagation();
+      await togglePinMessage(s, msgIdx, m.text, pinBtn, pinnedSet, "tool", m.ts);
+    };
+    row.appendChild(pinBtn);
+    const sum = el("summary", "", m.text.split("\n")[0].slice(0, 140));
+    const summary = m.tool?.kind === "summary" ? m.tool.value : null;
+    const compact = m.text.startsWith("→ ") && m.text.includes(" ⇒ ") && !m.text.includes("\n");
+    const output = typeof summary?.output === "string" ? summary.output : (compact ? "" : m.text);
+    if (output) {
+      const det = el("details");
+      const body = el("div", "body", output);
+      det.append(sum, body);
+      row.appendChild(det);
+    } else {
+      row.appendChild(el("div", "toolline", m.text));
+    }
+    return row;
+  }
+  const wrap = el("div", "msg " + m.role + (m.is_rewound ? " rewound" : ""));
+  wrap.dataset.msgIdx = msgIdx;
+  wrap.dataset.role = m.role || "assistant";
+  wrap.id = "msg-" + msgIdx;
+  const av = el("div", "avatar", m.role === "user" ? "U" : "A");
+  if (m.ts) av.title = fmtDateTime(m.ts);
+  const content = el("div", "content");
+  const whoEl = el("div", "who");
+  whoEl.appendChild(el("span", "role-name", m.role));
+  if (m.is_rewound) {
+    whoEl.appendChild(el("span", "badge-rewound", "↩ " + (L.rewound || "rewound")));
+  }
+  const msgTs = m.ts || s.started;
+  if (msgTs) {
+    whoEl.appendChild(el("span", "msg-time", " · " + fmtDateTime(msgTs)));
+  }
+  const isPinned = pinnedSet.has(Number(msgIdx));
+  const pinBtn = el("button", "msg-pin-btn" + (isPinned ? " pinned" : ""));
+  pinBtn.type = "button";
+  pinBtn.title = isPinned ? (L.unpinSnippet || "Unpin from Snippets") : (L.pinSnippet || "📌 Pin snippet to Knowledge Base");
+  pinBtn.innerHTML = pinBtnHtml(isPinned);
+  pinBtn.onclick = async (e) => {
+    e.stopPropagation();
+    await togglePinMessage(s, msgIdx, m.text, pinBtn, pinnedSet, m.role || "assistant", msgTs);
+  };
+  whoEl.appendChild(pinBtn);
+  content.appendChild(whoEl);
+  const body = el("div", "body");
+
+  if (msgIdx < EAGER_MSG_COUNT) {
+    body.dataset.rendered = "true";
+    renderRichMarkdown(m.text, body);
+  } else {
+    // Lazy placeholder with truncated text preview until scrolled into view
+    body.textContent = m.text.slice(0, 160) + (m.text.length > 160 ? "…" : "");
+    body.style.opacity = "0.75";
+    rawTextOf.set(wrap, m.text);
+    lazyObserver.observe(wrap);
+  }
+
+  content.appendChild(body);
+  wrap.append(av, content);
+  return wrap;
+}
+
+/** Messages the role filter and the rewound toggle currently show. */
+function visibleMessagesOf(s) {
+  const roleFilter = $("role").value;
+  const roles = roleFilter ? roleFilter.split(",") : null;
+  const showRewound = $("show-rewound-cb") && $("show-rewound-cb").checked;
+  const out = [];
+  s.messages.forEach((m, i) => {
+    if (m.is_rewound && !showRewound) return;
+    if (roles && !roles.includes(m.role)) return;
+    out.push({ m, origIndex: i });
+  });
+  return out;
+}
+
+/** Apply the role filter and rewound toggle as CSS state - no re-render. */
+function applyMessageFilters() {
+  const doc = document.querySelector("#main .doc");
+  if (!doc) return;
+  doc.dataset.rf = $("role").value || "";
+  doc.classList.toggle("show-rewound", !!($("show-rewound-cb") && $("show-rewound-cb").checked));
+  updateMessageCountChip();
+}
+
+function updateMessageCountChip() {
+  const chip = $("msg-count-chip");
+  const s = currentSession;
+  if (!chip || !s) return;
+  const roleFilter = $("role").value;
+  const roles = roleFilter ? roleFilter.split(",") : null;
+  const showRewound = $("show-rewound-cb") && $("show-rewound-cb").checked;
+  let shown = 0, total = 0;
+  if (s.role_counts) {
+    for (const [key, n] of Object.entries(s.role_counts)) {
+      const rewound = key.endsWith("_rewound");
+      const role = rewound ? key.slice(0, -"_rewound".length) : key;
+      total += n;
+      if (rewound && !showRewound) continue;
+      if (roles && !roles.includes(role)) continue;
+      shown += n;
+    }
+  } else {
+    total = s.messages.length;
+    shown = visibleMessagesOf(s).length;
+  }
+  chip.textContent = L.messages(roleFilter && shown !== total ? `${shown} / ${total}` : `${total}`);
 }
 
 function showRecentView() {
@@ -4652,7 +4823,7 @@ if ($("add-tag-btn")) {
 $("tool").addEventListener("change", refresh);
 $("role").addEventListener("change", () => {
   refresh();
-  renderCurrentSession(true);
+  applyMessageFilters();
 });
 $("date-mode").addEventListener("change", () => {
   updateDateUI();
@@ -4728,12 +4899,42 @@ function clearChatSearch() {
   if (countEl) countEl.textContent = "";
 }
 
-function doChatSearch(term) {
+let chatSearchSeq = 0;
+
+async function doChatSearch(term) {
+  const seq = ++chatSearchSeq;
   clearChatSearch();
   if (!term || term.length < 2) return;
 
-  const docEl = document.querySelector(".doc");
+  // A hit can sit in a page not fetched yet: load the rest first.
+  if (currentSession && !sessionFullyLoaded(currentSession)) {
+    const countEl = $("chat-search-count");
+    if (countEl) countEl.textContent = "…";
+    await ensureFullyLoaded();
+    if (seq !== chatSearchSeq) return;
+  }
+
+  const docEl = document.querySelector("#main .doc");
   if (!docEl) return;
+  const re = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+
+  // Lazy bodies hold only a short preview: render the ones whose text matches.
+  docEl.querySelectorAll(":scope > .msg").forEach((wrap) => {
+    const raw = rawTextOf.get(wrap);
+    re.lastIndex = 0;
+    if (raw && re.test(raw)) renderLazyBody(wrap);
+  });
+  re.lastIndex = 0;
+  // Rows the role filter hides cannot be scrolled to; leave them out.
+  const rowShown = new Map();
+  const shown = (node) => {
+    const row = node.parentElement && node.parentElement.closest(".doc > *");
+    if (!row) return true;
+    if (!rowShown.has(row)) {
+      rowShown.set(row, row.checkVisibility ? row.checkVisibility() : row.offsetParent !== null);
+    }
+    return rowShown.get(row);
+  };
 
   const treeWalker = document.createTreeWalker(
     docEl,
@@ -4745,7 +4946,7 @@ function doChatSearch(term) {
         if (!p || p.tagName === "SCRIPT" || p.tagName === "STYLE" || p.tagName === "MARK") {
           return NodeFilter.FILTER_REJECT;
         }
-        return NodeFilter.FILTER_ACCEPT;
+        return shown(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
       }
     }
   );
@@ -4755,7 +4956,6 @@ function doChatSearch(term) {
     textNodes.push(treeWalker.currentNode);
   }
 
-  const re = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
   for (const node of textNodes) {
     const text = node.nodeValue;
     let match;
@@ -4809,9 +5009,13 @@ function highlightCurrentMatch() {
 }
 
 // In-chat search wire
+let chatSearchTimer = null;
 document.addEventListener("input", (e) => {
   if (e.target && e.target.id === "chat-q") {
-    doChatSearch(e.target.value.trim());
+    // Debounced: on a long session each pass walks thousands of rows.
+    clearTimeout(chatSearchTimer);
+    const term = e.target.value.trim();
+    chatSearchTimer = setTimeout(() => doChatSearch(term), 150);
   }
 });
 document.addEventListener("keydown", (e) => {
@@ -5395,6 +5599,7 @@ function setupContextMenu() {
     if (activeSessionTarget) {
       const sId = activeSessionTarget.id;
       try {
+        if (currentSession && currentSession.id === sId) await ensureFullyLoaded();
         const s = (currentSession && currentSession.id === sId)
           ? currentSession
           : await jget("/api/session/" + encodeURIComponent(sId));
@@ -5632,7 +5837,7 @@ function switchSidebarMode(mode) {
     if (sidefootHint) sidefootHint.style.display = "";
     if (sidefootCount) sidefootCount.style.display = "";
     if (currentSession) {
-      renderSession(currentSession);
+      renderCurrentSession(true);
     } else {
       $("main").replaceChildren(el("div", "placeholder", L.phTitle || "Pick a session on the left"));
     }
@@ -5905,6 +6110,7 @@ function renderSnippetLangChips(allSnippets) {
 
 async function jumpToSnippet(sessionId, messageIdx) {
   await openSession(sessionId);
+  await loadThrough(Number(messageIdx));
   setTimeout(() => {
     const target = document.getElementById("msg-" + messageIdx) || document.querySelector(`[data-msg-idx="${messageIdx}"]`);
     if (target) {
@@ -5974,7 +6180,7 @@ function setupSnippetsControls() {
   $("tab-snippets")?.addEventListener("click", () => switchSidebarMode("snippets"));
   $("tab-activity")?.addEventListener("click", () => switchSidebarMode("activity"));
   $("show-rewound-cb")?.addEventListener("change", () => {
-    if (currentSession) renderSession(currentSession);
+    applyMessageFilters();
   });
 
   const snippetQ = $("snippet-q");

@@ -89,6 +89,11 @@ fn handle_request(
         let _ = request.respond(Response::from_string("forbidden").with_status_code(403));
         return;
     }
+    let gzip = request.headers().iter().any(|h| {
+        h.field.equiv("Accept-Encoding")
+            && h.value.as_str().split(',').any(|e| e.trim().starts_with("gzip"))
+    });
+    ACCEPT_GZIP.with(|g| g.set(gzip));
     let url = request.url().to_string();
     let (path, query) = url.split_once('?').unwrap_or((url.as_str(), ""));
     let result = match path {
@@ -115,7 +120,7 @@ fn handle_request(
             api_related(&conn, p.trim_start_matches("/api/related/"))
         }
         p if p.starts_with("/api/session/") => {
-            api_session(&conn, p.trim_start_matches("/api/session/"))
+            api_session(&conn, p.trim_start_matches("/api/session/"), query)
         }
         _ => Ok(Response::from_string("not found")
             .with_status_code(404)
@@ -159,8 +164,34 @@ fn origin_ok(origin: Option<&str>, port: u16) -> bool {
     }
 }
 
+thread_local! {
+    /// Whether the request this handler thread is serving accepts gzip. Each
+    /// handler serves one request at a time, so the flag is set per request.
+    static ACCEPT_GZIP: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// A response body, gzip-compressed when the client accepts it and the body is
+/// big enough to be worth it (session transcripts run to tens of MB of JSON).
+fn encoded_body(body: Vec<u8>) -> Response<std::io::Cursor<Vec<u8>>> {
+    use std::io::Write;
+    if body.len() >= 1024 && ACCEPT_GZIP.with(|g| g.get()) {
+        let mut enc = flate2::write::GzEncoder::new(
+            Vec::with_capacity(body.len() / 4),
+            flate2::Compression::fast(),
+        );
+        if enc.write_all(&body).is_ok() {
+            if let Ok(gz) = enc.finish() {
+                return Response::from_data(gz)
+                    .with_header(Header::from_bytes(&b"Content-Encoding"[..], &b"gzip"[..]).unwrap())
+                    .with_header(Header::from_bytes(&b"Vary"[..], &b"Accept-Encoding"[..]).unwrap());
+            }
+        }
+    }
+    Response::from_data(body)
+}
+
 fn html(body: &str) -> Result<Boxed> {
-    Ok(Response::from_string(body)
+    Ok(encoded_body(body.as_bytes().to_vec())
         .with_header(
             Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..]).unwrap(),
         )
@@ -181,7 +212,7 @@ fn json_response(v: serde_json::Value) -> Result<Boxed> {
 }
 
 fn json_response_with_status(v: serde_json::Value, status: u16) -> Result<Boxed> {
-    Ok(Response::from_string(v.to_string())
+    Ok(encoded_body(v.to_string().into_bytes())
         .with_status_code(status)
         .with_header(
             Header::from_bytes(
@@ -415,12 +446,107 @@ fn api_sync(conn: &mut Connection, sync_lock: &std::sync::Mutex<()>) -> Result<B
     json_response(json!({ "ok": true, "sessions": count }))
 }
 
-fn api_session(conn: &Connection, id: &str) -> Result<Boxed> {
+/// A parsed session kept between page requests: everything but the messages
+/// already as JSON, and the messages to slice pages from.
+struct CachedSession {
+    key: String,
+    head: serde_json::Value,
+    messages: std::sync::Arc<Vec<crate::model::Message>>,
+}
+
+/// The last session opened. Paging through a transcript asks for it again and
+/// again; re-parsing the source file for every page would cost more than the
+/// paging saves. One entry is enough - the UI shows one session at a time.
+static SESSION_CACHE: std::sync::Mutex<Option<CachedSession>> = std::sync::Mutex::new(None);
+
+/// What identifies one parse of a session: its row, plus the source file's
+/// size and mtime so a session still being written is re-read.
+fn session_cache_key(row: &index::SessionRow) -> String {
+    let meta = std::fs::metadata(&row.path).ok();
+    let len = meta.as_ref().map(|m| m.len());
+    let mtime = meta.and_then(|m| m.modified().ok());
+    format!("{}|{}|{len:?}|{mtime:?}|{}", row.session_id, row.path, row.archived)
+}
+
+fn load_session_cached(
+    conn: &Connection,
+    row: &index::SessionRow,
+) -> Result<(serde_json::Value, std::sync::Arc<Vec<crate::model::Message>>)> {
+    let key = session_cache_key(row);
+    {
+        let cache = SESSION_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(c) = cache.as_ref().filter(|c| c.key == key) {
+            return Ok((c.head.clone(), c.messages.clone()));
+        }
+    }
+    let mut session = commands::load_session(conn, row)?;
+    let messages = std::sync::Arc::new(std::mem::take(&mut session.messages));
+    let mut head = serde_json::to_value(&session)?;
+    if let Some(obj) = head.as_object_mut() {
+        obj.remove("messages");
+    }
+    *SESSION_CACHE.lock().unwrap_or_else(|e| e.into_inner()) = Some(CachedSession {
+        key,
+        head: head.clone(),
+        messages: messages.clone(),
+    });
+    Ok((head, messages))
+}
+
+/// The user turns a reader navigates by, for the outline of a paged session.
+fn session_outline(messages: &[crate::model::Message]) -> serde_json::Value {
+    let turns: Vec<serde_json::Value> = messages
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| {
+            let t = m.text.trim_start();
+            m.role == Role::User && !t.starts_with('<') && !t.starts_with("[Request interrupted")
+        })
+        .map(|(i, m)| {
+            let text: String = m.text.split_whitespace().collect::<Vec<_>>().join(" ");
+            json!({ "i": i, "text": text.chars().take(110).collect::<String>() })
+        })
+        .collect();
+    json!(turns)
+}
+
+/// `/api/session/<id>`: the whole session, or with `offset`/`limit` one page
+/// of its messages. Every response carries `total_messages`; the first page
+/// also carries the outline and per-role counts, so the UI can show them
+/// before the rest of a long transcript has arrived.
+fn api_session(conn: &Connection, id: &str, query: &str) -> Result<Boxed> {
     let matches = index::resolve(conn, id)?;
     let row = matches.first().context("session not found")?;
     let path = std::path::Path::new(&row.path);
-    let session = commands::load_session(conn, row)?;
-    let mut v = serde_json::to_value(&session)?;
+    let (mut v, messages) = load_session_cached(conn, row)?;
+    let total = messages.len();
+    let offset = param(query, "offset")
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(0)
+        .min(total);
+    let end = param(query, "limit")
+        .and_then(|s| s.parse::<usize>().ok())
+        .map_or(total, |limit| offset.saturating_add(limit).min(total));
+    v["messages"] = serde_json::to_value(&messages[offset..end])?;
+    v["offset"] = json!(offset);
+    v["total_messages"] = json!(total);
+    if offset > 0 {
+        // A follow-up page: the UI already has everything else.
+        return json_response(v);
+    }
+    let mut counts = std::collections::HashMap::new();
+    for m in messages.iter() {
+        // Rewound turns are hidden by default, so they are counted apart.
+        let key = if m.is_rewound {
+            format!("{}_rewound", m.role.label())
+        } else {
+            m.role.label().to_string()
+        };
+        *counts.entry(key).or_insert(0usize) += 1;
+    }
+    v["role_counts"] = json!(counts);
+    v["outline"] = session_outline(&messages);
+    let session_parent_id = v.get("parent_id").and_then(|p| p.as_str()).map(str::to_owned);
     if row.archived {
         v["archived"] = json!(true);
     }
@@ -441,7 +567,7 @@ fn api_session(conn: &Connection, id: &str) -> Result<Boxed> {
     }
     let pinned = index::snippet_indices_for_session(conn, &row.session_id).unwrap_or_default();
     v["pinned_indices"] = json!(pinned);
-    if let Some(pid) = row.parent_id.as_ref().or(session.parent_id.as_ref()) {
+    if let Some(pid) = row.parent_id.as_ref().or(session_parent_id.as_ref()) {
         v["parent_id"] = json!(pid);
         if let Ok(parents) = index::resolve(conn, pid) {
             if let Some(prow) = parents.first() {
