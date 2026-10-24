@@ -294,9 +294,48 @@ pub fn ensure_snippets_table(conn: &Connection) -> Result<()> {
             lang        TEXT,
             content     TEXT NOT NULL,
             tags        TEXT,
-            created_at  TEXT NOT NULL
+            created_at  TEXT NOT NULL,
+            tool        TEXT,
+            role        TEXT,
+            message_ts  TEXT,
+            message_ts  TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_snippets_session ON snippets(session_id);",
+    );
+    let _ = conn.execute("ALTER TABLE snippets ADD COLUMN tool TEXT", []);
+    let _ = conn.execute("ALTER TABLE snippets ADD COLUMN role TEXT", []);
+    let _ = conn.execute("ALTER TABLE snippets ADD COLUMN message_ts TEXT", []);
+    let _ = conn.execute(
+        "UPDATE snippets SET tool = (
+            SELECT tool FROM sessions WHERE sessions.session_id = snippets.session_id
+         ) WHERE tool IS NULL OR tool = ''",
+        [],
+    );
+    let _ = conn.execute(
+        "UPDATE snippets SET tool = (
+            SELECT tool FROM archive WHERE archive.session_id = snippets.session_id
+         ) WHERE tool IS NULL OR tool = ''",
+        [],
+    );
+    let _ = conn.execute(
+        "UPDATE snippets SET role = 'assistant' WHERE role IS NULL OR role = ''",
+        [],
+    );
+    let _ = conn.execute(
+        "UPDATE snippets SET message_ts = (
+            SELECT started FROM sessions WHERE sessions.session_id = snippets.session_id
+         ) WHERE message_ts IS NULL OR message_ts = ''",
+        [],
+    );
+    let _ = conn.execute(
+        "UPDATE snippets SET message_ts = (
+            SELECT started FROM archive WHERE archive.session_id = snippets.session_id
+         ) WHERE message_ts IS NULL OR message_ts = ''",
+        [],
+    );
+    let _ = conn.execute(
+        "UPDATE snippets SET message_ts = created_at WHERE message_ts IS NULL OR message_ts = ''",
+        [],
     );
     Ok(())
 }
@@ -564,7 +603,10 @@ fn create_cache_schema_with_tokenizer(conn: &Connection, tokenizer: &str) -> Res
             lang        TEXT,
             content     TEXT NOT NULL,
             tags        TEXT,
-            created_at  TEXT NOT NULL
+            created_at  TEXT NOT NULL,
+            tool        TEXT,
+            role        TEXT,
+            message_ts  TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_snippets_session ON snippets(session_id);
         -- Archive (durable, never dropped on a schema bump). When the tool
@@ -2838,6 +2880,9 @@ pub struct Snippet {
     pub content: String,
     pub tags: Option<String>,
     pub created_at: String,
+    pub tool: Option<String>,
+    pub role: Option<String>,
+    pub message_ts: Option<String>,
 }
 
 pub fn save_snippet(
@@ -2848,13 +2893,66 @@ pub fn save_snippet(
     lang: Option<&str>,
     content: &str,
     tags: Option<&str>,
+    tool: Option<&str>,
+    role: Option<&str>,
+    message_ts: Option<&str>,
 ) -> Result<i64> {
     ensure_snippets_table(conn)?;
     let now = chrono::Utc::now().to_rfc3339();
+
+    let effective_tool: Option<String> = match tool {
+        Some(t) if !t.trim().is_empty() => Some(t.trim().to_string()),
+        _ => conn
+            .query_row(
+                "SELECT tool FROM sessions WHERE session_id = ?1",
+                params![session_id],
+                |r| r.get(0),
+            )
+            .optional()?
+            .or_else(|| {
+                conn.query_row(
+                    "SELECT tool FROM archive WHERE session_id = ?1",
+                    params![session_id],
+                    |r| r.get(0),
+                )
+                .optional()
+                .unwrap_or(None)
+            }),
+    };
+
+    let effective_role = match role {
+        Some(r) if !r.trim().is_empty() => r.trim(),
+        _ => "assistant",
+    };
+
+    let effective_ts: String = match message_ts {
+        Some(ts) if !ts.trim().is_empty() => ts.trim().to_string(),
+        _ => conn
+            .query_row(
+                "SELECT started FROM sessions WHERE session_id = ?1",
+                params![session_id],
+                |r| r.get(0),
+            )
+            .optional()?
+            .flatten()
+            .unwrap_or_else(|| now.clone()),
+    };
+
     conn.execute(
-        "INSERT INTO snippets(session_id, message_idx, title, lang, content, tags, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        params![session_id, message_idx as i64, title, lang, content, tags, now],
+        "INSERT INTO snippets(session_id, message_idx, title, lang, content, tags, created_at, tool, role, message_ts)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        params![
+            session_id,
+            message_idx as i64,
+            title,
+            lang,
+            content,
+            tags,
+            now,
+            effective_tool,
+            effective_role,
+            effective_ts,
+        ],
     )?;
     Ok(conn.last_insert_rowid())
 }
@@ -2870,10 +2968,14 @@ pub fn list_snippets(
     query: Option<&str>,
     lang: Option<&str>,
     session_id: Option<&str>,
+    tool: Option<&str>,
+    role: Option<&str>,
     limit: usize,
 ) -> Result<Vec<Snippet>> {
     ensure_snippets_table(conn)?;
-    let mut sql = String::from("SELECT id, session_id, message_idx, title, lang, content, tags, created_at FROM snippets WHERE 1=1");
+    let mut sql = String::from(
+        "SELECT id, session_id, message_idx, title, lang, content, tags, created_at, tool, role, message_ts FROM snippets WHERE 1=1",
+    );
     let mut params_vec: Vec<rusqlite::types::Value> = Vec::new();
 
     if let Some(s) = session_id {
@@ -2886,6 +2988,24 @@ pub fn list_snippets(
         if !l.is_empty() && l != "all" {
             sql.push_str(" AND lower(lang) = lower(?)");
             params_vec.push(rusqlite::types::Value::Text(l.to_string()));
+        }
+    }
+    if let Some(t) = tool {
+        let t_trim = t.trim();
+        if !t_trim.is_empty() && t_trim != "all" {
+            sql.push_str(" AND lower(tool) = lower(?)");
+            params_vec.push(rusqlite::types::Value::Text(t_trim.to_string()));
+        }
+    }
+    if let Some(r) = role {
+        let r_trim = r.trim();
+        if !r_trim.is_empty() && r_trim != "all" {
+            if r_trim == "user,assistant" {
+                sql.push_str(" AND lower(role) IN ('user', 'assistant')");
+            } else {
+                sql.push_str(" AND lower(role) = lower(?)");
+                params_vec.push(rusqlite::types::Value::Text(r_trim.to_string()));
+            }
         }
     }
     if let Some(q) = query {
@@ -2915,6 +3035,9 @@ pub fn list_snippets(
             content: r.get(5)?,
             tags: r.get(6)?,
             created_at: r.get(7)?,
+            tool: r.get(8)?,
+            role: r.get(9)?,
+            message_ts: r.get(10)?,
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)

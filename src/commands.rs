@@ -238,7 +238,7 @@ pub fn snippets(
     json: bool,
 ) -> Result<()> {
     let conn = index::open_readonly()?;
-    let items = index::list_snippets(&conn, query, lang, session, limit)?;
+    let items = index::list_snippets(&conn, query, lang, session, None, None, limit)?;
     if json {
         println!("{}", serde_json::to_string(&items)?);
         return Ok(());
@@ -250,17 +250,19 @@ pub fn snippets(
     println!(
         "{}",
         bold(&format!(
-            "{:<6} {:<10} {:<14} {:<32} {}",
-            "ID", "LANG", "SESSION", "TITLE", "CREATED"
+            "{:<6} {:<10} {:<10} {:<10} {:<14} {:<24} {}",
+            "ID", "TOOL", "ROLE", "LANG", "SESSION", "TITLE", "CREATED"
         ))
     );
     for item in items {
         println!(
-            "{:<6} {:<10} {:<14} {:<32} {}",
+            "{:<6} {:<10} {:<10} {:<10} {:<14} {:<24} {}",
             item.id,
+            item.tool.as_deref().unwrap_or("-"),
+            item.role.as_deref().unwrap_or("-"),
             cyan(item.lang.as_deref().unwrap_or("-")),
             yellow(&truncate(&item.session_id, 13)),
-            truncate(&item.title, 32),
+            truncate(&item.title, 24),
             dim(&item.created_at.chars().take(10).collect::<String>()),
         );
     }

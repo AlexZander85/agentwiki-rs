@@ -1132,7 +1132,7 @@ fn tool_snippets(conn: &mut Option<Connection>, args: &Value) -> Value {
         return text_result("[]".into(), false);
     };
 
-    let items = match crate::index::list_snippets(conn, query, lang, session_id, limit) {
+    let items = match crate::index::list_snippets(conn, query, lang, session_id, None, None, limit) {
         Ok(items) => items,
         Err(e) => {
             return text_result(
@@ -1154,6 +1154,9 @@ fn tool_snippets(conn: &mut Option<Connection>, args: &Value) -> Value {
                 "content": safe_text(&s.content),
                 "tags": s.tags.as_deref().map(|t| crate::commands::neutralize_field(t)),
                 "created_at": s.created_at,
+                "tool": s.tool.as_deref().map(|t| crate::commands::neutralize_field(t)),
+                "role": s.role.as_deref().map(|r| crate::commands::neutralize_field(r)),
+                "message_ts": s.message_ts.as_deref().map(|m| crate::commands::neutralize_field(m)),
             })
         })
         .collect();
@@ -1881,6 +1884,9 @@ mod tests {
             Some("typescript"),
             "res.setHeader('Access-Control-Allow-Origin', '*');",
             Some("cors,auth"),
+            Some("claude-code"),
+            Some("assistant"),
+            Some("2026-10-01T12:00:00Z"),
         )
         .unwrap();
         drop(c);

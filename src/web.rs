@@ -452,10 +452,20 @@ fn api_snippets(conn: &Connection, query: &str) -> Result<Boxed> {
     let q = param(query, "q");
     let lang = param(query, "lang");
     let session_id = param(query, "session_id");
+    let tool = param(query, "tool");
+    let role = param(query, "role");
     let limit = param(query, "limit")
         .and_then(|v| v.parse().ok())
-        .unwrap_or(50);
-    let snippets = index::list_snippets(conn, q.as_deref(), lang.as_deref(), session_id.as_deref(), limit)?;
+        .unwrap_or(200);
+    let snippets = index::list_snippets(
+        conn,
+        q.as_deref(),
+        lang.as_deref(),
+        session_id.as_deref(),
+        tool.as_deref(),
+        role.as_deref(),
+        limit,
+    )?;
     json_response(json!(snippets))
 }
 
@@ -501,6 +511,18 @@ fn api_snippet_save(conn: &Connection, req: &mut tiny_http::Request, query: &str
         .and_then(|v| v.get("tags").and_then(|s| s.as_str()).map(String::from))
         .or_else(|| param(query, "tags"));
 
+    let tool = json_body.as_ref()
+        .and_then(|v| v.get("tool").and_then(|s| s.as_str()).map(String::from))
+        .or_else(|| param(query, "tool"));
+
+    let role = json_body.as_ref()
+        .and_then(|v| v.get("role").and_then(|s| s.as_str()).map(String::from))
+        .or_else(|| param(query, "role"));
+
+    let message_ts = json_body.as_ref()
+        .and_then(|v| v.get("message_ts").and_then(|s| s.as_str()).map(String::from))
+        .or_else(|| param(query, "message_ts"));
+
     let id = index::save_snippet(
         conn,
         &session_id,
@@ -509,6 +531,9 @@ fn api_snippet_save(conn: &Connection, req: &mut tiny_http::Request, query: &str
         lang.as_deref(),
         &content,
         tags.as_deref(),
+        tool.as_deref(),
+        role.as_deref(),
+        message_ts.as_deref(),
     )?;
 
     json_response(json!({ "ok": true, "id": id }))

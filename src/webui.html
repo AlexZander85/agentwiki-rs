@@ -1229,6 +1229,41 @@
     white-space: nowrap;
     flex: 1;
   }
+  .snippet-card-badges {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .snippet-card-badge {
+    font-size: 9.5px;
+    font-family: var(--font-mono);
+    background: var(--card-subtle);
+    border: 1px solid var(--line);
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: var(--ink-2);
+  }
+  .snippet-card-badge.role-user {
+    background: rgba(34, 197, 94, 0.1);
+    border-color: rgba(34, 197, 94, 0.3);
+    color: #16a34a;
+  }
+  .snippet-card-badge.role-assistant {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.3);
+    color: #2563eb;
+  }
+  .snippet-card-badge.role-tool {
+    background: rgba(168, 85, 247, 0.1);
+    border-color: rgba(168, 85, 247, 0.3);
+    color: #9333ea;
+  }
+  .snippet-card-badge.tool {
+    background: var(--card-subtle);
+    color: var(--ink-2);
+    font-weight: 500;
+  }
   .snippet-card-lang {
     font-size: 9.5px;
     font-family: var(--font-mono);
@@ -1747,14 +1782,15 @@
     <div id="snippets-container" class="snippets-container" style="display:none">
       <div class="controls" id="snippet-controls">
         <div class="filter-row">
-          <select id="snippet-lang-select" aria-label="Filter by language">
-            <option value="">all languages</option>
+          <select id="snippet-tool" aria-label="Filter by tool">
+            <option value="">all tools</option>
           </select>
-          <select id="snippet-sort-mode" aria-label="Sort snippets by">
-            <option value="created" selected>📅 created date</option>
-            <option value="relevance">🎯 relevance</option>
-            <option value="title">🔤 title A-Z</option>
-            <option value="length">📏 length</option>
+          <select id="snippet-role" aria-label="Filter by message role">
+            <option value="">all message roles</option>
+            <option value="user,assistant">user and assistant</option>
+            <option value="user">user messages</option>
+            <option value="assistant">assistant replies</option>
+            <option value="tool">tool output</option>
           </select>
         </div>
         <div class="filter-row" style="margin-top: 6px;">
@@ -1764,6 +1800,13 @@
             <option value="yesterday">yesterday</option>
             <option value="single">single day&hellip;</option>
             <option value="range">date range&hellip;</option>
+          </select>
+          <select id="snippet-sort-mode" aria-label="Sort snippets by">
+            <option value="created" selected>📅 created date</option>
+            <option value="message_ts">🕒 message date</option>
+            <option value="relevance">🎯 relevance</option>
+            <option value="title">🔤 title A-Z</option>
+            <option value="length">📏 length</option>
           </select>
         </div>
         <div class="date-row" id="snippet-date-custom-row" style="margin-top: 6px; display: none;">
@@ -1881,7 +1924,7 @@ const I18N = {
     themeDark: "Тёмная", themeLight: "Светлая",
     stats: (s, t, b) => `Сессий: ${s} · Инструментов: ${t} · ${b}`,
     exportMd: "Экспортировать сессию в Markdown (.md)", exportMdBtn: "Экспорт .md", exported: "Сохранено!",
-    sortRelevance: "🎯 по релевантности", sortCreated: "📅 по дате создания", sortLastActive: "🕒 по последнему сообщению", sortMsgs: "💬 по числу сообщений",
+    sortRelevance: "🎯 по релевантности", sortCreated: "📅 по дате создания", sortLastActive: "🕒 по последнему сообщению", sortMessageTs: "🕒 по дате сообщения", sortMsgs: "💬 по числу сообщений",
     sync: "Синхронизация", syncing: "Синхронизация...", autoSync: "Авто-синхронизация (10м)", synced: "синхронизировано", lastSynced: "Синхронизировано",
     ctxCopyMd: "Копировать как Markdown", ctxCopyText: "Копировать как текст", ctxSearchChat: "Искать в чате", ctxSearchGoogle: "Искать в Google",
     ctxPinSnippet: "📌 Сохранить выделение в сниппеты",
@@ -1942,7 +1985,7 @@ const I18N = {
     themeDark: "Dark", themeLight: "Light",
     stats: (s, t, b) => `${s} sessions · ${t} tools · ${b}`,
     exportMd: "Export session to Markdown (.md)", exportMdBtn: "Export .md", exported: "Saved!",
-    sortRelevance: "🎯 relevance", sortCreated: "📅 created date", sortLastActive: "🕒 last message", sortMsgs: "💬 message count",
+    sortRelevance: "🎯 relevance", sortCreated: "📅 created date", sortLastActive: "🕒 last message", sortMessageTs: "🕒 message date", sortMsgs: "💬 message count",
     sync: "Sync", syncing: "Syncing...", autoSync: "Auto-sync (10m)", synced: "synced", lastSynced: "Last synced",
     ctxCopyMd: "Copy as Markdown", ctxCopyText: "Copy as plain text", ctxSearchChat: "Search in chat", ctxSearchGoogle: "Search in Google",
     ctxPinSnippet: "📌 Save selection to Snippets",
@@ -2008,7 +2051,7 @@ const I18N = {
     themeDark: "다크", themeLight: "라이트",
     stats: (s, t, b) => `세션 ${s} · 툴 ${t} · ${b}`,
     exportMd: "세션을 Markdown(.md)으로 내보내기", exportMdBtn: ".md 내보내기", exported: "저장됨!",
-    sortRelevance: "🎯 관련도순", sortCreated: "📅 생성일순", sortLastActive: "🕒 최근 메시지순", sortMsgs: "💬 메시지 수순",
+    sortRelevance: "🎯 관련도순", sortCreated: "📅 생성일순", sortLastActive: "🕒 최근 메시지순", sortMessageTs: "🕒 메시지 일시순", sortMsgs: "💬 메시지 수순",
     sync: "동기화", syncing: "동기화 중...", autoSync: "자동 동기화 (10분)", synced: "동기화됨", lastSynced: "마지막 동기화",
     ctxCopyMd: "Markdown으로 복사", ctxCopyText: "일반 텍스트로 복사", ctxSearchChat: "이 대화에서 검색", ctxSearchGoogle: "Google에서 검색",
     ctxPinSnippet: "📌 선택 항목을 스니펫에 저장",
@@ -2069,7 +2112,7 @@ const I18N = {
     themeDark: "ダーク", themeLight: "ライト",
     stats: (s, t, b) => `セッション ${s} · ツール ${t} · ${b}`,
     exportMd: "セッションをMarkdown(.md)にエクスポート", exportMdBtn: ".md エクスポート", exported: "保存完了!",
-    sortRelevance: "🎯 関連度順", sortCreated: "📅 作成日時順", sortLastActive: "🕒 最終メッセージ順", sortMsgs: "💬 メッセージ数順",
+    sortRelevance: "🎯 関連度順", sortCreated: "📅 作成日時順", sortLastActive: "🕒 最終メッセージ順", sortMessageTs: "🕒 メッセージ日時順", sortMsgs: "💬 メッセージ数順",
     sync: "同期", syncing: "同期中...", autoSync: "自動同期 (10分)", synced: "同期済み", lastSynced: "最終同期",
     ctxCopyMd: "Markdownとしてコピー", ctxCopyText: "テキストとしてコピー", ctxSearchChat: "このチャット内を検索", ctxSearchGoogle: "Google で検索",
     ctxPinSnippet: "📌 選択範囲をスニペットに保存",
@@ -2130,7 +2173,7 @@ const I18N = {
     themeDark: "深色", themeLight: "浅色",
     stats: (s, t, b) => `${s} 个会话 · ${t} 个工具 · ${b}`,
     exportMd: "导出会话为 Markdown (.md)", exportMdBtn: "导出 .md", exported: "已保存!",
-    sortRelevance: "🎯 相关度", sortCreated: "📅 创建时间", sortLastActive: "🕒 最后消息", sortMsgs: "💬 消息数量",
+    sortRelevance: "🎯 相关度", sortCreated: "📅 创建时间", sortLastActive: "🕒 最后消息", sortMessageTs: "🕒 消息时间", sortMsgs: "💬 消息数量",
     sync: "同步", syncing: "同步中...", autoSync: "自动同步 (10分钟)", synced: "已同步", lastSynced: "上次同步",
     ctxCopyMd: "复制为 Markdown", ctxCopyText: "复制为纯文本", ctxSearchChat: "在当前对话中搜索", ctxSearchGoogle: "在 Google 中搜索",
     ctxPinSnippet: "📌 将选中文本保存为代码片段",
@@ -2429,6 +2472,16 @@ function applyStaticStrings() {
   if ($("tab-sessions-label")) $("tab-sessions-label").textContent = L.sessionsTab || "Sessions";
   if ($("tab-snippets-label")) $("tab-snippets-label").textContent = L.snippetsTab || "Snippets";
   if ($("snippet-q")) $("snippet-q").placeholder = L.searchSnippets || "Search pinned snippets...";
+  if ($("snippet-tool") && $("snippet-tool").options.length > 0) {
+    $("snippet-tool").options[0].textContent = L.allTools;
+  }
+  if ($("snippet-role")) {
+    $("snippet-role").options[0].textContent = L.allRoles;
+    $("snippet-role").options[1].textContent = L.conversationRoles;
+    $("snippet-role").options[2].textContent = L.userRole;
+    $("snippet-role").options[3].textContent = L.assistantRole;
+    $("snippet-role").options[4].textContent = L.toolRole;
+  }
   if ($("snippet-date-mode")) {
     $("snippet-date-mode").options[0].textContent = L.allDates || "all dates";
     $("snippet-date-mode").options[1].textContent = L.today || "today";
@@ -2438,12 +2491,10 @@ function applyStaticStrings() {
   }
   if ($("snippet-sort-mode")) {
     $("snippet-sort-mode").options[0].textContent = L.sortCreated || "📅 created date";
-    $("snippet-sort-mode").options[1].textContent = L.sortRelevance || "🎯 relevance";
-    $("snippet-sort-mode").options[2].textContent = L.sortTitle || "🔤 title A-Z";
-    $("snippet-sort-mode").options[3].textContent = L.sortLength || "📏 length";
-  }
-  if ($("snippet-lang-select") && $("snippet-lang-select").options.length > 0) {
-    $("snippet-lang-select").options[0].textContent = L.allLangsSelect || "all languages";
+    $("snippet-sort-mode").options[1].textContent = L.sortMessageTs || "🕒 message date";
+    $("snippet-sort-mode").options[2].textContent = L.sortRelevance || "🎯 relevance";
+    $("snippet-sort-mode").options[3].textContent = L.sortTitle || "🔤 title A-Z";
+    $("snippet-sort-mode").options[4].textContent = L.sortLength || "📏 length";
   }
   if ($("ctx-pin-snippet-label")) $("ctx-pin-snippet-label").textContent = L.ctxPinSnippet || "Save selection to Snippets";
   for (const b of $("langmenu").children) {
@@ -2627,8 +2678,11 @@ function postProcessMarkdown(container) {
       pinBtn.onclick = async (e) => {
         e.stopPropagation();
         const code = pre.querySelector("code")?.textContent || pre.textContent;
-        const msgEl = pre.closest(".msg");
+        const msgEl = pre.closest(".msg") || pre.closest(".toolrow");
         const msgIdx = parseInt(msgEl?.dataset.msgIdx || "0", 10);
+        const msgRole = msgEl?.dataset.role || (msgEl?.classList.contains("user") ? "user" : (msgEl?.classList.contains("toolrow") ? "tool" : "assistant"));
+        const tool = currentSession?.tool || null;
+        const msgTs = currentSession?.messages?.[msgIdx]?.ts || currentSession?.started || currentSession?.ended || null;
         const langMatch = (pre.querySelector("code")?.className || "").match(/language-([a-zA-Z0-9_\-#+]+)/);
         const lang = langMatch ? langMatch[1].toLowerCase() : "";
         const title = (currentSession?.title || "Snippet") + (lang ? " (" + lang + ")" : "");
@@ -2640,6 +2694,9 @@ function postProcessMarkdown(container) {
             lang: lang || null,
             content: code,
             tags: lang || null,
+            tool: tool,
+            role: msgRole,
+            message_ts: msgTs,
           });
           if (res && res.ok) {
             pinBtn.textContent = "✓ Pinned";
@@ -3297,6 +3354,7 @@ function renderCurrentSession(keepScroll) {
     if (m.role === "tool") {
       const row = el("div", "toolrow");
       row.dataset.msgIdx = msgIdx;
+      row.dataset.role = "tool";
       row.id = "msg-" + msgIdx;
       const isPinned = pinnedSet.has(Number(msgIdx));
       const pinBtn = el("button", "msg-pin-btn tool-pin-btn" + (isPinned ? " pinned" : ""));
@@ -3305,7 +3363,7 @@ function renderCurrentSession(keepScroll) {
       pinBtn.innerHTML = isPinned ? "📌 <span>" + (L.pinnedSnippet || "Pinned") + "</span>" : "📌 <span>" + (L.pinSnippetBtn || "Pin") + "</span>";
       pinBtn.onclick = async (e) => {
         e.stopPropagation();
-        await togglePinMessage(s, msgIdx, m.text, pinBtn, pinnedSet);
+        await togglePinMessage(s, msgIdx, m.text, pinBtn, pinnedSet, "tool", m.ts);
       };
       row.appendChild(pinBtn);
       const sum = el("summary", "", m.text.split("\n")[0].slice(0, 140));
@@ -3327,6 +3385,7 @@ function renderCurrentSession(keepScroll) {
     const wrap = el("div", "msg " + m.role);
     wrap.dataset.rawText = m.text;
     wrap.dataset.msgIdx = msgIdx;
+    wrap.dataset.role = m.role || "assistant";
     wrap.id = "msg-" + msgIdx;
     const av = el("div", "avatar", m.role === "user" ? "U" : "A");
     if (m.ts) av.title = fmtDateTime(m.ts);
@@ -3343,7 +3402,7 @@ function renderCurrentSession(keepScroll) {
     pinBtn.innerHTML = isPinned ? "📌 <span>" + (L.pinnedSnippet || "Pinned") + "</span>" : "📌 <span>" + (L.pinSnippetBtn || "Pin") + "</span>";
     pinBtn.onclick = async (e) => {
       e.stopPropagation();
-      await togglePinMessage(s, msgIdx, m.text, pinBtn, pinnedSet);
+      await togglePinMessage(s, msgIdx, m.text, pinBtn, pinnedSet, m.role || "assistant", m.ts);
     };
     whoEl.appendChild(pinBtn);
     content.appendChild(whoEl);
@@ -4079,6 +4138,8 @@ async function loadStats() {
   }
   let sessions = 0, bytes = 0;
   const existingTools = new Set(Array.from($("tool").options).map((o) => o.value));
+  const snippetToolSelect = $("snippet-tool");
+  const existingSnippetTools = snippetToolSelect ? new Set(Array.from(snippetToolSelect.options).map((o) => o.value)) : new Set();
   for (const t of stats.tools) {
     sessions += t.sessions;
     bytes += t.bytes;
@@ -4086,6 +4147,11 @@ async function loadStats() {
       const opt = el("option", "", t.tool);
       opt.value = t.tool;
       $("tool").appendChild(opt);
+    }
+    if (snippetToolSelect && !existingSnippetTools.has(t.tool)) {
+      const opt = el("option", "", t.tool);
+      opt.value = t.tool;
+      snippetToolSelect.appendChild(opt);
     }
   }
   $("stats").textContent =
@@ -4347,10 +4413,17 @@ function setupContextMenu() {
       const msgRow = e.target.closest("[data-msg-idx]") ||
                      sel?.anchorNode?.parentElement?.closest("[data-msg-idx]");
       const msgIdx = msgRow ? parseInt(msgRow.dataset.msgIdx, 10) || 0 : 0;
+      const msgRole = msgRow?.dataset?.role ||
+                     (msgRow?.classList?.contains("user") ? "user" :
+                     (msgRow?.classList?.contains("toolrow") ? "tool" : "assistant"));
+      const msgTs = currentSession?.messages?.[msgIdx]?.ts || currentSession?.started || currentSession?.ended || null;
       activeSnippetTarget = {
         sessionId: currentSession ? currentSession.id : null,
         messageIdx: msgIdx,
-        text: selectedText
+        text: selectedText,
+        role: msgRole,
+        tool: currentSession?.tool || null,
+        messageTs: msgTs,
       };
 
       if ($("ctx-find-file")) $("ctx-find-file").style.display = activeFileTarget ? "flex" : "none";
@@ -4530,6 +4603,9 @@ function setupContextMenu() {
           lang: detectedLang,
           content: text,
           tags: detectedLang !== "text" && detectedLang !== "markdown" ? detectedLang : null,
+          tool: activeSnippetTarget.tool,
+          role: activeSnippetTarget.role || "assistant",
+          message_ts: activeSnippetTarget.messageTs,
         });
         if (res && res.ok) {
           showToast(L.snippetPinnedToast || "📌 Snippet saved to Knowledge Base");
@@ -4717,8 +4793,12 @@ async function loadSnippets(query, lang) {
   if (!list) return;
   list.innerHTML = `<div class="file-hist-empty">${L.loading || "Loading snippets..."}</div>`;
   try {
+    const selectedTool = $("snippet-tool")?.value || "";
+    const selectedRole = $("snippet-role")?.value || "";
     let url = "/api/snippets?limit=300";
     if (query) url += "&q=" + encodeURIComponent(query);
+    if (selectedTool) url += "&tool=" + encodeURIComponent(selectedTool);
+    if (selectedRole) url += "&role=" + encodeURIComponent(selectedRole);
     if (lang) url += "&lang=" + encodeURIComponent(lang);
     const snips = await jget(url);
     if (!snips) {
@@ -4730,6 +4810,21 @@ async function loadSnippets(query, lang) {
 
     const { since, until } = getSnippetDateBounds();
     let filtered = Array.isArray(snips) ? [...snips] : [];
+
+    // Client-side filtering
+    if (selectedTool) {
+      filtered = filtered.filter((s) => s.tool && s.tool.toLowerCase() === selectedTool.toLowerCase());
+    }
+    if (selectedRole) {
+      if (selectedRole === "user,assistant") {
+        filtered = filtered.filter((s) => s.role === "user" || s.role === "assistant");
+      } else {
+        filtered = filtered.filter((s) => s.role && s.role.toLowerCase() === selectedRole.toLowerCase());
+      }
+    }
+    if (lang) {
+      filtered = filtered.filter((s) => s.lang && s.lang.toLowerCase() === lang.toLowerCase());
+    }
     if (since || until) {
       filtered = filtered.filter((s) => {
         if (!s.created_at) return true;
@@ -4741,7 +4836,15 @@ async function loadSnippets(query, lang) {
     }
 
     const sortMode = $("snippet-sort-mode")?.value || "created";
-    if (sortMode === "title") {
+    if (sortMode === "message_ts") {
+      filtered.sort((a, b) => {
+        const tsA = a.message_ts || a.created_at || "";
+        const tsB = b.message_ts || b.created_at || "";
+        const cmp = tsB.localeCompare(tsA);
+        if (cmp !== 0) return cmp;
+        return (b.id || 0) - (a.id || 0);
+      });
+    } else if (sortMode === "title") {
       filtered.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
     } else if (sortMode === "length") {
       filtered.sort((a, b) => (b.content?.length || 0) - (a.content?.length || 0));
@@ -4769,7 +4872,7 @@ async function loadSnippets(query, lang) {
     }
 
     if (!filtered.length) {
-      const isFiltered = !!(query || lang || since || until);
+      const isFiltered = !!(query || lang || selectedTool || selectedRole || since || until);
       list.innerHTML = `
         <div class="empty-snippets">
           <div style="font-size: 28px; margin-bottom: 8px;">📌</div>
@@ -4789,9 +4892,18 @@ async function loadSnippets(query, lang) {
       const title = el("div", "snippet-card-title", snip.title || "Snippet");
       title.title = snip.title;
       head.appendChild(title);
-      if (snip.lang) {
-        head.appendChild(el("span", "snippet-card-lang", snip.lang));
+
+      const badges = el("div", "snippet-card-badges");
+      if (snip.role) {
+        badges.appendChild(el("span", "snippet-card-badge role-" + snip.role, snip.role));
       }
+      if (snip.tool) {
+        badges.appendChild(el("span", "snippet-card-badge tool", snip.tool));
+      }
+      if (snip.lang) {
+        badges.appendChild(el("span", "snippet-card-lang", snip.lang));
+      }
+      head.appendChild(badges);
       card.appendChild(head);
 
       const previewText = snip.content.length > 300 ? snip.content.slice(0, 300) + "…" : snip.content;
@@ -4799,7 +4911,11 @@ async function loadSnippets(query, lang) {
       card.appendChild(codePreview);
 
       const foot = el("div", "snippet-card-foot");
-      const time = el("span", "snippet-card-time", snip.created_at ? fmtDate(snip.created_at) : "");
+      const displayTs = snip.message_ts || snip.created_at;
+      const time = el("span", "snippet-card-time", displayTs ? fmtDate(displayTs) : "");
+      if (snip.message_ts && snip.created_at) {
+        time.title = `${L.lastActivePrefix || "msg"}: ${fmtDateTime(snip.message_ts)} · saved: ${fmtDateTime(snip.created_at)}`;
+      }
       foot.appendChild(time);
 
       const actions = el("div", "snippet-card-actions");
@@ -4912,7 +5028,7 @@ async function jumpToSnippet(sessionId, messageIdx) {
   }, 120);
 }
 
-async function togglePinMessage(s, msgIdx, text, btn, pinnedSet) {
+async function togglePinMessage(s, msgIdx, text, btn, pinnedSet, role, ts) {
   const isPinned = pinnedSet.has(Number(msgIdx));
   if (isPinned) {
     try {
@@ -4938,6 +5054,7 @@ async function togglePinMessage(s, msgIdx, text, btn, pinnedSet) {
       const lines = text.trim().split("\n");
       const firstLine = lines[0].replace(/^[#*\s`>-]+/, "").trim();
       const title = firstLine ? firstLine.slice(0, 60) : (s.title || "Snippet");
+      const effectiveTs = ts || s.messages?.[msgIdx]?.ts || s.started || s.ended || null;
 
       const res = await jpost("/api/snippet/save", {
         session_id: s.id,
@@ -4946,6 +5063,9 @@ async function togglePinMessage(s, msgIdx, text, btn, pinnedSet) {
         lang: detectedLang,
         content: text,
         tags: detectedLang !== "markdown" ? detectedLang : null,
+        tool: s.tool || currentSession?.tool || null,
+        role: role || "assistant",
+        message_ts: effectiveTs,
       });
       if (res && res.ok) {
         pinnedSet.add(Number(msgIdx));
@@ -4976,12 +5096,15 @@ function setupSnippetsControls() {
     });
   }
 
-  $("snippet-sort-mode")?.addEventListener("change", () => {
+  $("snippet-tool")?.addEventListener("change", () => {
     loadSnippets($("snippet-q")?.value.trim() || "", snippetsSelectedLang);
   });
 
-  $("snippet-lang-select")?.addEventListener("change", (e) => {
-    snippetsSelectedLang = e.target.value;
+  $("snippet-role")?.addEventListener("change", () => {
+    loadSnippets($("snippet-q")?.value.trim() || "", snippetsSelectedLang);
+  });
+
+  $("snippet-sort-mode")?.addEventListener("change", () => {
     loadSnippets($("snippet-q")?.value.trim() || "", snippetsSelectedLang);
   });
 
