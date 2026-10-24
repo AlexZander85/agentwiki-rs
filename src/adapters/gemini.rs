@@ -49,15 +49,27 @@ fn fold_jsonl(raw: &str) -> Option<Value> {
             continue;
         };
         read_any = true;
-        // `/rewind`: drop that message and everything after it, or every
-        // message when the id is unknown - Gemini CLI's own loader does both.
+        // `/rewind`: mark that message and everything after it as rewound,
+        // or every message when the id is unknown.
         if let Some(Value::String(id)) = entry.get("$rewindTo") {
-            match messages
+            let at = messages
                 .iter()
-                .position(|m| m.get("id").and_then(Value::as_str) == Some(id.as_str()))
-            {
-                Some(at) => messages.truncate(at),
-                None => messages.clear(),
+                .position(|m| m.get("id").and_then(Value::as_str) == Some(id.as_str()));
+            match at {
+                Some(pos) => {
+                    for m in &mut messages[pos..] {
+                        if let Value::Object(map) = m {
+                            map.insert("is_rewound".into(), Value::Bool(true));
+                        }
+                    }
+                }
+                None => {
+                    for m in &mut messages {
+                        if let Value::Object(map) = m {
+                            map.insert("is_rewound".into(), Value::Bool(true));
+                        }
+                    }
+                }
             }
         } else if let Some(Value::Object(set)) = entry.get("$set") {
             for (key, value) in set {
@@ -116,7 +128,7 @@ impl Adapter for Gemini {
     }
 
     fn root(&self) -> Option<PathBuf> {
-        Some(dirs::home_dir()?.join(".gemini").join("tmp"))
+        Some(crate::util::home_dir()?.join(".gemini").join("tmp"))
     }
 
     fn discover(&self) -> Discovered {
@@ -155,6 +167,8 @@ impl Adapter for Gemini {
         let mut recorded_results = HashSet::new();
         if let Some(Value::Array(items)) = v.get("messages") {
             for m in items {
+                let is_rewound = m.get("is_rewound").and_then(Value::as_bool).unwrap_or(false);
+                let start_len = messages.len();
                 let kind = m.get("type").and_then(Value::as_str);
                 let role = match kind {
                     Some("user") => Role::User,
@@ -263,6 +277,12 @@ impl Adapter for Gemini {
                         }
                     }
                 }
+
+                if is_rewound {
+                    for msg in &mut messages[start_len..] {
+                        msg.is_rewound = true;
+                    }
+                }
             }
         }
 
@@ -326,6 +346,7 @@ fn push(
             text: text.to_owned(),
             ts,
             tool: None,
+            is_rewound: false,
         });
     }
 }
@@ -494,7 +515,21 @@ mod tests {
             msgs.as_array()
                 .unwrap()
                 .iter()
+                .filter(|m| !m.get("is_rewound").and_then(Value::as_bool).unwrap_or(false))
                 .map(|m| m["id"].as_str().unwrap().to_string())
+                .collect::<Vec<_>>()
+        };
+        let all_chat = |lines: &[&str]| {
+            let msgs = fold_jsonl(&lines.join("\n")).unwrap()["messages"].clone();
+            msgs.as_array()
+                .unwrap()
+                .iter()
+                .map(|m| {
+                    (
+                        m["id"].as_str().unwrap().to_string(),
+                        m.get("is_rewound").and_then(Value::as_bool).unwrap_or(false),
+                    )
+                })
                 .collect::<Vec<_>>()
         };
         let head = r#"{"sessionId":"s1","projectHash":"h","kind":"main"}"#;
@@ -503,6 +538,15 @@ mod tests {
         assert_eq!(
             chat(&[head, &m1, &m2, &m3, r#"{"$rewindTo":"m2"}"#, &m4]),
             ["m1", "m4"]
+        );
+        assert_eq!(
+            all_chat(&[head, &m1, &m2, &m3, r#"{"$rewindTo":"m2"}"#, &m4]),
+            vec![
+                ("m1".into(), false),
+                ("m2".into(), true),
+                ("m3".into(), true),
+                ("m4".into(), false),
+            ]
         );
         assert_eq!(
             chat(&[head, &m1, &m2, r#"{"$rewindTo":"gone"}"#, &m3]),

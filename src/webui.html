@@ -1237,6 +1237,251 @@
     color: #fff;
   }
 
+  /* Rewound & inactive turns */
+  .msg.rewound, .toolrow.rewound {
+    opacity: 0.62;
+    border-left: 2px dashed var(--accent-red, #ef4444) !important;
+    background: rgba(239, 68, 68, 0.03);
+  }
+  .badge-rewound {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: rgba(239, 68, 68, 0.14);
+    color: var(--accent-red, #ef4444);
+    margin-left: 8px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  /* Activity & Recap Analytics Dashboard */
+  .activity-dashboard {
+    padding: 24px 32px 48px;
+    max-width: 1060px;
+    margin: 0 auto;
+    overflow-y: auto;
+    color: var(--ink);
+  }
+  .activity-header {
+    margin-bottom: 24px;
+  }
+  .activity-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+  .activity-subtitle {
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+  .recap-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .recap-card {
+    background: var(--card-bg, #ffffff);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .recap-val {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .recap-lbl {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-3);
+  }
+
+  /* Heatmap Card */
+  .analytics-section {
+    background: var(--card-bg, #ffffff);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .section-head {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .heatmap-scroll {
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+  .heatmap-calendar {
+    display: flex;
+    gap: 3px;
+    align-items: flex-start;
+  }
+  .heatmap-week {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .heatmap-cell {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    background: var(--line, #ebedf0);
+    cursor: pointer;
+    transition: transform 0.1s, outline 0.1s;
+  }
+  .heatmap-cell:hover {
+    transform: scale(1.3);
+    outline: 1px solid var(--accent);
+    z-index: 2;
+  }
+  .heatmap-cell.l1 { background: #9be9a8; }
+  .heatmap-cell.l2 { background: #40c463; }
+  .heatmap-cell.l3 { background: #30a14e; }
+  .heatmap-cell.l4 { background: #216e39; }
+  .heatmap-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--ink-3);
+    margin-top: 12px;
+  }
+  .heatmap-legend {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Two Column Grid */
+  .analytics-two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 768px) {
+    .analytics-two-col {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Hourly bars */
+  .hourly-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 120px;
+    padding-top: 10px;
+  }
+  .hourly-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+    justify-content: flex-end;
+  }
+  .hourly-bar {
+    width: 100%;
+    border-radius: 3px 3px 0 0;
+    background: var(--accent);
+    opacity: 0.85;
+    min-height: 2px;
+    transition: height 0.3s ease, opacity 0.15s;
+  }
+  .hourly-bar:hover {
+    opacity: 1;
+  }
+  .hourly-label {
+    font-size: 9px;
+    color: var(--ink-3);
+    margin-top: 4px;
+  }
+
+  /* Agent share bars */
+  .agent-share-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .agent-share-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .agent-share-top {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+  }
+  .agent-share-bar-track {
+    height: 7px;
+    background: var(--line);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .agent-share-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+  }
+
+  /* Top Touched Files */
+  .top-files-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .top-file-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 10px;
+    border-radius: 6px;
+    background: var(--card-subtle, rgba(0,0,0,0.02));
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .top-file-row:hover {
+    background: var(--card-hover, rgba(0,0,0,0.05));
+    color: var(--accent);
+  }
+  .top-file-name {
+    font-family: var(--font-mono, monospace);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-right: 12px;
+  }
+  .top-file-count {
+    font-size: 11px;
+    color: var(--ink-2);
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
   /* Snippets Container & Cards */
   .snippets-container {
     display: flex;
@@ -1901,6 +2146,9 @@
       <button type="button" class="mode-tab" id="tab-snippets" data-mode="snippets">
         <span>📌</span> <span id="tab-snippets-label">Snippets</span> <span id="snippets-badge" class="snippets-badge" style="display:none">0</span>
       </button>
+      <button type="button" class="mode-tab" id="tab-activity" data-mode="activity">
+        <span>📊</span> <span id="tab-activity-label">Activity</span>
+      </button>
     </div>
     <div class="controls" id="session-controls">
       <div class="filter-row">
@@ -1934,6 +2182,10 @@
         <label class="subagents-label" style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--ink-2); cursor: pointer; user-select: none;">
           <input type="checkbox" id="show-subagents-cb" style="margin: 0; cursor: pointer;">
           <span id="show-subagents-label">🤖 Subagents</span>
+        </label>
+        <label class="rewound-label" style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--ink-2); cursor: pointer; user-select: none;">
+          <input type="checkbox" id="show-rewound-cb" style="margin: 0; cursor: pointer;">
+          <span id="show-rewound-label">↩ Rewound</span>
         </label>
       </div>
       <div class="date-row" id="date-custom-row" style="margin-top: 6px; display: none;">
@@ -2132,6 +2384,23 @@ const I18N = {
     copiedBrief: (t) => `✓ AI Brief скопирован (~${t} токенов)`, filterFavoritesChip: (n) => `⭐ Избранное (${n})`,
     pastedContent: "Вставленный фрагмент", copyPasted: "Копировать", copiedPasted: "Скопировано",
     snippetsTab: "Сниппеты", sessionsTab: "Сессии",
+    activityTab: "Активность",
+    showRewound: "↩ Отмененные",
+    rewound: "отменено",
+    analyticsTitle: "Активность и аналитика агентов",
+    recapSummary: "Сводная статистика",
+    totalSessions: "Всего сессий",
+    totalMessages: "Всего сообщений",
+    touchedFilesCount: "Затронуто файлов",
+    totalSnippets: "Закладок в базе",
+    activeDays: "Активных дней",
+    primaryAgent: "Основной агент",
+    activityHeatmap: "График активности за год",
+    hourlyDistribution: "Распределение по часам (24ч)",
+    agentDistribution: "Доля агентов",
+    topTouchedFiles: "Топ затронутых файлов",
+    less: "Меньше",
+    more: "Больше",
     searchSnippets: "Поиск по сохранённым сниппетам...",
     pinSnippet: "📌 Сохранить в сниппеты / базу знаний", unpinSnippet: "Удалить из сниппетов",
     pinnedSnippet: "В сниппетах", pinSnippetBtn: "Сниппет",
@@ -2207,6 +2476,23 @@ const I18N = {
     copiedPasted: "Copied",
     snippetsTab: "Snippets",
     sessionsTab: "Sessions",
+    activityTab: "Activity",
+    showRewound: "↩ Rewound",
+    rewound: "rewound",
+    analyticsTitle: "Activity & Agent Analytics",
+    recapSummary: "Overall Statistics",
+    totalSessions: "Total Sessions",
+    totalMessages: "Total Messages",
+    touchedFilesCount: "Touched Files",
+    totalSnippets: "Pinned Snippets",
+    activeDays: "Active Days",
+    primaryAgent: "Primary Agent",
+    activityHeatmap: "Yearly Contribution Heatmap",
+    hourlyDistribution: "Hourly Activity (24h)",
+    agentDistribution: "Agent Share",
+    topTouchedFiles: "Most Touched Files",
+    less: "Less",
+    more: "More",
     searchSnippets: "Search pinned snippets...",
     pinSnippet: "Pin snippet to Knowledge Base",
     unpinSnippet: "Unpin snippet",
@@ -2279,6 +2565,23 @@ const I18N = {
     copiedBrief: (t) => `✓ AI 브리프 복사됨 (~${t} 토큰)`, filterFavoritesChip: (n) => `⭐ 즐겨찾기 (${n})`,
     pastedContent: "붙여넣은 내용", copyPasted: "복사", copiedPasted: "복사됨",
     snippetsTab: "스니펫", sessionsTab: "세션",
+    activityTab: "활동",
+    showRewound: "↩ 취소된 턴",
+    rewound: "취소됨",
+    analyticsTitle: "활동 및 에이전트 분석",
+    recapSummary: "전체 통계",
+    totalSessions: "총 세션",
+    totalMessages: "총 메시지",
+    touchedFilesCount: "수정된 파일 수",
+    totalSnippets: "저장된 스니펫",
+    activeDays: "활동 일수",
+    primaryAgent: "주요 에이전트",
+    activityHeatmap: "연간 기여도 히트맵",
+    hourlyDistribution: "시간대별 활동 (24시간)",
+    agentDistribution: "에이전트 점유율",
+    topTouchedFiles: "가장 많이 수정된 파일",
+    less: "적음",
+    more: "많음",
     searchSnippets: "고정된 스니펫 검색...",
     pinSnippet: "지식 베이스에 스니펫 고정", unpinSnippet: "스니펫 고정 해제",
     pinnedSnippet: "고정됨", pinSnippetBtn: "고정",
@@ -2349,6 +2652,23 @@ const I18N = {
     copiedBrief: (t) => `✓ AI ブリーフをコピーしました (~${t} トークン)`, filterFavoritesChip: (n) => `⭐ お気に入り (${n})`,
     pastedContent: "貼り付けられたコンテンツ", copyPasted: "コピー", copiedPasted: "コピー完了",
     snippetsTab: "スニペット", sessionsTab: "セッション",
+    activityTab: "アクティビティ",
+    showRewound: "↩ 取り消し",
+    rewound: "取り消し",
+    analyticsTitle: "アクティビティと分析",
+    recapSummary: "全体統計",
+    totalSessions: "総セッション数",
+    totalMessages: "総メッセージ数",
+    touchedFilesCount: "変更ファイル数",
+    totalSnippets: "保存済みスニペット",
+    activeDays: "活動日数",
+    primaryAgent: "メインエージェント",
+    activityHeatmap: "年間コントリビューショングラフ",
+    hourlyDistribution: "時間帯別アクティビティ (24h)",
+    agentDistribution: "エージェント割合",
+    topTouchedFiles: "最も変更されたファイル",
+    less: "少",
+    more: "多",
     searchSnippets: "固定されたスニペットを検索...",
     pinSnippet: "ナレッジベースにスニペットを保存", unpinSnippet: "スニペットの保存を解除",
     pinnedSnippet: "固定済み", pinSnippetBtn: "固定",
@@ -2419,6 +2739,23 @@ const I18N = {
     copiedBrief: (t) => `✓ 已复制 AI 简报 (~${t} 词元)`, filterFavoritesChip: (n) => `⭐ 收藏夹 (${n})`,
     pastedContent: "粘贴的内容", copyPasted: "复制", copiedPasted: "已复制",
     snippetsTab: "代码片段", sessionsTab: "会话",
+    activityTab: "活跃度",
+    showRewound: "↩ 已撤销",
+    rewound: "已撤销",
+    analyticsTitle: "活跃度与智能体分析",
+    recapSummary: "总体统计",
+    totalSessions: "会话总数",
+    totalMessages: "消息总数",
+    touchedFilesCount: "涉及文件数",
+    totalSnippets: "知识库代码片段",
+    activeDays: "活跃天数",
+    primaryAgent: "主要智能体",
+    activityHeatmap: "年度贡献热力图",
+    hourlyDistribution: "24小时活跃分布",
+    agentDistribution: "智能体占比",
+    topTouchedFiles: "修改最多的文件",
+    less: "少",
+    more: "多",
     searchSnippets: "搜索收藏的代码片段...",
     pinSnippet: "收藏代码片段到知识库", unpinSnippet: "取消收藏代码片段",
     pinnedSnippet: "已收藏", pinSnippetBtn: "收藏",
@@ -2713,6 +3050,8 @@ function applyStaticStrings() {
   if ($("ctx-forget-session-label")) $("ctx-forget-session-label").textContent = L.deleteFromIndex || "Delete from index";
   if ($("tab-sessions-label")) $("tab-sessions-label").textContent = L.sessionsTab || "Sessions";
   if ($("tab-snippets-label")) $("tab-snippets-label").textContent = L.snippetsTab || "Snippets";
+  if ($("tab-activity-label")) $("tab-activity-label").textContent = L.activityTab || "Activity";
+  if ($("show-rewound-label")) $("show-rewound-label").textContent = L.showRewound || "↩ Rewound";
   if ($("snippet-q")) $("snippet-q").placeholder = L.searchSnippets || "Search pinned snippets...";
   if ($("snippet-tool") && $("snippet-tool").options.length > 0) {
     $("snippet-tool").options[0].textContent = L.allTools;
@@ -3328,10 +3667,14 @@ function renderCurrentSession(keepScroll) {
   chips.appendChild(el("span", "chip", fmtDate(s.started)));
   if (s.ended) chips.appendChild(el("span", "chip", (L.lastActivePrefix || "last") + " " + fmtDate(s.ended)));
 
-  // Message filtering by selected role
+  // Message filtering by selected role and rewound status
+  const showRewound = $("show-rewound-cb") && $("show-rewound-cb").checked;
   const visibleMessages = [];
   for (let i = 0; i < s.messages.length; i++) {
     const m = s.messages[i];
+    if (m.is_rewound && !showRewound) {
+      continue;
+    }
     let show = true;
     if (roleFilter === "user,assistant") {
       show = (m.role === "user" || m.role === "assistant");
@@ -3640,7 +3983,7 @@ function renderCurrentSession(keepScroll) {
     const { m, origIndex } = visibleMessages[vi];
     const msgIdx = origIndex != null ? origIndex : vi;
     if (m.role === "tool") {
-      const row = el("div", "toolrow");
+      const row = el("div", "toolrow" + (m.is_rewound ? " rewound" : ""));
       row.dataset.msgIdx = msgIdx;
       row.dataset.role = "tool";
       row.id = "msg-" + msgIdx;
@@ -3670,7 +4013,7 @@ function renderCurrentSession(keepScroll) {
       anchors[vi] = row;
       continue;
     }
-    const wrap = el("div", "msg " + m.role);
+    const wrap = el("div", "msg " + m.role + (m.is_rewound ? " rewound" : ""));
     wrap.dataset.rawText = m.text;
     wrap.dataset.msgIdx = msgIdx;
     wrap.dataset.role = m.role || "assistant";
@@ -3680,6 +4023,9 @@ function renderCurrentSession(keepScroll) {
     const content = el("div", "content");
     const whoEl = el("div", "who");
     whoEl.appendChild(el("span", "role-name", m.role));
+    if (m.is_rewound) {
+      whoEl.appendChild(el("span", "badge-rewound", "↩ " + (L.rewound || "rewound")));
+    }
     const msgTs = m.ts || s.started;
     if (msgTs) {
       whoEl.appendChild(el("span", "msg-time", " · " + fmtDateTime(msgTs)));
@@ -5133,15 +5479,25 @@ function switchSidebarMode(mode) {
   currentSidebarMode = mode;
   const tabSessions = $("tab-sessions");
   const tabSnippets = $("tab-snippets");
+  const tabActivity = $("tab-activity");
   const sessionControls = $("session-controls") || document.querySelector("#sidebar > .controls");
   const list = $("list");
   const snippetsContainer = $("snippets-container");
   const sidefootHint = $("hint");
   const sidefootCount = $("list-count");
 
-  if (mode === "snippets") {
-    tabSessions?.classList.remove("active");
-    tabSnippets?.classList.add("active");
+  tabSessions?.classList.toggle("active", mode === "sessions");
+  tabSnippets?.classList.toggle("active", mode === "snippets");
+  tabActivity?.classList.toggle("active", mode === "activity");
+
+  if (mode === "activity") {
+    if (sessionControls) sessionControls.style.display = "none";
+    if (list) list.style.display = "none";
+    if (snippetsContainer) snippetsContainer.style.display = "none";
+    if (sidefootHint) sidefootHint.style.display = "none";
+    if (sidefootCount) sidefootCount.style.display = "none";
+    loadActivityAnalytics();
+  } else if (mode === "snippets") {
     if (sessionControls) sessionControls.style.display = "none";
     if (list) list.style.display = "none";
     if (snippetsContainer) snippetsContainer.style.display = "flex";
@@ -5149,13 +5505,16 @@ function switchSidebarMode(mode) {
     if (sidefootCount) sidefootCount.style.display = "none";
     loadSnippets($("snippet-q")?.value || "", snippetsSelectedLang);
   } else {
-    tabSessions?.classList.add("active");
-    tabSnippets?.classList.remove("active");
     if (sessionControls) sessionControls.style.display = "";
     if (list) list.style.display = "";
     if (snippetsContainer) snippetsContainer.style.display = "none";
     if (sidefootHint) sidefootHint.style.display = "";
     if (sidefootCount) sidefootCount.style.display = "";
+    if (currentSession) {
+      renderSession(currentSession);
+    } else {
+      $("main").replaceChildren(el("div", "placeholder", L.phTitle || "Pick a session on the left"));
+    }
   }
 }
 
@@ -5492,6 +5851,10 @@ async function togglePinMessage(s, msgIdx, text, btn, pinnedSet, role, ts) {
 function setupSnippetsControls() {
   $("tab-sessions")?.addEventListener("click", () => switchSidebarMode("sessions"));
   $("tab-snippets")?.addEventListener("click", () => switchSidebarMode("snippets"));
+  $("tab-activity")?.addEventListener("click", () => switchSidebarMode("activity"));
+  $("show-rewound-cb")?.addEventListener("change", () => {
+    if (currentSession) renderSession(currentSession);
+  });
 
   const snippetQ = $("snippet-q");
   if (snippetQ) {
@@ -5548,7 +5911,209 @@ function setupSnippetsControls() {
   } catch (e) {}
   setupSyncControls();
   setupFavoritesControls();
-  setupSnippetsControls();
+  
+/* ---------- activity heatmap & agent analytics ---------- */
+async function loadActivityAnalytics() {
+  const main = $("main");
+  if (!main) return;
+  main.replaceChildren(el("div", "placeholder", L.loading || "Loading analytics..."));
+  try {
+    const data = await jget("/api/analytics");
+    if (!data || !data.summary) {
+      main.replaceChildren(el("div", "placeholder", L.loadFailed || "Failed to load analytics"));
+      return;
+    }
+    renderActivityDashboard(data);
+  } catch (err) {
+    main.replaceChildren(el("div", "placeholder", L.loadFailed || "Failed to load analytics"));
+  }
+}
+
+function renderActivityDashboard(data) {
+  const main = $("main");
+  if (!main) return;
+  main.replaceChildren();
+
+  const container = el("div", "activity-dashboard");
+
+  // Header
+  const header = el("div", "activity-header");
+  const title = el("div", "activity-title");
+  title.innerHTML = `<span>📊</span> <span>${L.analyticsTitle || "Activity & Agent Analytics"}</span>`;
+  const subtitle = el("div", "activity-subtitle", `${data.summary.active_days || 0} ${L.activeDays || "active days"} · ${data.summary.total_sessions || 0} ${L.totalSessions || "sessions"}`);
+  header.append(title, subtitle);
+  container.appendChild(header);
+
+  // 1. Recap summary cards
+  const recapGrid = el("div", "recap-grid");
+  const cards = [
+    { label: L.totalSessions || "Total Sessions", val: (data.summary.total_sessions || 0).toLocaleString() },
+    { label: L.totalMessages || "Total Messages", val: (data.summary.total_messages || 0).toLocaleString() },
+    { label: L.touchedFilesCount || "Touched Files", val: (data.summary.total_touched_files || 0).toLocaleString() },
+    { label: L.totalSnippets || "Pinned Snippets", val: (data.summary.total_snippets || 0).toLocaleString() },
+    { label: L.activeDays || "Active Days", val: (data.summary.active_days || 0).toLocaleString() },
+    { label: L.primaryAgent || "Primary Agent", val: data.summary.top_tool || "-" },
+  ];
+
+  for (const c of cards) {
+    const card = el("div", "recap-card");
+    const val = el("div", "recap-val");
+    if (c.label === (L.primaryAgent || "Primary Agent") && c.val !== "-") {
+      const dot = el("span", "dot " + c.val);
+      val.appendChild(dot);
+      val.appendChild(document.createTextNode(c.val));
+    } else {
+      val.textContent = c.val;
+    }
+    const lbl = el("div", "recap-lbl", c.label);
+    card.append(val, lbl);
+    recapGrid.appendChild(card);
+  }
+  container.appendChild(recapGrid);
+
+  // 2. Heatmap Contribution Graph
+  const heatmapSection = el("div", "analytics-section");
+  const hmHead = el("div", "section-head");
+  hmHead.innerHTML = `<span>📅 ${L.activityHeatmap || "Yearly Contribution Heatmap"}</span>`;
+  heatmapSection.appendChild(hmHead);
+
+  const dailyMap = {};
+  for (const d of (data.daily || [])) {
+    if (d.date) dailyMap[d.date] = d.count;
+  }
+
+  const daysTotal = 364; // 52 weeks * 7 days
+  const today = new Date();
+  const startDate = new Date(today);
+  startDate.setDate(today.getDate() - daysTotal + 1);
+
+  const hmScroll = el("div", "heatmap-scroll");
+  const hmCal = el("div", "heatmap-calendar");
+
+  let curDate = new Date(startDate);
+  for (let w = 0; w < 52; w++) {
+    const col = el("div", "heatmap-week");
+    for (let d = 0; d < 7; d++) {
+      const dateStr = curDate.toISOString().slice(0, 10);
+      const count = dailyMap[dateStr] || 0;
+      let level = "";
+      if (count >= 10) level = "l4";
+      else if (count >= 6) level = "l3";
+      else if (count >= 3) level = "l2";
+      else if (count >= 1) level = "l1";
+
+      const cell = el("div", "heatmap-cell" + (level ? " " + level : ""));
+      cell.title = `${dateStr}: ${count} session${count === 1 ? "" : "s"}`;
+      cell.onclick = () => {
+        switchSidebarMode("sessions");
+        const dateInput = $("date-single");
+        const dateMode = $("date-mode");
+        if (dateInput && dateMode) {
+          dateMode.value = "single";
+          dateInput.value = dateStr;
+          onDateFilterChange();
+        }
+      };
+      col.appendChild(cell);
+      curDate.setDate(curDate.getDate() + 1);
+    }
+    hmCal.appendChild(col);
+  }
+  hmScroll.appendChild(hmCal);
+  heatmapSection.appendChild(hmScroll);
+
+  const hmFoot = el("div", "heatmap-footer");
+  hmFoot.innerHTML = `<span>${L.less || "Less"}</span>`;
+  const legend = el("div", "heatmap-legend");
+  ["", "l1", "l2", "l3", "l4"].forEach(l => {
+    legend.appendChild(el("div", "heatmap-cell " + l));
+  });
+  legend.appendChild(el("span", "", L.more || "More"));
+  hmFoot.appendChild(legend);
+  heatmapSection.appendChild(hmFoot);
+  container.appendChild(heatmapSection);
+
+  // 3. Two column section: Hourly Chart + Agent Share
+  const twoCol = el("div", "analytics-two-col");
+
+  // Left: Hourly Chart
+  const hourlySection = el("div", "analytics-section");
+  const hourlyHead = el("div", "section-head");
+  hourlyHead.innerHTML = `<span>⏰ ${L.hourlyDistribution || "Hourly Activity (24h)"}</span>`;
+  hourlySection.appendChild(hourlyHead);
+
+  const hourlyChart = el("div", "hourly-chart");
+  const maxHourly = Math.max(1, ...(data.hourly || []).map(h => h.count || 0));
+  (data.hourly || []).forEach(h => {
+    const col = el("div", "hourly-col");
+    const pct = Math.round(((h.count || 0) / maxHourly) * 100);
+    const bar = el("div", "hourly-bar");
+    bar.style.height = `${Math.max(4, pct)}%`;
+    bar.title = `${String(h.hour).padStart(2, '0')}:00 - ${h.count || 0} sessions`;
+    const label = el("div", "hourly-label", (h.hour % 4 === 0) ? `${h.hour}` : "");
+    col.append(bar, label);
+    hourlyChart.appendChild(col);
+  });
+  hourlySection.appendChild(hourlyChart);
+  twoCol.appendChild(hourlySection);
+
+  // Right: Agent Share
+  const agentSection = el("div", "analytics-section");
+  const agentHead = el("div", "section-head");
+  agentHead.innerHTML = `<span>🤖 ${L.agentDistribution || "Agent Share"}</span>`;
+  agentSection.appendChild(agentHead);
+
+  const agentList = el("div", "agent-share-list");
+  const totalToolSessions = (data.tools || []).reduce((acc, t) => acc + (t.count || 0), 0) || 1;
+  (data.tools || []).forEach(t => {
+    const item = el("div", "agent-share-item");
+    const top = el("div", "agent-share-top");
+    const nameWrap = el("span", "", "");
+    const dot = el("span", "dot " + t.tool);
+    nameWrap.append(dot, document.createTextNode(" " + t.tool));
+    const pct = Math.round(((t.count || 0) / totalToolSessions) * 100);
+    const countSpan = el("span", "", `${t.count} (${pct}%)`);
+    top.append(nameWrap, countSpan);
+
+    const track = el("div", "agent-share-bar-track");
+    const fill = el("div", "agent-share-bar-fill");
+    fill.style.width = `${pct}%`;
+    fill.style.backgroundColor = getComputedStyle(dot).backgroundColor || "var(--accent)";
+    track.appendChild(fill);
+    item.append(top, track);
+    agentList.appendChild(item);
+  });
+  agentSection.appendChild(agentList);
+  twoCol.appendChild(agentSection);
+
+  container.appendChild(twoCol);
+
+  // 4. Most Touched Files
+  if (data.top_files && data.top_files.length > 0) {
+    const filesSection = el("div", "analytics-section");
+    const filesHead = el("div", "section-head");
+    filesHead.innerHTML = `<span>📂 ${L.topTouchedFiles || "Most Touched Files"}</span>`;
+    filesSection.appendChild(filesHead);
+
+    const filesList = el("div", "top-files-list");
+    for (const f of data.top_files) {
+      const row = el("div", "top-file-row");
+      const name = el("span", "top-file-name", "📄 " + f.path);
+      const cnt = el("span", "top-file-count", `${f.count} sessions`);
+      row.append(name, cnt);
+      row.onclick = () => {
+        openFileHistory(f.path);
+      };
+      filesList.appendChild(row);
+    }
+    filesSection.appendChild(filesList);
+    container.appendChild(filesSection);
+  }
+
+  main.appendChild(container);
+}
+
+setupSnippetsControls();
   setupContextMenu();
   await refresh();
 })();

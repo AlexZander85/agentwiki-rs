@@ -53,7 +53,7 @@ impl Adapter for ClaudeCode {
     fn root(&self) -> Option<PathBuf> {
         match &self.root {
             Some(root) => Some(root.clone()),
-            None => Some(dirs::home_dir()?.join(".claude").join("projects")),
+            None => Some(crate::util::home_dir()?.join(".claude").join("projects")),
         }
     }
 
@@ -402,6 +402,7 @@ fn push(
             text: text.to_string(),
             ts,
             tool: None,
+            is_rewound: false,
         });
     }
 }

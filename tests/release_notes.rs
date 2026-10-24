@@ -19,7 +19,12 @@ fn cargo_version() -> String {
 
 fn notes(version: &str) -> String {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let out = std::process::Command::new("sh")
+    let sh_bin = if cfg!(windows) && std::path::Path::new(r"C:\Program Files\Git\bin\sh.exe").exists() {
+        r"C:\Program Files\Git\bin\sh.exe"
+    } else {
+        "sh"
+    };
+    let out = std::process::Command::new(sh_bin)
         .arg(root.join("scripts/release-notes.sh"))
         .arg(version)
         .arg(root.join("CHANGELOG.md"))

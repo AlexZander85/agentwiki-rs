@@ -87,7 +87,7 @@ fn globalstorage_bases() -> Vec<PathBuf> {
     }
     // Remote/WSL/SSH/devcontainer: the server uses a Linux-style home regardless
     // of the client OS.
-    if let Some(home) = dirs::home_dir() {
+    if let Some(home) = crate::util::home_dir() {
         bases.push(
             home.join(".vscode-server")
                 .join("data")
@@ -602,6 +602,7 @@ fn push(messages: &mut Vec<Message>, role: Role, text: &str) {
             text: text.to_string(),
             ts: None,
             tool: None,
+            is_rewound: false,
         });
     }
 }

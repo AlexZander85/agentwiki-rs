@@ -70,7 +70,7 @@ fn continue_dir() -> Option<PathBuf> {
     std::env::var_os("CONTINUE_GLOBAL_DIR")
         .map(PathBuf::from)
         .filter(|p| !p.as_os_str().is_empty())
-        .or_else(|| dirs::home_dir().map(|h| h.join(".continue")))
+        .or_else(|| crate::util::home_dir().map(|h| h.join(".continue")))
 }
 
 /// Tools whose args name a file the session created or edited. The path is
@@ -386,6 +386,7 @@ fn push(messages: &mut Vec<Message>, role: Role, text: &str) {
             text: text.to_string(),
             ts: None,
             tool: None,
+            is_rewound: false,
         });
     }
 }

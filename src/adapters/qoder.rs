@@ -203,6 +203,7 @@ impl Adapter for Qoder {
                                         text: text.to_string(),
                                         ts,
                                         tool: None,
+                                        is_rewound: false,
                                     });
                                 }
                             }
@@ -263,6 +264,7 @@ impl Adapter for Qoder {
                         text: text.to_string(),
                         ts,
                         tool: None,
+                        is_rewound: false,
                     });
                 }
             }

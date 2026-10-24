@@ -23,7 +23,7 @@ fn registry_path() -> Option<PathBuf> {
         return Some(p.into());
     }
     Some(
-        dirs::home_dir()?
+        crate::util::home_dir()?
             .join(".local")
             .join("share")
             .join("prodex")
@@ -216,6 +216,7 @@ impl Adapter for Prodex {
                 text: prompt,
                 ts: started,
                 tool: None,
+                is_rewound: false,
             });
         }
         // The answer: the full pro-consult artifact when present, else the
@@ -265,6 +266,7 @@ impl Adapter for Prodex {
                     text,
                     ts: ended.or(started),
                     tool: None,
+                    is_rewound: false,
                 });
             }
         }

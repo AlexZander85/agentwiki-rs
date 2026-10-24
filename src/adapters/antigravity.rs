@@ -105,7 +105,7 @@ impl Adapter for Antigravity {
 
     fn root(&self) -> Option<PathBuf> {
         Some(
-            dirs::home_dir()?
+            crate::util::home_dir()?
                 .join(".gemini")
                 .join("antigravity")
                 .join("brain"),
@@ -195,6 +195,7 @@ impl Adapter for Antigravity {
                                 text: clean,
                                 ts,
                                 tool: None,
+                                is_rewound: false,
                             });
                         }
                     }
@@ -208,6 +209,7 @@ impl Adapter for Antigravity {
                                 text: trimmed.to_string(),
                                 ts,
                                 tool: None,
+                                is_rewound: false,
                             });
                         }
                     }

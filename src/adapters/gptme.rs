@@ -341,6 +341,7 @@ fn push(
             text: text.to_owned(),
             ts,
             tool: None,
+            is_rewound: false,
         });
     }
 }

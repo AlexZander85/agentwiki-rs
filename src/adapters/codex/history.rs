@@ -35,7 +35,7 @@ impl CodexHistory {
     fn home(&self) -> Option<PathBuf> {
         match &self.home {
             Some(home) => Some(home.clone()),
-            None => Some(dirs::home_dir()?.join(".codex")),
+            None => Some(crate::util::home_dir()?.join(".codex")),
         }
     }
 

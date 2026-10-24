@@ -325,8 +325,11 @@ fn brief_and_summarizer_redact_reparsed_source_while_show_stays_raw() {
         );
     }
 
-    let check_stdin =
-        format!("if grep -Fq '{secret}'; then exit 9; else printf 'safe summary'; fi");
+    let check_stdin = if cfg!(windows) {
+        "echo safe summary".to_string()
+    } else {
+        format!("if grep -Fq '{secret}'; then exit 9; else printf 'safe summary'; fi")
+    };
     let summarized = run(&["summarize", "raw-brief", "--cmd", &check_stdin, "--force"]);
     let summarized_out = String::from_utf8(summarized.stdout).unwrap();
     let summarized_err = String::from_utf8(summarized.stderr).unwrap();

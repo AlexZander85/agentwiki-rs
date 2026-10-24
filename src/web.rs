@@ -75,6 +75,7 @@ pub fn serve(port: u16, no_open: bool, sync: bool) -> Result<()> {
             "/api/snippet/delete" => api_snippet_delete(&conn, query),
             "/api/snippet/rename" => api_snippet_rename(&conn, &mut request, query),
             "/api/subagents" => api_subagents(&conn, query),
+            "/api/analytics" => api_analytics(&conn),
             p if p.starts_with("/api/related/") => {
                 api_related(&conn, p.trim_start_matches("/api/related/"))
             }
@@ -480,6 +481,131 @@ fn api_subagents(conn: &Connection, query: &str) -> Result<Boxed> {
     }
     let rows = index::subagents_for_parent(conn, &parent_id)?;
     json_response(json!(rows.iter().map(row_json).collect::<Vec<_>>()))
+}
+
+fn api_analytics(conn: &Connection) -> Result<Boxed> {
+    let mut stmt = conn.prepare(
+        "SELECT substr(COALESCE(started, datetime(mtime, 'unixepoch')), 1, 10) AS day, COUNT(*) AS count
+         FROM files
+         WHERE day IS NOT NULL AND day != ''
+         GROUP BY day
+         ORDER BY day ASC",
+    )?;
+    let daily: Vec<serde_json::Value> = stmt
+        .query_map([], |r| {
+            let day: String = r.get(0)?;
+            let count: i64 = r.get(1)?;
+            Ok(json!({ "date": day, "count": count }))
+        })?
+        .filter_map(rusqlite::Result::ok)
+        .collect();
+
+    let mut stmt = conn.prepare(
+        "SELECT tool, COUNT(*) AS count
+         FROM files
+         WHERE tool IS NOT NULL AND tool != ''
+         GROUP BY tool
+         ORDER BY count DESC",
+    )?;
+    let tools: Vec<serde_json::Value> = stmt
+        .query_map([], |r| {
+            let tool: String = r.get(0)?;
+            let count: i64 = r.get(1)?;
+            Ok(json!({ "tool": tool, "count": count }))
+        })?
+        .filter_map(rusqlite::Result::ok)
+        .collect();
+
+    let mut stmt = conn.prepare(
+        "SELECT CAST(substr(started, 12, 2) AS INTEGER) AS hr, COUNT(*) AS count
+         FROM files
+         WHERE started IS NOT NULL AND length(started) >= 13
+         GROUP BY hr
+         ORDER BY hr ASC",
+    )?;
+    let mut hourly_map = vec![0i64; 24];
+    let rows = stmt.query_map([], |r| {
+        let hr: Option<i64> = r.get(0).ok();
+        let count: i64 = r.get(1)?;
+        Ok((hr, count))
+    })?;
+    for (hr_opt, count) in rows.flatten() {
+        if let Some(hr) = hr_opt {
+            if (0..24).contains(&hr) {
+                hourly_map[hr as usize] = count;
+            }
+        }
+    }
+    let hourly: Vec<serde_json::Value> = hourly_map
+        .iter()
+        .enumerate()
+        .map(|(hr, count)| json!({ "hour": hr, "count": count }))
+        .collect();
+
+    let mut stmt = conn.prepare(
+        "SELECT path, COUNT(DISTINCT session_id) AS count
+         FROM touched
+         WHERE path IS NOT NULL AND path != ''
+         GROUP BY path
+         ORDER BY count DESC
+         LIMIT 15",
+    )?;
+    let top_files: Vec<serde_json::Value> = stmt
+        .query_map([], |r| {
+            let path: String = r.get(0)?;
+            let count: i64 = r.get(1)?;
+            Ok(json!({ "path": path, "count": count }))
+        })?
+        .filter_map(rusqlite::Result::ok)
+        .collect();
+
+    let total_sessions: i64 = conn
+        .query_row("SELECT COUNT(*) FROM files", [], |r| r.get(0))
+        .unwrap_or(0);
+    let total_messages: i64 = conn
+        .query_row(
+            "SELECT COALESCE(SUM(msg_count), 0) FROM files",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+    let total_touched: i64 = conn
+        .query_row("SELECT COUNT(DISTINCT path) FROM touched", [], |r| {
+            r.get(0)
+        })
+        .unwrap_or(0);
+    let total_snippets: i64 = conn
+        .query_row("SELECT COUNT(*) FROM snippets", [], |r| r.get(0))
+        .unwrap_or(0);
+    let active_days: i64 = conn
+        .query_row(
+            "SELECT COUNT(DISTINCT substr(COALESCE(started, datetime(mtime, 'unixepoch')), 1, 10)) FROM files",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+    let top_tool: Option<String> = conn
+        .query_row(
+            "SELECT tool FROM files GROUP BY tool ORDER BY COUNT(*) DESC LIMIT 1",
+            [],
+            |r| r.get(0),
+        )
+        .ok();
+
+    json_response(json!({
+        "daily": daily,
+        "tools": tools,
+        "hourly": hourly,
+        "top_files": top_files,
+        "summary": {
+            "total_sessions": total_sessions,
+            "total_messages": total_messages,
+            "total_touched_files": total_touched,
+            "total_snippets": total_snippets,
+            "active_days": active_days,
+            "top_tool": top_tool,
+        }
+    }))
 }
 
 fn api_snippets(conn: &Connection, query: &str) -> Result<Boxed> {

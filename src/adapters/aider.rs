@@ -73,6 +73,7 @@ fn flush(messages: &mut Vec<Message>, role: Option<Role>, buf: &mut Vec<String>)
                 text,
                 ts: None,
                 tool: None,
+                is_rewound: false,
             });
         }
     }
@@ -185,7 +186,7 @@ fn aider_roots() -> Vec<PathBuf> {
     }
     // Default: a bounded, capped walk of the home directory (NOT unbounded - the
     // depth/dir/file/time caps below keep it cheap; an over-cap sets had_error).
-    dirs::home_dir().into_iter().collect()
+    crate::util::home_dir().into_iter().collect()
 }
 
 fn is_skipped(entry: &walkdir::DirEntry) -> bool {

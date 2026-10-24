@@ -95,7 +95,7 @@ impl Adapter for Codex {
     fn root(&self) -> Option<PathBuf> {
         match &self.root {
             Some(root) => Some(root.clone()),
-            None => Some(dirs::home_dir()?.join(".codex").join(self.dir)),
+            None => Some(crate::util::home_dir()?.join(".codex").join(self.dir)),
         }
     }
 
@@ -646,6 +646,7 @@ fn push(
             text: text.to_string(),
             ts,
             tool: None,
+            is_rewound: false,
         });
     }
 }

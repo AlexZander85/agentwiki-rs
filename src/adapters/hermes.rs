@@ -45,7 +45,7 @@ impl Adapter for Hermes {
                 return Some(PathBuf::from(appdata).join("hermes"));
             }
         }
-        dirs::home_dir().map(|h| h.join(".hermes"))
+        crate::util::home_dir().map(|h| h.join(".hermes"))
     }
 
     fn discover(&self) -> crate::adapters::Discovered {
@@ -150,9 +150,15 @@ impl Adapter for Hermes {
         let ended = ended_ts.and_then(ms_or_s_to_datetime).or(started);
         let subagent = parent_id.as_ref().is_some_and(|p| !p.trim().is_empty());
 
-        let mut mstmt = conn.prepare(
-            "SELECT role, content, tool_calls, timestamp FROM messages WHERE session_id = ?1 ORDER BY rowid ASC",
-        )?;
+        let has_active_col = conn
+            .prepare("SELECT active FROM messages LIMIT 0")
+            .is_ok();
+        let query = if has_active_col {
+            "SELECT role, content, tool_calls, timestamp, active FROM messages WHERE session_id = ?1 ORDER BY rowid ASC"
+        } else {
+            "SELECT role, content, tool_calls, timestamp, 1 FROM messages WHERE session_id = ?1 ORDER BY rowid ASC"
+        };
+        let mut mstmt = conn.prepare(query)?;
 
         let mut messages = Vec::new();
         let mut touched = Vec::new();
@@ -163,10 +169,12 @@ impl Adapter for Hermes {
             let content: Option<String> = r.get(1)?;
             let tool_calls: Option<String> = r.get(2)?;
             let ts: Option<i64> = r.get(3)?;
-            Ok((role, content, tool_calls, ts))
+            let active: Option<i64> = r.get(4).ok();
+            Ok((role, content, tool_calls, ts, active))
         })?;
 
-        for (role_str, content, tool_calls_raw, ts_val) in mrows.flatten() {
+        for (role_str, content, tool_calls_raw, ts_val, active) in mrows.flatten() {
+            let is_rewound = active.is_some_and(|a| a == 0);
             let time = ts_val.and_then(ms_or_s_to_datetime);
             let role = match role_str.to_lowercase().as_str() {
                 "user" => Role::User,
@@ -181,6 +189,7 @@ impl Adapter for Hermes {
                     text: text.clone(),
                     ts: time,
                     tool: None,
+                    is_rewound,
                 });
             }
 
@@ -198,14 +207,16 @@ impl Adapter for Hermes {
 
                         extract_edits_from_tool(name, &args, time, &mut touched, &mut edits);
 
-                        messages.push(Message::tool_call(
+                        let mut msg = Message::tool_call(
                             time,
                             ToolCall {
                                 id: call_id,
                                 name: name.to_string(),
                                 args,
                             },
-                        ));
+                        );
+                        msg.is_rewound = is_rewound;
+                        messages.push(msg);
                     }
                 }
             }

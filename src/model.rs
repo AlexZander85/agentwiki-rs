@@ -35,13 +35,15 @@ impl FromStr for Role {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct Message {
     pub role: Role,
     pub text: String,
     pub ts: Option<DateTime<Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool: Option<ToolEvent>,
+    #[serde(skip_serializing_if = "std::ops::Not::not", default)]
+    pub is_rewound: bool,
 }
 
 /// Structured tool data before or after the shared summary pass.
@@ -84,12 +86,23 @@ pub struct ToolSummary {
     pub lines: Option<usize>,
 }
 impl Message {
+    pub fn plain(role: Role, text: impl Into<String>, ts: Option<DateTime<Utc>>) -> Self {
+        Self {
+            role,
+            text: text.into(),
+            ts,
+            tool: None,
+            is_rewound: false,
+        }
+    }
+
     pub fn tool_call(ts: Option<DateTime<Utc>>, call: ToolCall) -> Self {
         Self {
             role: Role::Tool,
             text: String::new(),
             ts,
             tool: Some(ToolEvent::Part(ToolPart::Call(call))),
+            is_rewound: false,
         }
     }
 
@@ -99,7 +112,13 @@ impl Message {
             text: String::new(),
             ts,
             tool: Some(ToolEvent::Part(ToolPart::Result(result))),
+            is_rewound: false,
         }
+    }
+
+    pub fn rewound(mut self) -> Self {
+        self.is_rewound = true;
+        self
     }
 }
 

@@ -31,7 +31,7 @@ fn db_path() -> Option<PathBuf> {
             return Some(c2);
         }
     }
-    let home = dirs::home_dir()?;
+    let home = crate::util::home_dir()?;
     let p = home.join(".zcode").join("cli").join("db").join("db.sqlite");
     if p.is_file() {
         return Some(p);
@@ -254,6 +254,7 @@ impl Adapter for ZCode {
                                         text: text.to_string(),
                                         ts: msg_ts,
                                         tool: None,
+                                        is_rewound: false,
                                     });
                                 }
                             }
@@ -334,6 +335,7 @@ impl Adapter for ZCode {
                         text: text.to_string(),
                         ts: msg_ts,
                         tool: None,
+                        is_rewound: false,
                     });
                 }
             }

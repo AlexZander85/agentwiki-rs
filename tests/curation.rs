@@ -410,6 +410,8 @@ fn archive_on_prune_serves_and_forgets() {
     .unwrap();
 
     std::env::set_var("HOME", &home);
+    #[cfg(windows)]
+    std::env::set_var("USERPROFILE", &home);
     let data = std::env::temp_dir().join("sessionwiki-test-arc-data");
     let _ = std::fs::remove_dir_all(&data);
     std::fs::create_dir_all(&data).unwrap();

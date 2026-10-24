@@ -20,7 +20,7 @@ impl Adapter for Kimi {
                 return Some(p);
             }
         }
-        dirs::home_dir().map(|h| h.join(".kimi-code"))
+        crate::util::home_dir().map(|h| h.join(".kimi-code"))
     }
 
     fn discover(&self) -> Discovered {
@@ -113,6 +113,7 @@ impl Adapter for Kimi {
                             text,
                             ts: time,
                             tool: None,
+                            is_rewound: false,
                         });
                     }
                 }
@@ -124,6 +125,7 @@ impl Adapter for Kimi {
                             text,
                             ts: time,
                             tool: None,
+                            is_rewound: false,
                         });
                     }
 

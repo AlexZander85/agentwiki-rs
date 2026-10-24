@@ -397,7 +397,7 @@ fn neutralize_window(v: &mut Value) {
 /// and `/Users/<user>/` segment anywhere in the string (a synced/shared session
 /// can carry a foreign path, and a crafted project can nest or double one).
 fn redact_home(p: &str) -> String {
-    let mut s = match dirs::home_dir() {
+    let mut s = match crate::util::home_dir() {
         Some(home) => {
             let home = home.to_string_lossy();
             match p.strip_prefix(home.as_ref()) {

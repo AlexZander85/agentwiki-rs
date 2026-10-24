@@ -305,6 +305,7 @@ pub fn ensure_snippets_table(conn: &Connection) -> Result<()> {
     let _ = conn.execute("ALTER TABLE snippets ADD COLUMN role TEXT", []);
     let _ = conn.execute("ALTER TABLE snippets ADD COLUMN message_ts TEXT", []);
     let _ = conn.execute("ALTER TABLE files ADD COLUMN parent_id TEXT", []);
+    let _ = conn.execute("ALTER TABLE messages ADD COLUMN is_rewound INTEGER DEFAULT 0", []);
     let _ = conn.execute(
         "UPDATE snippets SET tool = (
             SELECT tool FROM sessions WHERE sessions.session_id = snippets.session_id
@@ -492,6 +493,7 @@ struct ArchiveMessage {
     role: String,
     text: String,
     full_text: Option<String>,
+    is_rewound: bool,
 }
 
 /// Read both the historical `[role, text]` archive rows and the newer
@@ -504,8 +506,8 @@ fn decode_archive_transcript(transcript: &str) -> Result<Vec<ArchiveMessage>> {
                 .as_array()
                 .context("archive transcript message must be an array")?;
             anyhow::ensure!(
-                fields.len() == 2 || fields.len() == 3,
-                "archive transcript message must have two or three fields"
+                fields.len() >= 2 && fields.len() <= 4,
+                "archive transcript message must have two to four fields"
             );
             let role = fields[0]
                 .as_str()
@@ -518,12 +520,21 @@ fn decode_archive_transcript(transcript: &str) -> Result<Vec<ArchiveMessage>> {
             let full_text = match fields.get(2) {
                 None | Some(serde_json::Value::Null) => None,
                 Some(serde_json::Value::String(text)) => Some(text.clone()),
+                Some(serde_json::Value::Bool(_)) => None,
                 Some(_) => anyhow::bail!("archive full tool output must be a string or null"),
+            };
+            let is_rewound = match fields.get(3) {
+                Some(serde_json::Value::Bool(b)) => *b,
+                _ => match fields.get(2) {
+                    Some(serde_json::Value::Bool(b)) => *b,
+                    _ => false,
+                },
             };
             Ok(ArchiveMessage {
                 role,
                 text,
                 full_text,
+                is_rewound,
             })
         })
         .collect()
@@ -570,7 +581,8 @@ fn create_cache_schema_with_tokenizer(conn: &Connection, tokenizer: &str) -> Res
             session_id TEXT NOT NULL,
             role       TEXT NOT NULL,
             text       TEXT NOT NULL,
-            full_text  TEXT
+            full_text  TEXT,
+            is_rewound INTEGER DEFAULT 0
         );
         CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
         CREATE TABLE IF NOT EXISTS summaries(
@@ -1158,8 +1170,8 @@ fn rehydrate_archive(conn: &Connection) -> Result<()> {
         )?;
         {
             let mut ins_row = conn.prepare_cached(
-                "INSERT INTO messages(session_id, role, text, full_text)
-                     VALUES (?1,?2,?3,?4)",
+                "INSERT INTO messages(session_id, role, text, full_text, is_rewound)
+                     VALUES (?1,?2,?3,?4,?5)",
             )?;
             let mut ins_fts =
                 conn.prepare_cached("INSERT INTO msgs(rowid, text) VALUES (?1,?2)")?;
@@ -1173,7 +1185,7 @@ fn rehydrate_archive(conn: &Connection) -> Result<()> {
                     .as_deref()
                     .map(|text| crate::redact::redact(&crate::util::nfc(text)).into_owned());
                 // External-content FTS requires byte-identical message text.
-                ins_row.execute(params![a.session_id, message.role, text, full_text])?;
+                ins_row.execute(params![a.session_id, message.role, text, full_text, message.is_rewound as i32])?;
                 ins_fts.execute(params![conn.last_insert_rowid(), text])?;
             }
         }
@@ -1248,8 +1260,8 @@ fn index_one(
     // order (preview + the web transcript rely on it). Keep this sequential.
     {
         let mut ins_row = tx.prepare_cached(
-            "INSERT INTO messages(session_id, role, text, full_text)
-             VALUES (?1,?2,?3,?4)",
+            "INSERT INTO messages(session_id, role, text, full_text, is_rewound)
+             VALUES (?1,?2,?3,?4,?5)",
         )?;
         let mut ins_fts = tx.prepare_cached("INSERT INTO msgs(rowid, text) VALUES (?1,?2)")?;
         for m in &session.messages {
@@ -1270,7 +1282,7 @@ fn index_one(
             } else {
                 None
             };
-            ins_row.execute(params![session.id, m.role.label(), text, full_text])?;
+            ins_row.execute(params![session.id, m.role.label(), text, full_text, m.is_rewound as i32])?;
             ins_fts.execute(params![tx.last_insert_rowid(), text])?;
         }
         let mut ins_touched =
@@ -1770,16 +1782,22 @@ fn has_messages(conn: &Connection, sid: &str) -> Result<bool> {
 /// backup (replayed by `rehydrate_archive` after a schema bump).
 fn archive_session(conn: &Connection, path: &str, sid: &str) -> Result<()> {
     let mut s = conn
-        .prepare("SELECT role, text, full_text FROM messages WHERE session_id = ?1 ORDER BY id")?;
-    let rows: Vec<(String, String, Option<String>)> = s
-        .query_map(params![sid], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+        .prepare("SELECT role, text, full_text, COALESCE(is_rewound, 0) FROM messages WHERE session_id = ?1 ORDER BY id")?;
+    let rows: Vec<(String, String, Option<String>, i32)> = s
+        .query_map(params![sid], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
         .collect::<rusqlite::Result<_>>()?;
     drop(s);
     let transcript: Vec<serde_json::Value> = rows
         .into_iter()
-        .map(|(role, text, full_text)| match full_text {
-            Some(full_text) => serde_json::json!([role, text, full_text]),
-            None => serde_json::json!([role, text]),
+        .map(|(role, text, full_text, is_rewound)| {
+            if is_rewound != 0 {
+                serde_json::json!([role, text, full_text, true])
+            } else {
+                match full_text {
+                    Some(full_text) => serde_json::json!([role, text, full_text]),
+                    None => serde_json::json!([role, text]),
+                }
+            }
         })
         .collect();
     let mut s = conn.prepare("SELECT path FROM touched WHERE session_id = ?1 ORDER BY rowid")?;
@@ -3380,12 +3398,13 @@ fn interned_tool(name: &str) -> &'static str {
 pub fn session_from_index(conn: &Connection, row: &SessionRow) -> Result<crate::model::Session> {
     use crate::model::{Message, Role, ToolEvent, ToolSummary};
     let mut stmt = conn
-        .prepare("SELECT role, text, full_text FROM messages WHERE session_id = ?1 ORDER BY id")?;
+        .prepare("SELECT role, text, full_text, COALESCE(is_rewound, 0) FROM messages WHERE session_id = ?1 ORDER BY id")?;
     let messages: Vec<Message> = stmt
         .query_map(params![row.session_id], |r| {
             let role: String = r.get(0)?;
             let text: String = r.get(1)?;
             let full_text: Option<String> = r.get(2)?;
+            let is_rewound: bool = r.get::<_, i32>(3)? != 0;
             let role = match role.as_str() {
                 "user" => Role::User,
                 "assistant" => Role::Assistant,
@@ -3406,6 +3425,7 @@ pub fn session_from_index(conn: &Connection, row: &SessionRow) -> Result<crate::
                 text,
                 ts: None,
                 tool,
+                is_rewound,
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
@@ -4090,6 +4110,7 @@ mod edits_tests {
                 text: "my key is sk-abcdef012345678901234567890123 ok".into(),
                 ts: None,
                 tool: None,
+                is_rewound: false,
             }],
             touched: vec!["/p/a.rs".into()],
             edits: vec![EditEvent {
@@ -4328,6 +4349,7 @@ mod embedder_hook_tests {
                     text: "make the tests green".into(),
                     ts: None,
                     tool: None,
+                    is_rewound: false,
                 }],
                 touched: vec![],
                 edits: vec![],
@@ -4620,6 +4642,7 @@ mod tool_output_tests {
                 role: Role::Tool,
                 text: "→ Bash(cargo test) ⇒ ok · 2 lines".into(),
                 ts: None,
+                is_rewound: false,
                 tool: Some(ToolEvent::Summary(ToolSummary {
                     name: "Bash".into(),
                     args: serde_json::json!({"command": "cargo test"}),

@@ -72,7 +72,7 @@ fn sessions_dirs() -> Vec<PathBuf> {
     }
     let config_base = std::env::var_os("GJC_CONFIG_DIR")
         .map(PathBuf::from)
-        .or_else(|| dirs::home_dir().map(|h| h.join(".gjc")));
+        .or_else(|| crate::util::home_dir().map(|h| h.join(".gjc")));
     if let Some(base) = config_base {
         dirs.push(base.join("agent").join("sessions"));
     }
@@ -294,6 +294,7 @@ fn push(messages: &mut Vec<Message>, role: Role, text: &str, ts: Option<DateTime
             text: text.to_string(),
             ts,
             tool: None,
+            is_rewound: false,
         });
     }
 }

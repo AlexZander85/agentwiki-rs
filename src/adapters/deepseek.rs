@@ -20,7 +20,7 @@ impl Adapter for DeepSeek {
                 return Some(p.join("sessions"));
             }
         }
-        dirs::home_dir().map(|h| h.join(".dsh").join("sessions"))
+        crate::util::home_dir().map(|h| h.join(".dsh").join("sessions"))
     }
 
     fn discover(&self) -> Discovered {
@@ -114,6 +114,7 @@ impl Adapter for DeepSeek {
                             text,
                             ts: time,
                             tool: None,
+                            is_rewound: false,
                         });
                     }
                 }
@@ -125,6 +126,7 @@ impl Adapter for DeepSeek {
                             text,
                             ts: time,
                             tool: None,
+                            is_rewound: false,
                         });
                     }
                 }
@@ -165,12 +167,12 @@ impl Adapter for DeepSeek {
                         match role_str {
                             "user" => {
                                 if !text.is_empty() {
-                                    messages.push(Message { role: Role::User, text, ts: time, tool: None });
+                                    messages.push(Message { role: Role::User, text, ts: time, tool: None, is_rewound: false });
                                 }
                             }
                             "assistant" => {
                                 if !text.is_empty() {
-                                    messages.push(Message { role: Role::Assistant, text, ts: time, tool: None });
+                                    messages.push(Message { role: Role::Assistant, text, ts: time, tool: None, is_rewound: false });
                                 }
                             }
                             "tool" => {

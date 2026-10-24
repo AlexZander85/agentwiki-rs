@@ -1,6 +1,15 @@
 use anyhow::{bail, Context, Result};
 use chrono::{DateTime, Utc};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+/// Locate the user's home directory, checking environment variables
+/// `HOME` and `USERPROFILE` before querying the system library.
+pub fn home_dir() -> Option<PathBuf> {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .or_else(dirs::home_dir)
+}
 
 /// The largest session file we will read into memory. Session transcripts are
 /// text; a file past this is malformed or hostile, so it is skipped rather than
@@ -348,16 +357,28 @@ pub fn project_key(project: &str) -> String {
 }
 
 fn on_disk_case(path: &str) -> Option<String> {
-    use std::path::{Component, Path, PathBuf};
+    use std::path::{Component, PathBuf};
+    #[cfg(windows)]
+    let path_buf = PathBuf::from(path.replace('/', "\\"));
+    #[cfg(windows)]
+    let p = &path_buf;
+    #[cfg(not(windows))]
     let p = Path::new(path);
     if !p.is_absolute() || !p.exists() {
         return None;
     }
     let mut components = p.components();
-    if components.next() != Some(Component::RootDir) {
-        return None;
-    }
-    let mut out = PathBuf::from("/");
+    let mut out = match components.next()? {
+        Component::RootDir => PathBuf::from("/"),
+        Component::Prefix(prefix) => {
+            let mut buf = PathBuf::from(prefix.as_os_str());
+            if components.next() == Some(Component::RootDir) {
+                buf.push(std::path::MAIN_SEPARATOR.to_string());
+            }
+            buf
+        }
+        _ => return None,
+    };
     for component in components {
         let Component::Normal(name) = component else {
             return None;
@@ -379,7 +400,20 @@ fn on_disk_case(path: &str) -> Option<String> {
             _ => out.push(name),
         }
     }
-    let respelled = out.to_string_lossy().into_owned();
+    let respelled = if path.starts_with(r"\\?\") {
+        let prefix_len = if let Some(pos) = path.find('/') { pos } else { path.len() };
+        let (win_prefix, _) = path.split_at(prefix_len);
+        let respelled_str = out.to_string_lossy();
+        if let Some(respelled_rest) = respelled_str.get(prefix_len..) {
+            format!("{}{}", win_prefix, respelled_rest.replace('\\', "/"))
+        } else {
+            respelled_str.into_owned()
+        }
+    } else if path.contains('/') {
+        out.to_string_lossy().replace('\\', "/")
+    } else {
+        out.to_string_lossy().into_owned()
+    };
     // Keep a trailing slash if the caller had one.
     Some(if path.ends_with('/') && !respelled.ends_with('/') {
         respelled + "/"

@@ -391,7 +391,7 @@ fn data_dir() -> Option<PathBuf> {
     let base = std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
         .filter(|p| !p.as_os_str().is_empty())
-        .or_else(|| dirs::home_dir().map(|h| h.join(".local").join("share")))?;
+        .or_else(|| crate::util::home_dir().map(|h| h.join(".local").join("share")))?;
     Some(base.join("opencode"))
 }
 
@@ -778,6 +778,7 @@ fn push(messages: &mut Vec<Message>, role: Role, text: &str, ts: Option<DateTime
             text: text.to_string(),
             ts,
             tool: None,
+            is_rewound: false,
         });
     }
 }

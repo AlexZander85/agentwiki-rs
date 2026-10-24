@@ -699,7 +699,7 @@ pub fn migrate_cmd(
     }
     let target_str = target.to_string_lossy().to_string();
     let src = std::path::PathBuf::from(&row.path);
-    let home = dirs::home_dir().context("could not find your home directory")?;
+    let home = crate::util::home_dir().context("could not find your home directory")?;
 
     match row.tool.as_str() {
         "claude-code" => {
@@ -1494,9 +1494,19 @@ pub fn summarize(
 fn run_summarizer(cmd: &str, input: &str) -> Result<String> {
     use std::io::Write;
     use std::process::{Command, Stdio};
-    let mut child = Command::new("sh")
-        .arg("-c")
-        .arg(cmd)
+    #[cfg(windows)]
+    let mut command = {
+        let mut c = Command::new("cmd");
+        c.arg("/C").arg(cmd);
+        c
+    };
+    #[cfg(not(windows))]
+    let mut command = {
+        let mut c = Command::new("sh");
+        c.arg("-c").arg(cmd);
+        c
+    };
+    let mut child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
@@ -2242,12 +2252,14 @@ mod tests {
                     text: format!("here is the key {secret} use it"),
                     ts: None,
                     tool: None,
+                    is_rewound: false,
                 },
                 Message {
                     role: Role::Assistant,
                     text: straddling,
                     ts: None,
                     tool: None,
+                    is_rewound: false,
                 },
             ],
             touched: Vec::new(),
@@ -2329,12 +2341,14 @@ mod tests {
                     text: "fix the parser".into(),
                     ts: None,
                     tool: None,
+                    is_rewound: false,
                 },
                 Message {
                     role: Role::Assistant,
                     text: "done, the parser is fixed".into(),
                     ts: None,
                     tool: None,
+                    is_rewound: false,
                 },
                 Message {
                     role: Role::Tool,
@@ -2347,6 +2361,7 @@ mod tests {
                         is_error: Some(false),
                         lines: Some(2),
                     })),
+                    is_rewound: false,
                 },
             ],
             touched: vec![],
