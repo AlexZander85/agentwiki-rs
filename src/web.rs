@@ -128,6 +128,15 @@ fn html(body: &str) -> Result<Boxed> {
         .with_header(
             Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..]).unwrap(),
         )
+        .with_header(
+            Header::from_bytes(&b"Cache-Control"[..], &b"no-cache, no-store, must-revalidate"[..]).unwrap(),
+        )
+        .with_header(
+            Header::from_bytes(&b"Pragma"[..], &b"no-cache"[..]).unwrap(),
+        )
+        .with_header(
+            Header::from_bytes(&b"Expires"[..], &b"0"[..]).unwrap(),
+        )
         .boxed())
 }
 
