@@ -37,5 +37,7 @@ ruzstd = { version = "0.9.1", default-features = false, features = ["std"] }
 tempfile = "3"
 
 [profile.release]
+opt-level = "s"
+codegen-units = 1
 lto = true
 strip = true
