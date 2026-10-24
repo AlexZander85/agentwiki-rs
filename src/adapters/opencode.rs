@@ -6,7 +6,7 @@ use crate::model::{EditEvent, EditKind, Message, Role, Session, ToolCall, ToolRe
 use crate::util::short_id;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use rusqlite::{params, Connection, OpenFlags};
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -75,39 +75,81 @@ impl Adapter for OpenCode {
             };
             let mut seen = std::collections::HashSet::new();
 
+            let has_v2 = match table_exists(&conn, "session_v2") {
+                Ok(b) => b,
+                Err(_) => {
+                    had_error = true;
+                    continue;
+                }
+            };
+            let has_v1 = match table_exists(&conn, "session") {
+                Ok(b) => b,
+                Err(_) => {
+                    had_error = true;
+                    continue;
+                }
+            };
+
+            if !has_v2 && !has_v1 {
+                had_error = true;
+                continue;
+            }
+
             // OpenCode v2.x schema (session_v2 table)
-            if table_exists(&conn, "session_v2") {
-                if let Ok(mut stmt) = conn.prepare("SELECT id, time_updated, time_created FROM session_v2") {
-                    if let Ok(rows) = stmt.query_map([], |r| {
-                        let id: String = r.get(0)?;
-                        let updated: Option<i64> = r.get(1)?;
-                        let created: Option<i64> = r.get(2)?;
-                        Ok((id, updated.or(created).unwrap_or(0)))
-                    }) {
-                        for (id, token) in rows.flatten() {
-                            if seen.insert(id.clone()) {
-                                keys.push((make_key(db, &id), token));
+            if has_v2 {
+                match conn.prepare("SELECT id, time_updated, time_created FROM session_v2") {
+                    Ok(mut stmt) => {
+                        match stmt.query_map([], |r| {
+                            let id: String = r.get(0)?;
+                            let updated: Option<i64> = r.get(1)?;
+                            let created: Option<i64> = r.get(2)?;
+                            Ok((id, updated.or(created).unwrap_or(0)))
+                        }) {
+                            Ok(rows) => {
+                                for row in rows {
+                                    match row {
+                                        Ok((id, token)) => {
+                                            if seen.insert(id.clone()) {
+                                                keys.push((make_key(db, &id), token));
+                                            }
+                                        }
+                                        Err(_) => had_error = true,
+                                    }
+                                }
                             }
+                            Err(_) => had_error = true,
                         }
                     }
+                    Err(_) => had_error = true,
                 }
             }
 
             // OpenCode v1.x schema (session table)
-            if table_exists(&conn, "session") {
-                if let Ok(mut stmt) = conn.prepare("SELECT id, time_updated, time_created FROM session") {
-                    if let Ok(rows) = stmt.query_map([], |r| {
-                        let id: String = r.get(0)?;
-                        let updated: Option<i64> = r.get(1)?;
-                        let created: Option<i64> = r.get(2)?;
-                        Ok((id, updated.or(created).unwrap_or(0)))
-                    }) {
-                        for (id, token) in rows.flatten() {
-                            if seen.insert(id.clone()) {
-                                keys.push((make_key(db, &id), token));
+            if has_v1 {
+                match conn.prepare("SELECT id, time_updated, time_created FROM session") {
+                    Ok(mut stmt) => {
+                        match stmt.query_map([], |r| {
+                            let id: String = r.get(0)?;
+                            let updated: Option<i64> = r.get(1)?;
+                            let created: Option<i64> = r.get(2)?;
+                            Ok((id, updated.or(created).unwrap_or(0)))
+                        }) {
+                            Ok(rows) => {
+                                for row in rows {
+                                    match row {
+                                        Ok((id, token)) => {
+                                            if seen.insert(id.clone()) {
+                                                keys.push((make_key(db, &id), token));
+                                            }
+                                        }
+                                        Err(_) => had_error = true,
+                                    }
+                                }
                             }
+                            Err(_) => had_error = true,
                         }
                     }
+                    Err(_) => had_error = true,
                 }
             }
         }
@@ -122,9 +164,19 @@ impl Adapter for OpenCode {
         let (db, sid) = key.split_once(KEY_SEP).context("malformed opencode key")?;
         let conn = open_ro(Path::new(db)).with_context(|| format!("open {db}"))?;
 
-        if table_exists(&conn, "session_v2") {
-            if let Ok(session) = self.parse_v2(&conn, db, sid, key) {
-                return Ok(session);
+        if table_exists(&conn, "session_v2").unwrap_or(false) {
+            let in_v2 = conn
+                .query_row(
+                    "SELECT 1 FROM session_v2 WHERE id = ?1",
+                    params![sid],
+                    |_| Ok(true),
+                )
+                .optional()
+                .with_context(|| format!("check session_v2 in {db}"))?
+                .unwrap_or(false);
+
+            if in_v2 {
+                return self.parse_v2(&conn, db, sid, key);
             }
         }
 
@@ -136,17 +188,18 @@ impl Adapter for OpenCode {
     }
 }
 
-fn table_exists(conn: &Connection, table: &str) -> bool {
+fn table_exists(conn: &Connection, table: &str) -> rusqlite::Result<bool> {
     conn.query_row(
         "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1",
         params![table],
         |_| Ok(true),
     )
-    .unwrap_or(false)
+    .optional()
+    .map(|o| o.unwrap_or(false))
 }
 
 impl OpenCode {
-    fn parse_v2(&self, conn: &Connection, db: &str, sid: &str, key: &str) -> Result<Session> {
+    fn parse_v2(&self, conn: &Connection, _db: &str, sid: &str, key: &str) -> Result<Session> {
         let (project, raw_title, created, updated, parent): (
             String,
             String,
@@ -184,12 +237,11 @@ impl OpenCode {
             Ok((mtype, tc, data))
         })?;
 
-        for row in rows.flatten() {
-            let (mtype, tc, data_str) = row;
+        for row in rows {
+            let (mtype, tc, data_str) = row?;
             let ts = tc.and_then(DateTime::from_timestamp_millis);
-            let Ok(data) = serde_json::from_str::<Value>(&data_str) else {
-                continue;
-            };
+            let data: Value = serde_json::from_str(&data_str)
+                .with_context(|| format!("malformed message json in opencode v2 session {sid}"))?;
 
             match mtype.as_str() {
                 "user" => {
@@ -234,11 +286,6 @@ impl OpenCode {
             redacted_truncate(&raw_title, 80)
         };
 
-        let parent_id = parent
-            .as_ref()
-            .filter(|p| !p.is_empty())
-            .map(|p| short_id(&make_key(Path::new(db), p)));
-
         Ok(Session {
             id: short_id(key),
             tool: self.name(),
@@ -248,14 +295,13 @@ impl OpenCode {
             ended: updated.and_then(DateTime::from_timestamp_millis),
             title,
             subagent: parent.is_some_and(|p| !p.is_empty()),
-            parent_id,
             messages,
             touched: dedup_paths(touched),
             edits,
         })
     }
 
-    fn parse_v1(&self, conn: &Connection, db: &str, sid: &str, key: &str) -> Result<Session> {
+    fn parse_v1(&self, conn: &Connection, _db: &str, sid: &str, key: &str) -> Result<Session> {
         let (project, raw_title, created, updated): (String, String, Option<i64>, Option<i64>) =
             conn.query_row(
                 "SELECT directory, title, time_created, time_updated
@@ -311,7 +357,6 @@ impl OpenCode {
 
         let mut messages: Vec<Message> = Vec::new();
         let mut touched: Vec<String> = Vec::new();
-        let mut edits: Vec<EditEvent> = Vec::new();
         for (mid, tc, mdata) in &messages_meta {
             let role = match mdata.get("role").and_then(Value::as_str) {
                 Some("user") => Role::User,
@@ -328,7 +373,7 @@ impl OpenCode {
                         }
                     }
                     Some("tool") => {
-                        emit_tool_part(p, ts, &mut messages, &mut touched, &mut edits);
+                        emit_tool_part(p, ts, &mut messages, &mut touched);
                     }
                     Some("patch") => {
                         if let Some(Value::Array(files)) = p.get("files") {
@@ -350,11 +395,6 @@ impl OpenCode {
             redacted_truncate(&raw_title, 80)
         };
 
-        let parent_id = parent
-            .as_ref()
-            .filter(|p| !p.is_empty())
-            .map(|p| short_id(&make_key(Path::new(db), p)));
-
         Ok(Session {
             id: short_id(key),
             tool: self.name(),
@@ -364,10 +404,9 @@ impl OpenCode {
             ended: updated.and_then(DateTime::from_timestamp_millis),
             title,
             subagent: parent.is_some_and(|p| !p.is_empty()),
-            parent_id,
             messages,
             touched: dedup_paths(touched),
-            edits,
+            edits: Vec::new(),
         })
     }
 }
@@ -391,7 +430,7 @@ fn data_dir() -> Option<PathBuf> {
     let base = std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
         .filter(|p| !p.as_os_str().is_empty())
-        .or_else(|| crate::util::home_dir().map(|h| h.join(".local").join("share")))?;
+        .or_else(|| dirs::home_dir().map(|h| h.join(".local").join("share")))?;
     Some(base.join("opencode"))
 }
 
@@ -461,12 +500,7 @@ fn parse_json(tool: &'static str, path: &Path) -> Result<Session> {
         .to_string();
     let started = s.pointer("/time/created").and_then(epoch_ms);
     let ended = s.pointer("/time/updated").and_then(epoch_ms);
-    let parent_id = s
-        .get("parentID")
-        .and_then(Value::as_str)
-        .filter(|p| !p.is_empty())
-        .map(|pid| short_id(&path.with_file_name(format!("{pid}.json")).to_string_lossy()));
-    let subagent = parent_id.is_some() || s.get("parentID").is_some();
+    let subagent = s.get("parentID").is_some();
     let session_title = s
         .get("title")
         .and_then(Value::as_str)
@@ -480,7 +514,6 @@ fn parse_json(tool: &'static str, path: &Path) -> Result<Session> {
 
     let mut messages: Vec<Message> = Vec::new();
     let mut touched: Vec<String> = Vec::new();
-    let mut edits: Vec<EditEvent> = Vec::new();
 
     if let Some(store) = store {
         for msg_path in sorted_json(&store.join("message").join(&session_id)) {
@@ -516,7 +549,7 @@ fn parse_json(tool: &'static str, path: &Path) -> Result<Session> {
                         }
                     }
                     Some("tool") => {
-                        emit_tool_part(&p, ts, &mut messages, &mut touched, &mut edits);
+                        emit_tool_part(&p, ts, &mut messages, &mut touched);
                     }
                     Some("patch") => {
                         if let Some(Value::Array(files)) = p.get("files") {
@@ -544,10 +577,9 @@ fn parse_json(tool: &'static str, path: &Path) -> Result<Session> {
         ended,
         title,
         subagent,
-        parent_id,
         messages,
         touched: dedup_paths(touched),
-        edits,
+        edits: Vec::new(),
     })
 }
 
@@ -600,16 +632,18 @@ fn emit_tool_part(
     ts: Option<DateTime<Utc>>,
     messages: &mut Vec<Message>,
     touched: &mut Vec<String>,
-    edits: &mut Vec<EditEvent>,
 ) {
     let name = part.get("tool").and_then(Value::as_str).unwrap_or("?");
     let input = part.pointer("/state/input");
+    // If the tool is edit/write, record touched files for the session header.
     let tool_lower = name.to_ascii_lowercase();
-    if let Some(path) = edited_path(&tool_lower, input) {
-        if let Some(clean) = clean_path(&path) {
-            touched.push(clean);
-            if let Some(ev) = edit_event(&tool_lower, input, ts) {
-                edits.push(ev);
+    if matches!(tool_lower.as_str(), "edit" | "write") {
+        if let Some(path) = input
+            .and_then(|v| v.get("filePath").or_else(|| v.get("path")))
+            .and_then(Value::as_str)
+        {
+            if !path.is_empty() {
+                touched.push(path.to_string());
             }
         }
     }
@@ -629,17 +663,12 @@ fn emit_tool_part(
         },
     ));
 
-    let state = part.get("state");
-    let status = state
-        .and_then(|value| value.get("status"))
-        .and_then(Value::as_str);
-    let output = state
-        .and_then(|value| value.get("output"))
-        .and_then(Value::as_str);
-    let error = state
-        .and_then(|value| value.get("error"))
-        .and_then(Value::as_str);
-    let has_error_field = state.is_some_and(|value| value.get("error").is_some());
+    let status = part.pointer("/state/status").and_then(Value::as_str);
+    let output = part.pointer("/state/output").and_then(Value::as_str);
+    let error = part.pointer("/state/error").and_then(Value::as_str);
+    let has_error_field = part
+        .get("state")
+        .is_some_and(|value| value.get("error").is_some());
     let is_terminal = matches!(status, Some("completed" | "error"));
 
     if is_terminal || output.is_some() || error.is_some() || has_error_field {
@@ -778,7 +807,6 @@ fn push(messages: &mut Vec<Message>, role: Role, text: &str, ts: Option<DateTime
             text: text.to_string(),
             ts,
             tool: None,
-            is_rewound: false,
         });
     }
 }
@@ -789,6 +817,7 @@ mod tests {
     use crate::adapters::Adapter;
     use chrono::DateTime;
     use rusqlite::Connection;
+    use std::path::PathBuf;
 
     #[test]
     fn parses_a_sqlite_session() {
@@ -917,5 +946,232 @@ mod tests {
         let _ = std::fs::remove_file(&db);
         let _ = std::fs::remove_file(db.with_extension("db-wal"));
         let _ = std::fs::remove_file(db.with_extension("db-shm"));
+    }
+
+    #[test]
+    fn parses_sanitized_v2_fixture() {
+        // Identified OpenCode version: v2.1.1 (session_v2 & session_message schema)
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let fixture_db = root.join("tests/fixtures/opencode/opencode_v2_1_1.db");
+        assert!(fixture_db.exists(), "fixture db must exist: {:?}", fixture_db);
+
+        let key = make_key(&fixture_db, "ses_v2_sanitized_001");
+        let s = OpenCode.parse_key(&key).expect("parse sanitized v2 fixture");
+
+        assert_eq!(s.tool, "opencode");
+        assert_eq!(s.project, "/home/developer/opencode-v2-demo");
+        assert_eq!(s.title, "Migrate authentication to JWT");
+        assert!(!s.subagent);
+
+        let roles: Vec<_> = s.messages.iter().map(|m| m.role.label()).collect();
+        assert_eq!(roles, ["user", "assistant", "tool", "tool", "assistant"]);
+        assert_eq!(s.touched, ["src/auth.ts"]);
+        assert_eq!(s.edits.len(), 1);
+        assert_eq!(s.edits[0].path, "src/auth.ts");
+        assert_eq!(s.started, DateTime::from_timestamp_millis(1718630400000));
+        assert_eq!(s.ended, DateTime::from_timestamp_millis(1718630500000));
+    }
+
+    #[test]
+    fn mixed_store_indexes_and_parses_both_v1_and_v2() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("mixed.db");
+
+        {
+            let conn = Connection::open(&db).unwrap();
+            // Create both v1 and v2 tables
+            conn.execute_batch(
+                "CREATE TABLE session_v2 (
+                    id TEXT PRIMARY KEY,
+                    parent_id TEXT,
+                    project_id TEXT,
+                    directory TEXT,
+                    title TEXT,
+                    time_created INTEGER,
+                    time_updated INTEGER
+                 );
+                 CREATE TABLE session_message (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    seq INTEGER NOT NULL,
+                    time_created INTEGER,
+                    data TEXT NOT NULL
+                 );
+                 CREATE TABLE session (
+                    id TEXT PRIMARY KEY,
+                    parent_id TEXT,
+                    project_id TEXT,
+                    directory TEXT,
+                    title TEXT,
+                    time_created INTEGER,
+                    time_updated INTEGER
+                 );
+                 CREATE TABLE message (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT,
+                    time_created INTEGER,
+                    data TEXT
+                 );
+                 CREATE TABLE part (
+                    id TEXT PRIMARY KEY,
+                    message_id TEXT,
+                    session_id TEXT,
+                    time_created INTEGER,
+                    data TEXT
+                 );",
+            )
+            .unwrap();
+
+            // Insert a v2 session
+            conn.execute(
+                "INSERT INTO session_v2 VALUES ('ses_v2', NULL, 'p2', '/home/dev/v2', 'V2 Title', 1718630400000, 1718630500000)",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                r#"INSERT INTO session_message VALUES ('m1', 'ses_v2', 'user', 1, 1718630400000, '{"text":"v2 query"}')"#,
+                [],
+            )
+            .unwrap();
+
+            // Insert a v1 session
+            conn.execute(
+                "INSERT INTO session VALUES ('ses_v1', NULL, 'p1', '/home/dev/v1', 'V1 Title', 1718630400000, 1718630500000)",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                r#"INSERT INTO message VALUES ('m_old', 'ses_v1', 1718630400000, '{"role":"user"}')"#,
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                r#"INSERT INTO part VALUES ('p_old', 'm_old', 'ses_v1', 1718630400000, '{"type":"text","text":"v1 query"}')"#,
+                [],
+            )
+            .unwrap();
+
+            // Insert a duplicated ID into v1 table (migrated session): should dedup during discovery
+            conn.execute(
+                "INSERT INTO session VALUES ('ses_v2', NULL, 'p2_dup', '/home/dev/dup', 'Old V2 Title', 1718630400000, 1718630500000)",
+                [],
+            )
+            .unwrap();
+        }
+
+        // Test discovery via OPENCODE_DB
+        std::env::set_var("OPENCODE_DB", &db);
+        let store = OpenCode.store().expect("store must be found");
+        assert!(!store.had_error, "clean store discovery must not have errors");
+        let session_ids: Vec<_> = store
+            .keys
+            .iter()
+            .map(|(k, _)| k.split_once(super::KEY_SEP).unwrap().1)
+            .collect();
+        assert_eq!(session_ids, ["ses_v2", "ses_v1"], "v2 and v1 sessions discovered, duplicate deduped");
+
+        // Parse v2 key
+        let key_v2 = make_key(&db, "ses_v2");
+        let s2 = OpenCode.parse_key(&key_v2).expect("parse v2 from mixed store");
+        assert_eq!(s2.title, "V2 Title");
+        assert_eq!(s2.project, "/home/dev/v2");
+
+        // Parse v1 key
+        let key_v1 = make_key(&db, "ses_v1");
+        let s1 = OpenCode.parse_key(&key_v1).expect("parse v1 from mixed store");
+        assert_eq!(s1.title, "V1 Title");
+        assert_eq!(s1.project, "/home/dev/v1");
+
+        std::env::remove_var("OPENCODE_DB");
+    }
+
+    #[test]
+    fn v2_parse_failure_propagates_and_is_not_masked_by_v1() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("corrupt_v2.db");
+
+        {
+            let conn = Connection::open(&db).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE session_v2 (
+                    id TEXT PRIMARY KEY,
+                    parent_id TEXT,
+                    project_id TEXT,
+                    directory TEXT,
+                    title TEXT,
+                    time_created INTEGER,
+                    time_updated INTEGER
+                 );
+                 CREATE TABLE session_message (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    seq INTEGER NOT NULL,
+                    time_created INTEGER,
+                    data TEXT NOT NULL
+                 );
+                 CREATE TABLE session (
+                    id TEXT PRIMARY KEY,
+                    parent_id TEXT,
+                    project_id TEXT,
+                    directory TEXT,
+                    title TEXT,
+                    time_created INTEGER,
+                    time_updated INTEGER
+                 );",
+            )
+            .unwrap();
+
+            // Insert a v2 session whose message data is corrupted (invalid JSON)
+            conn.execute(
+                "INSERT INTO session_v2 VALUES ('corrupt_ses', NULL, 'p2', '/home/dev/bad', 'Corrupt V2', 1718630400000, 1718630500000)",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                r#"INSERT INTO session_message VALUES ('m1', 'corrupt_ses', 'user', 1, 1718630400000, 'NOT_VALID_JSON{:::')"#,
+                [],
+            )
+            .unwrap();
+        }
+
+        let key = make_key(&db, "corrupt_ses");
+        let err = OpenCode.parse_key(&key).unwrap_err();
+        let err_msg = format!("{err:#}");
+        assert!(
+            err_msg.contains("malformed message json in opencode v2 session corrupt_ses"),
+            "expected v2 JSON error, got: {err_msg}"
+        );
+        // Ensure it did not fall back to v1 (which would complain about QueryReturnedNoRows in session table)
+        assert!(
+            !err_msg.contains("QueryReturnedNoRows"),
+            "v2 parse failure must NOT fall back to v1 row search"
+        );
+    }
+
+    #[test]
+    fn discovery_keeps_had_error_on_sql_or_row_failure() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("broken_rows.db");
+
+        {
+            let conn = Connection::open(&db).unwrap();
+            // Table exists, but schema/data violates expected types (time_created TEXT not INTEGER)
+            conn.execute_batch(
+                "CREATE TABLE session_v2 (
+                    id TEXT PRIMARY KEY,
+                    time_updated TEXT,
+                    time_created TEXT
+                 );
+                 INSERT INTO session_v2 VALUES ('s_bad', 'not_an_int', 'neither_is_this');",
+            )
+            .unwrap();
+        }
+
+        std::env::set_var("OPENCODE_DB", &db);
+        let store = OpenCode.store().expect("store discovered");
+        assert!(store.had_error, "store discovery must keep had_error = true on row failure");
+        std::env::remove_var("OPENCODE_DB");
     }
 }
