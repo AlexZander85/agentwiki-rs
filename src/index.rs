@@ -3972,6 +3972,43 @@ mod native_id_tests {
 }
 
 #[cfg(test)]
+mod snippet_tests {
+    use super::*;
+
+    #[test]
+    fn saved_snippet_inherits_tool_and_start_of_a_live_session() {
+        let c = Connection::open_in_memory().unwrap();
+        create_cache_schema(&c).unwrap();
+        c.execute(
+            "INSERT INTO files(path, mtime, size, session_id, tool, started)
+             VALUES ('/s.jsonl', 1, 1, 'sid1', 'codex', '2026-10-01T10:00:00+00:00')",
+            [],
+        )
+        .unwrap();
+        let id = save_snippet(&c, "sid1", 3, "t", None, "body", None, None, None, None).unwrap();
+        let (tool, ts): (Option<String>, Option<String>) = c
+            .query_row(
+                "SELECT tool, message_ts FROM snippets WHERE id = ?1",
+                [id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(tool.as_deref(), Some("codex"));
+        assert_eq!(ts.as_deref(), Some("2026-10-01T10:00:00+00:00"));
+    }
+
+    #[test]
+    fn reopening_writes_nothing_once_columns_and_backfill_are_done() {
+        let c = Connection::open_in_memory().unwrap();
+        create_cache_schema(&c).unwrap();
+        ensure_snippets_table(&c).unwrap();
+        let before = c.total_changes();
+        ensure_snippets_table(&c).unwrap();
+        assert_eq!(c.total_changes(), before);
+    }
+}
+
+#[cfg(test)]
 mod edits_tests {
     use super::*;
 
