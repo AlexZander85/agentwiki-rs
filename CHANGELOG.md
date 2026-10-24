@@ -3,15 +3,53 @@
 ## [1.0.1] - 2026-10-24 (AgentWiki-rs)
 
 ### Added & Enhanced
-- Rebranded project to **AgentWiki-rs**: dedicated standalone binary and native desktop command center.
-- Native Desktop GUI (`agentwiki-app.exe` / `sessionwiki-app.exe`) powered by Wry and OS WebViews.
-- In-memory transcript streaming & pagination (`offset`/`limit`), cutting initial payload to 327 KB / 12 ms on 8,000+ message transcripts.
-- Multi-threaded web worker pool (`WEB_WORKERS = 4`) and graceful sync serialization lock.
-- CSS `content-visibility: auto` and memory-safe `WeakMap` for hardware-accelerated 120 FPS scrolling.
-- Server-side multi-sort (`message_count`, `started`) and timezone-aware active interval filtering.
-- Multi-chip keyword search with TF-IDF rarity ranking and in-chat highlight navigation.
-- SQLite `INCREMENTAL VACUUM` and automated FTS5 index segment compaction (`merge=500`).
-- Ported Codex top-level rollout parser and reader fix reparse from upstream v0.34.10.
+- **Instant Transcript Streaming & Pagination**: `/api/session/<id>?offset=&limit=300` streams transcripts in lazy chunks, slashing payload from 21 MB to 327 KB and opening time from 240 ms to 12 ms on 8,000+ message sessions.
+- **Hardware-Accelerated UI Rendering**: CSS `content-visibility: auto` skips layout calculations for off-screen rows. Raw text stored in memory-safe `WeakMap` instead of DOM attributes.
+- **CSS-Driven Filter State**: Role filtering and rewound message toggles now apply via CSS attribute `data-rf` with zero re-rendering lag.
+- **Transparent Gzip Compression**: Integrated pure-Rust `flate2` for automatic gzip compression of all JSON API responses and HTML assets.
+- **Multi-Worker Server Pool**: Embedded web server runs 4 parallel worker threads (`WEB_WORKERS = 4`) with dedicated SQLite connections in WAL mode; syncs no longer block search or viewer requests.
+- **Graceful Sync Lock**: Auto-sync and manual sync requests are serialized via `sync_guard` mutex.
+- **Antigravity Adapter 100x Speedup**: Direct lookup of known paths per conversation folder in `~/.gemini/antigravity/brain`, replacing 50,653-file directory walks.
+- **Non-Blocking SQLite Startup**: Replaced repeated `ALTER TABLE` / `UPDATE` schema checks with lightweight read checks; migrations backfill once via `meta` key.
+- **Chunked Sync Commits**: Sync writes in batches of 200 sessions or 20,000 messages, preserving progress if interrupted and releasing locks between batches.
+- **Automated WAL & Database Compaction**: Added `journal_size_limit = 64 MB`. Every write sync runs FTS5 segment merge (`merge=500`), `PRAGMA optimize`, and conditional `incremental_vacuum`.
+- **Full-Database Server-Side Sorting**: `/api/sessions?sort=` sorts across all sessions (including 8,500+ message sessions) by message count and creation date.
+- **Unified UTC Date Boundaries**: Timezone-aware date bounds sent as UTC; sessions active across day boundaries correctly match.
+- **SQL Pre-Filtering**: Tag and date limits apply in SQL before the result limit.
+- **Multi-Keyword Rarity Ranking**: Multi-chip (`+`) keyword search ranks sessions by rarest word frequency (TF-IDF), total match count, and recency.
+- **In-Chat Search & Highlight Navigation**: Matching search words are highlighted in the transcript with keyboard navigation (↑/↓); long messages (>160 chars) pre-render before matching.
+- **Related Sessions Header**: Displays `🔗 Related sessions (N)` directly in the session header.
+- **Default Role Filter**: Default view is set to **«пользователь и агент»** (`user and agent`), hiding noisy tool outputs until selected.
+- **Modern Terminology Rebranding**: Replaced «Ассистент» with **«Агент»** across all UI elements, dropdowns, headers, and Markdown exports.
+
+### Fixed
+- **Snippet Metadata Regression**: Corrected pinned snippet metadata lookup to query `files` table instead of non-existent `sessions` table (covered by 2 regression tests).
+- **UI Navigation Crashes**: Fixed `renderSession` error when toggling rewound state or returning from Snippets tab.
+- **Codex Legacy Rollouts**: Ported parser fix from upstream v0.34.10 preserving top-level `type: "message"` records from older rollouts.
+- **Reader Tracking & Auto-Reparse**: Added `reader` column to `files` table and automatic re-parsing of sessions indexed before parser fixes.
+
+## [1.0.0] - 2026-10-24 (AgentWiki-rs)
+
+> Enhanced standalone fork based on upstream **youdie006/sessionwiki v0.34.9**, evolving into a dedicated native desktop command center and long-term agent memory.
+
+### Added & Enhanced
+- **Rebranded to AgentWiki-rs**: Standalone binary and native desktop application with dedicated CLI and GUI builds.
+- **Zero-Electron Native Desktop GUI (`agentwiki-app.exe`)**: Single compact (~3.8 MB) binary powered by Rust, Wry, and system WebViews; launches in < 20 ms with under 35 MB RAM.
+- **OpenCode v2 SQLite Architecture ([PR #85](https://github.com/youdie006/sessionwiki/pull/85))**: Native support for OpenCode v2 SQLite format (`session_v2`), message parts, and file edits.
+- **Knowledge Base Snippet Management ([PR #87](https://github.com/youdie006/sessionwiki/pull/87))**: Interactive snippet context menu (rename, copy markdown, export .md, delete) and native OS "Save As" file dialogs.
+- **Database Vacuum & Space Reclaim Safety ([PR #83](https://github.com/youdie006/sessionwiki/pull/83))**: `agentwiki vacuum` command with disk free-space preflight validation and WAL checkpoint handling.
+- **Subagents DAG Hierarchy & Orchestration ([PR #89](https://github.com/youdie006/sessionwiki/pull/89))**: Multi-level subagent tree tracking (`parent_id`, `subagent: bool`), parent session navigation, and subagent filter.
+- **Durable Agent Memory Tool ([PR #88](https://github.com/youdie006/sessionwiki/pull/88))**: Native MCP tools `propose_memory` / `save_memory` allowing Claude Code, Codex, and Cursor to persist architectural breakthroughs and solutions into the Knowledge Base.
+- **Antigravity CLI Support ([PR #86](https://github.com/youdie006/sessionwiki/pull/86))**: Automatic indexing of Google Antigravity CLI (`agy`) conversation sessions from `~/.gemini/antigravity-cli/brain`.
+- **ZCode Adapter (`zcode`)**: Incremental SQLite sync for ZCode agent sessions (`~/.zcode/cli/db/db.sqlite`) with tool calls and file patch extraction.
+- **DeepSeek Harness Adapter**: Support for DeepSeek V3 and R1 sessions in `~/.dsh/sessions`.
+- **Kimi Code Adapter**: Support for Moonshot AI's Kimi Code sessions in `~/.kimi-code/sessions`.
+- **Hermes Agent Adapter**: SQLite adapter for Hermes agent state in `~/.hermes/state.db`.
+- **GitHub Copilot Transcripts**: Discovery of Copilot chat conversations in VS Code workspaces.
+- **Superseded & Rewound Turns**: Tracking `is_rewound` attribute with WebUI toggle (`↩ Отмененные` / `↩ Rewound`).
+- **Activity Heatmap & Analytics**: 52-week GitHub-style contribution calendar, diurnal 24h rhythm, agent tool distribution, and top touched files.
+- **Starred Sessions & Favorites**: Bookmark crucial sessions with one click; queryable via CLI, WebUI, and MCP.
+- **Auto-Sync**: 10-minute scheduled background synchronization with UI indicator.
 
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow
