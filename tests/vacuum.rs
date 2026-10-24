@@ -132,3 +132,23 @@ fn vacuum_lock_contention_reports_busy() {
     drop(conn1);
     drop(conn2);
 }
+
+#[test]
+fn new_index_and_vacuumed_index_use_incremental_auto_vacuum() {
+    let _guard = LOCK.lock().unwrap();
+    let (_dir, conn) = fresh_index();
+    let mode: i64 = conn
+        .pragma_query_value(None, "auto_vacuum", |r| r.get(0))
+        .unwrap();
+    assert_eq!(mode, 2, "a fresh index starts in incremental mode");
+
+    // An index made before the setting: switch it off, then let vacuum convert it.
+    conn.execute_batch("PRAGMA auto_vacuum = NONE; VACUUM;").unwrap();
+    drop(conn);
+    commands::vacuum().unwrap();
+    let conn = index::open().unwrap();
+    let mode: i64 = conn
+        .pragma_query_value(None, "auto_vacuum", |r| r.get(0))
+        .unwrap();
+    assert_eq!(mode, 2, "vacuum converts an existing index");
+}

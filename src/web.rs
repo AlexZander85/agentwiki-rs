@@ -34,6 +34,10 @@ pub fn serve(port: u16, no_open: bool, sync: bool) -> Result<()> {
     // (the desktop app's whole UI) until it finishes.
     let server = std::sync::Arc::new(server);
     let sync_lock = std::sync::Arc::new(std::sync::Mutex::new(()));
+    {
+        let sync_lock = sync_lock.clone();
+        std::thread::spawn(move || auto_compact_loop(&sync_lock));
+    }
     for _ in 1..WEB_WORKERS {
         let server = server.clone();
         let sync_lock = sync_lock.clone();
@@ -58,6 +62,69 @@ pub fn serve(port: u16, no_open: bool, sync: bool) -> Result<()> {
 
 /// Request handler threads `serve` runs, the calling thread included.
 const WEB_WORKERS: usize = 4;
+
+/// When the last request arrived (Unix seconds), for idle detection.
+static LAST_REQUEST: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
+
+fn seconds_since_last_request() -> i64 {
+    chrono::Utc::now().timestamp() - LAST_REQUEST.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Full compaction without anyone running `sessionwiki vacuum`: the app (or
+/// `web`) checks now and then whether [`index::compact_due`] says it is worth
+/// it, and runs it only while nobody is using the UI - no request for a couple
+/// of minutes and no sync in flight. It never waits on another process's
+/// write lock; a busy index is tried again at the next check.
+fn auto_compact_loop(sync_lock: &std::sync::Mutex<()>) {
+    use std::time::{Duration, Instant};
+    const FIRST_CHECK: Duration = Duration::from_secs(3 * 60);
+    const CHECK_EVERY: Duration = Duration::from_secs(10 * 60);
+    const IDLE_SECS: i64 = 2 * 60;
+    const AFTER_FAILURE: Duration = Duration::from_secs(6 * 60 * 60);
+
+    std::thread::sleep(FIRST_CHECK);
+    let mut not_before = Instant::now();
+    loop {
+        if Instant::now() >= not_before && seconds_since_last_request() >= IDLE_SECS {
+            if let Ok(_guard) = sync_lock.try_lock() {
+                match try_compact() {
+                    Ok(Some((reason, report))) => eprintln!(
+                        "web: compacted the index ({reason}): {} -> {}",
+                        crate::util::human_size(report.before),
+                        crate::util::human_size(report.after),
+                    ),
+                    Ok(None) => {}
+                    Err(e) if is_busy(&e) => {}
+                    Err(e) => {
+                        eprintln!("web: automatic compaction failed: {e:#}");
+                        not_before = Instant::now() + AFTER_FAILURE;
+                    }
+                }
+            }
+        }
+        std::thread::sleep(CHECK_EVERY);
+    }
+}
+
+fn try_compact() -> Result<Option<(&'static str, index::CompactReport)>> {
+    let conn = index::open()?;
+    let path = index::db_path()?;
+    let Some(reason) = index::compact_due(&conn, &path)? else {
+        return Ok(None);
+    };
+    conn.busy_timeout(std::time::Duration::ZERO)?;
+    Ok(Some((reason, index::compact(&conn, &path)?)))
+}
+
+fn is_busy(e: &anyhow::Error) -> bool {
+    e.chain().any(|cause| {
+        matches!(
+            cause.downcast_ref::<rusqlite::Error>(),
+            Some(rusqlite::Error::SqliteFailure(f, _))
+                if matches!(f.code, rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked)
+        )
+    })
+}
 
 fn handle_request(
     conn: &mut Connection,
@@ -89,6 +156,7 @@ fn handle_request(
         let _ = request.respond(Response::from_string("forbidden").with_status_code(403));
         return;
     }
+    LAST_REQUEST.store(chrono::Utc::now().timestamp(), std::sync::atomic::Ordering::Relaxed);
     let gzip = request.headers().iter().any(|h| {
         h.field.equiv("Accept-Encoding")
             && h.value.as_str().split(',').any(|e| e.trim().starts_with("gzip"))
@@ -267,6 +335,7 @@ fn api_sessions(conn: &Connection, query: &str) -> Result<Boxed> {
         include_subagents,
         since.as_deref(),
         until.as_deref(),
+        index::SessionSort::parse(param(query, "sort").as_deref().unwrap_or("")),
     )?;
     json_response(json!(rows.iter().map(row_json).collect::<Vec<_>>()))
 }
@@ -325,13 +394,25 @@ fn api_search(conn: &Connection, query: &str) -> Result<Boxed> {
         .and_then(|s| s.parse().ok())
         .unwrap_or(50);
 
+    // Date and tag limits apply in SQL before `limit`, in both modes.
+    let since = param(query, "since");
+    let until = param(query, "until");
+    let tag = param(query, "tag");
+    let scope = index::SearchScope {
+        roles: roles.as_deref(),
+        tag: tag.as_deref(),
+        since: since.as_deref(),
+        until: until.as_deref(),
+    };
+
     // If session_terms are provided via '+' chips, run cross-message session intersection
     if !session_terms.is_empty() {
         let mut all_terms = session_terms;
         if !qt.is_empty() {
             all_terms.push(qt);
         }
-        let rows = index::search_sessions_multi_terms(conn, &all_terms, limit, tool.as_deref())?;
+        let rows =
+            index::search_sessions_multi_terms(conn, &all_terms, limit, tool.as_deref(), scope)?;
         return json_response(json!(rows
             .iter()
             .map(|r| {
@@ -345,7 +426,7 @@ fn api_search(conn: &Connection, query: &str) -> Result<Boxed> {
     }
 
     // Default search mode: strictly within one message (FTS5 rank & snippet)
-    let hits = index::search_with_roles(conn, qt, limit, tool.as_deref(), None, roles.as_deref())?;
+    let hits = index::search_scoped(conn, qt, limit, tool.as_deref(), None, scope)?;
     json_response(json!(hits
         .iter()
         .map(|h| {

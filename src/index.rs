@@ -809,6 +809,12 @@ pub fn open_readonly() -> Result<Connection> {
 
 pub fn open() -> Result<Connection> {
     let conn = Connection::open(db_path()?)?;
+    // A brand-new file can take incremental auto-vacuum for free; an existing
+    // one switches on its next `sessionwiki vacuum`.
+    let fresh: i64 = conn.pragma_query_value(None, "page_count", |r| r.get(0))?;
+    if fresh == 0 {
+        conn.pragma_update(None, "auto_vacuum", "INCREMENTAL")?;
+    }
     conn.pragma_update(None, "journal_mode", "WAL")?;
     conn.pragma_update(None, "synchronous", "NORMAL")?;
     conn.busy_timeout(std::time::Duration::from_millis(5000))?;
@@ -1531,6 +1537,7 @@ pub fn sync_with(
     }
 
     let mut archived_total = 0usize;
+    let mut wrote = false;
     for adapter in adapters {
         // `store_present` tells "the tool pruned some sessions" (root exists,
         // those gone) apart from "the whole store vanished" (uninstall,
@@ -1589,6 +1596,7 @@ pub fn sync_with(
                     store.keys.iter().map(|(k, t)| (k.as_str(), *t)).collect();
                 let total = pending.len();
                 let mut failed = 0usize;
+                wrote = true;
                 let mut batch = SyncBatch::default();
                 let mut tx = conn.transaction()?;
                 for (i, key) in pending.iter().enumerate() {
@@ -1682,6 +1690,7 @@ pub fn sync_with(
         if pending.is_empty() {
             continue;
         }
+        wrote = true;
         let total = pending.len();
         let mut done = 0usize;
         let mut failed = 0usize;
@@ -1714,9 +1723,9 @@ pub fn sync_with(
         tx.commit()?;
         report_indexed(tool, total, failed);
     }
-    // Keep planner statistics current for the tables a sync just grew; bounded
-    // so it stays cheap on a large index, and skipped if another writer is busy.
-    let _ = conn.execute_batch("PRAGMA analysis_limit = 400; PRAGMA optimize;");
+    if wrote || archived_total > 0 {
+        maintain(conn);
+    }
 
     // The one passive signal that archive is earning its keep: how many
     // sessions we kept this run that the tool deleted, and the running total.
@@ -1731,6 +1740,168 @@ pub fn sync_with(
         );
     }
     Ok(())
+}
+
+/// FTS leaf pages merged per sync. Re-indexing a live session deletes and
+/// re-inserts all its rows, which leaves the search index in ever more, ever
+/// emptier segments; a bounded merge after each writing sync keeps that from
+/// piling up (on a real index, ~6% of the file) without the multi-second full
+/// `optimize` that `sessionwiki vacuum` runs.
+const FTS_MERGE_PAGES: i64 = 500;
+
+/// Free pages returned to the filesystem per sync, once incremental
+/// auto-vacuum is on: 4096 pages = 16 MB with the default page size.
+const VACUUM_STEP_PAGES: i64 = 4096;
+
+/// Best-effort upkeep after a sync that wrote: bounded FTS merge, free pages
+/// back to the filesystem, fresh planner statistics. Never waits on another
+/// writer - a busy index is maintained by a later sync.
+fn maintain(conn: &Connection) {
+    let _ = conn.busy_timeout(std::time::Duration::ZERO);
+    let _ = conn.execute(
+        "INSERT INTO msgs(msgs, rank) VALUES('merge', ?1)",
+        params![FTS_MERGE_PAGES],
+    );
+    let incremental = conn
+        .pragma_query_value(None, "auto_vacuum", |r| r.get::<_, i64>(0))
+        .is_ok_and(|mode| mode == 2);
+    if incremental {
+        // Only when the free list is worth a pass: over 1 MB and over 2%.
+        let free: i64 = conn
+            .pragma_query_value(None, "freelist_count", |r| r.get(0))
+            .unwrap_or(0);
+        let total: i64 = conn
+            .pragma_query_value(None, "page_count", |r| r.get(0))
+            .unwrap_or(0);
+        if free > 256 && free * 50 > total {
+            let _ = conn.execute_batch(&format!(
+                "PRAGMA incremental_vacuum({});",
+                free.min(VACUUM_STEP_PAGES)
+            ));
+        }
+    }
+    // Planner statistics for the tables a sync just grew; bounded so it stays
+    // cheap on a large index.
+    let _ = conn.execute_batch("PRAGMA analysis_limit = 400; PRAGMA optimize;");
+    let _ = conn.busy_timeout(std::time::Duration::from_millis(5000));
+}
+
+/// Sizes around one [`compact`] run: database plus WAL, in bytes.
+#[derive(Debug, Clone, Copy)]
+pub struct CompactReport {
+    pub before: u64,
+    pub after: u64,
+}
+
+/// Meta keys recording the last full compaction: when, and the size it left.
+const COMPACT_AT_KEY: &str = "compact_at";
+const COMPACT_SIZE_KEY: &str = "compact_size";
+
+fn db_and_wal_size(path: &std::path::Path) -> u64 {
+    let wal = path.with_file_name("index.db-wal");
+    std::fs::metadata(path).map(|m| m.len()).unwrap_or(0)
+        + std::fs::metadata(wal).map(|m| m.len()).unwrap_or(0)
+}
+
+/// Full compaction: optimize the search index into one segment, rebuild the
+/// file (switching it to incremental auto-vacuum on the way - the setting only
+/// takes effect through a VACUUM) and truncate the WAL. Refuses when the disk
+/// lacks room for the rebuild (twice the database). Records when it ran, which
+/// [`compact_due`] reads.
+pub fn compact(conn: &Connection, path: &std::path::Path) -> Result<CompactReport> {
+    let before = db_and_wal_size(path);
+    let required = before.saturating_mul(2);
+    let free = match std::env::var("SESSIONWIKI_SIMULATE_FREE_SPACE") {
+        Ok(val) => val.parse::<u64>().unwrap_or(0),
+        Err(_) => crate::util::available_space(path)?,
+    };
+    if free < required {
+        anyhow::bail!(
+            "insufficient disk space for vacuum: need at least {} (2x database size), but only {} available on volume",
+            crate::util::human_size(required),
+            crate::util::human_size(free),
+        );
+    }
+    conn.execute_batch("INSERT INTO msgs(msgs) VALUES('optimize');")
+        .context("optimize FTS5 search index")?;
+    conn.execute_batch("PRAGMA auto_vacuum = INCREMENTAL; VACUUM;")
+        .context("vacuum database")?;
+    let busy: i32 = conn
+        .query_row("PRAGMA wal_checkpoint(TRUNCATE);", [], |r| r.get(0))
+        .context("wal_checkpoint(TRUNCATE)")?;
+    if busy != 0 {
+        eprintln!("warning: WAL checkpoint was blocked by an active reader");
+    }
+    let after = db_and_wal_size(path);
+    let set = |key: &str, value: String| {
+        conn.execute(
+            "INSERT INTO meta(key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![key, value],
+        )
+    };
+    set(COMPACT_AT_KEY, chrono::Utc::now().timestamp().to_string())?;
+    set(COMPACT_SIZE_KEY, after.to_string())?;
+    Ok(CompactReport { before, after })
+}
+
+/// Below this a full compaction is never worth interrupting anyone for.
+const COMPACT_MIN_BYTES: u64 = 16 * 1024 * 1024;
+
+/// Whether a full [`compact`] is worth running now, and why. Cheap: a few
+/// pragmas and two meta reads.
+///
+/// - The file is still in `auto_vacuum = NONE`: compact once to switch it, so
+///   from then on syncs hand freed pages back on their own.
+/// - Over a tenth of the file is free pages (only possible without incremental
+///   auto-vacuum, or after a large forget).
+/// - It is a week or more since the last compaction and the file has grown by
+///   a fifth since - churn that leaves the search index fragmented beyond what
+///   the per-sync merge keeps up with - or a month has passed regardless.
+pub fn compact_due(conn: &Connection, path: &std::path::Path) -> Result<Option<&'static str>> {
+    let size = db_and_wal_size(path);
+    if size < COMPACT_MIN_BYTES {
+        return Ok(None);
+    }
+    let mode: i64 = conn.pragma_query_value(None, "auto_vacuum", |r| r.get(0))?;
+    if mode != 2 {
+        return Ok(Some("switch to incremental auto-vacuum"));
+    }
+    let free: i64 = conn.pragma_query_value(None, "freelist_count", |r| r.get(0))?;
+    let pages: i64 = conn.pragma_query_value(None, "page_count", |r| r.get(0))?;
+    if pages > 0 && free * 10 > pages {
+        return Ok(Some("over 10% of the file is free pages"));
+    }
+    let meta = |key: &str| -> Result<Option<i64>> {
+        Ok(conn
+            .query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| {
+                r.get::<_, String>(0)
+            })
+            .optional()?
+            .and_then(|v| v.parse().ok()))
+    };
+    let Some(at) = meta(COMPACT_AT_KEY)? else {
+        // Born incremental (or converted by an older binary): start the clock.
+        conn.execute(
+            "INSERT OR IGNORE INTO meta(key, value) VALUES (?1, ?2), (?3, ?4)",
+            params![
+                COMPACT_AT_KEY,
+                chrono::Utc::now().timestamp().to_string(),
+                COMPACT_SIZE_KEY,
+                size.to_string()
+            ],
+        )?;
+        return Ok(None);
+    };
+    let days = (chrono::Utc::now().timestamp() - at) / 86_400;
+    let base = meta(COMPACT_SIZE_KEY)?.unwrap_or(size as i64).max(1) as u64;
+    if days >= 30 {
+        return Ok(Some("monthly compaction"));
+    }
+    if days >= 7 && size * 5 >= base * 6 {
+        return Ok(Some("the index grew by a fifth since the last compaction"));
+    }
+    Ok(None)
 }
 
 /// External-content FTS5 requires handing back the old rows on delete.
@@ -2049,7 +2220,103 @@ pub fn recent(
         include_subagents,
         None,
         None,
+        SessionSort::LastActive,
     )
+}
+
+/// Order of a session listing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionSort {
+    /// Most recently active first (a session resumed today is recent).
+    LastActive,
+    /// Most recently started first.
+    Created,
+    /// Most messages first, most recently active among equals.
+    Messages,
+}
+
+impl SessionSort {
+    pub fn parse(value: &str) -> Self {
+        match value {
+            "created" => Self::Created,
+            "msgs" => Self::Messages,
+            _ => Self::LastActive,
+        }
+    }
+
+    fn order_by(self) -> &'static str {
+        match self {
+            Self::LastActive => "COALESCE(f.ended, f.started) DESC",
+            Self::Created => "f.started DESC",
+            Self::Messages => "f.msg_count DESC, COALESCE(f.ended, f.started) DESC",
+        }
+    }
+}
+
+/// A `since` bound in the stored form (UTC RFC 3339), so a timestamp from a
+/// browser (`...T21:00:00.000Z`) compares as text with the stored
+/// `...T21:00:00+00:00`. A bare date stays as is: it sorts before that day.
+fn since_bound(value: &str) -> String {
+    match chrono::DateTime::parse_from_rfc3339(value) {
+        Ok(t) => t
+            .with_timezone(&chrono::Utc)
+            .to_rfc3339_opts(chrono::SecondsFormat::AutoSi, false),
+        Err(_) => value.to_string(),
+    }
+}
+
+/// An inclusive `until` bound: a bare date covers that whole UTC day, and a
+/// timestamp keeps full precision so a session started in its last second is in.
+fn until_bound(value: &str) -> String {
+    match chrono::DateTime::parse_from_rfc3339(value) {
+        Ok(t) => t
+            .with_timezone(&chrono::Utc)
+            .to_rfc3339_opts(chrono::SecondsFormat::Nanos, false),
+        Err(_) if value.len() == 10 => format!("{value}T23:59:59.999999999Z"),
+        Err(_) => value.to_string(),
+    }
+}
+
+/// Restrict `f` (a `files` row) to sessions active within [since, until]:
+/// started no later than `until` and last active no earlier than `since`.
+fn push_date_scope(
+    sql: &mut String,
+    args: &mut Vec<Box<dyn rusqlite::ToSql>>,
+    since: Option<&str>,
+    until: Option<&str>,
+) {
+    if let Some(s) = since {
+        sql.push_str(" AND COALESCE(f.ended, f.started) >= ?");
+        args.push(Box::new(since_bound(s)));
+    }
+    if let Some(u) = until {
+        sql.push_str(" AND f.started <= ?");
+        args.push(Box::new(until_bound(u)));
+    }
+}
+
+/// The session-level filters every listing and search mode shares, on `f`.
+fn push_session_scope(
+    sql: &mut String,
+    args: &mut Vec<Box<dyn rusqlite::ToSql>>,
+    filters: &SearchFilters<'_>,
+) {
+    if let Some(t) = filters.tool {
+        sql.push_str(" AND f.tool = ?");
+        args.push(Box::new(t.to_string()));
+    }
+    if let Some(p) = filters.project {
+        sql.push_str(" AND f.project LIKE ?");
+        args.push(Box::new(format!("%{}%", crate::util::nfc(p))));
+    }
+    if let Some(t) = filters.tag {
+        sql.push_str(
+            " AND EXISTS (SELECT 1 FROM tags g WHERE g.session_id = f.session_id AND g.tag = ?)",
+        );
+        // Stored tags are normalized; match their form.
+        args.push(Box::new(norm_tag(t)));
+    }
+    push_date_scope(sql, args, filters.since, filters.until);
 }
 
 pub fn recent_range(
@@ -2061,55 +2328,42 @@ pub fn recent_range(
     include_subagents: bool,
     since: Option<&str>,
     until: Option<&str>,
+    sort: SessionSort,
 ) -> Result<Vec<SessionRow>> {
     let mut sql = format!(
         "SELECT session_id, tool, path, project, title, started, msg_count, kind, {PREVIEW_SQL}, {SUMMARY_SQL}, {TAGS_SQL}, (archived_at IS NOT NULL), COALESCE(ended, started), parent_id
          FROM files f WHERE 1=1",
     );
-    let mut args: Vec<String> = Vec::new();
+    let mut args: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
     // A tag filter is an explicit ask for *those* sessions; don't hide subagent
     // hits behind the main-only default (the tag cloud counts every kind, so a
     // sub-only tag would otherwise show in the cloud but return nothing here).
     if !include_subagents && tag.is_none() {
         sql.push_str(" AND kind = 'main'");
     }
-    if let Some(t) = tool {
-        sql.push_str(" AND tool = ?");
-        args.push(t.to_string());
-    }
-    if let Some(p) = project {
-        sql.push_str(" AND project LIKE ?");
-        args.push(format!("%{}%", crate::util::nfc(p)));
-    }
-    if let Some(t) = tag {
-        sql.push_str(
-            " AND EXISTS (SELECT 1 FROM tags g WHERE g.session_id = f.session_id AND g.tag = ?)",
-        );
-        args.push(norm_tag(t)); // stored tags are normalized; match their form
-    }
-    if let Some(s) = since {
-        sql.push_str(" AND (started >= ? OR COALESCE(ended, started) >= ?)");
-        args.push(s.to_string());
-        args.push(s.to_string());
-    }
-    if let Some(u) = until {
-        let bound = if u.len() == 10 {
-            format!("{u}T23:59:59Z")
-        } else {
-            u.to_string()
-        };
-        sql.push_str(" AND started <= ?");
-        args.push(bound);
-    }
-    // Recent means recently ACTIVE: a session resumed for weeks began long
-    // ago, and ordering by its start buried it below everything begun since.
+    push_session_scope(
+        &mut sql,
+        &mut args,
+        &SearchFilters {
+            tool,
+            project,
+            roles: None,
+            tag,
+            since,
+            until,
+        },
+    );
+    // Recent means recently ACTIVE by default: a session resumed for weeks
+    // began long ago, and ordering by its start buried it below everything
+    // begun since. Sorting here rather than in the caller makes the "created"
+    // and "most messages" orders cover every session, not the newest `limit`.
     // Both columns are UTC RFC 3339, so they order as text.
-    sql.push_str(&format!(
-        " ORDER BY COALESCE(ended, started) DESC LIMIT {limit}"
-    ));
+    sql.push_str(&format!(" ORDER BY {} LIMIT {limit}", sort.order_by()));
 
     let mut stmt = conn.prepare(&sql)?;
-    let rows = stmt.query_map(rusqlite::params_from_iter(args), |r| {
+    let rows = stmt.query_map(
+        rusqlite::params_from_iter(args.iter().map(|a| a.as_ref())),
+        |r| {
         Ok(SessionRow {
             last_active: r.get(12)?,
             session_id: r.get(0)?,
@@ -2279,6 +2533,31 @@ pub fn search_with_roles(
     project: Option<&str>,
     roles: Option<&[Role]>,
 ) -> Result<Vec<Hit>> {
+    search_scoped(
+        conn,
+        query,
+        limit,
+        tool,
+        project,
+        SearchScope {
+            roles,
+            ..SearchScope::default()
+        },
+    )
+}
+
+/// [`search_with_roles`] with the date and tag limits applied in SQL, before
+/// the result limit - so a narrow window still gets `limit` hits, not the
+/// share of the corpus-wide top hits that happens to fall inside it.
+pub fn search_scoped(
+    conn: &Connection,
+    query: &str,
+    limit: usize,
+    tool: Option<&str>,
+    project: Option<&str>,
+    scope: SearchScope<'_>,
+) -> Result<Vec<Hit>> {
+    let roles = scope.roles;
     if roles.is_some_and(|roles| roles.is_empty()) {
         return Ok(Vec::new());
     }
@@ -2286,6 +2565,9 @@ pub fn search_with_roles(
         tool,
         project,
         roles,
+        tag: scope.tag,
+        since: scope.since,
+        until: scope.until,
     };
     let terms = parse_search_terms(query);
     if terms.is_empty() {
@@ -2322,6 +2604,21 @@ struct SearchFilters<'a> {
     tool: Option<&'a str>,
     project: Option<&'a str>,
     roles: Option<&'a [Role]>,
+    tag: Option<&'a str>,
+    since: Option<&'a str>,
+    until: Option<&'a str>,
+}
+
+/// Session-level limits for [`search_scoped`] beyond tool and project.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SearchScope<'a> {
+    pub roles: Option<&'a [Role]>,
+    /// Only sessions carrying this tag.
+    pub tag: Option<&'a str>,
+    /// Only sessions active at or after this (date or RFC 3339 timestamp).
+    pub since: Option<&'a str>,
+    /// Only sessions started at or before this (date or RFC 3339 timestamp).
+    pub until: Option<&'a str>,
 }
 
 fn search_fts_terms(
@@ -2379,14 +2676,7 @@ fn search_fts_terms(
             args.push(Box::new(format!("%{}%", escape_like(&term.text))));
         }
     }
-    if let Some(t) = filters.tool {
-        sql.push_str(" AND f.tool = ?");
-        args.push(Box::new(t.to_string()));
-    }
-    if let Some(p) = filters.project {
-        sql.push_str(" AND f.project LIKE ?");
-        args.push(Box::new(format!("%{}%", crate::util::nfc(p))));
-    }
+    push_session_scope(&mut sql, &mut args, &filters);
     sql.push_str(&format!(
         " GROUP BY f.session_id ORDER BY best LIMIT {limit}"
     ));
@@ -2431,33 +2721,68 @@ pub fn search_sessions_multi_terms(
     terms: &[&str],
     limit: usize,
     tool: Option<&str>,
+    scope: SearchScope<'_>,
 ) -> Result<Vec<SessionRow>> {
-    if terms.is_empty() {
+    if terms.is_empty() || scope.roles.is_some_and(|r| r.is_empty()) {
         return Ok(Vec::new());
     }
-    let mut intersect_sqls = Vec::new();
+    // One CTE per term: the sessions with a message matching it, and how many.
+    let mut ctes = Vec::new();
     let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
-
-    for term in terms {
+    for (i, term) in terms.iter().enumerate() {
         let clean = term.trim_matches('"').replace('"', "\"\"");
-        intersect_sqls.push(
-            "SELECT m.session_id FROM messages m WHERE m.id IN (SELECT rowid FROM msgs WHERE msgs MATCH ?)"
+        let mut cte = format!(
+            "t{i} AS (SELECT m.session_id AS sid, count(*) AS c FROM messages m \
+             WHERE m.id IN (SELECT rowid FROM msgs WHERE msgs MATCH ?)"
         );
         params.push(Box::new(format!("\"{clean}\"")));
+        if let Some(roles) = scope.roles {
+            cte.push_str(" AND m.role IN (");
+            for (j, role) in roles.iter().enumerate() {
+                if j > 0 {
+                    cte.push_str(", ");
+                }
+                cte.push('?');
+                params.push(Box::new(role.label().to_string()));
+            }
+            cte.push(')');
+        }
+        cte.push_str(" GROUP BY m.session_id)");
+        ctes.push(cte);
     }
-
-    let combined_intersect = intersect_sqls.join(" INTERSECT ");
+    let joins: String = (0..terms.len())
+        .map(|i| format!(" JOIN t{i} ON t{i}.sid = f.session_id"))
+        .collect();
+    let counts: Vec<String> = (0..terms.len()).map(|i| format!("t{i}.c")).collect();
+    // Relevance: sessions where even the rarest term comes up often rank
+    // first, then by total matches, then by recency.
+    let weakest = if counts.len() == 1 {
+        counts[0].clone()
+    } else {
+        format!("min({})", counts.join(", "))
+    };
     let mut sql = format!(
-        "SELECT f.session_id, f.tool, f.path, f.project, f.title, f.started, f.msg_count, f.kind, \
-                (f.archived_at IS NOT NULL), COALESCE(f.ended, f.started) \
-         FROM files f \
-         WHERE f.session_id IN ({combined_intersect})"
+        "WITH {} SELECT f.session_id, f.tool, f.path, f.project, f.title, f.started, f.msg_count, f.kind, \
+                (f.archived_at IS NOT NULL), COALESCE(f.ended, f.started), {TAGS_SQL} \
+         FROM files f{joins} WHERE 1=1",
+        ctes.join(", ")
     );
-    if let Some(t) = tool {
-        sql.push_str(" AND f.tool = ?");
-        params.push(Box::new(t.to_string()));
-    }
-    sql.push_str(" ORDER BY f.started DESC LIMIT ?");
+    push_session_scope(
+        &mut sql,
+        &mut params,
+        &SearchFilters {
+            tool,
+            project: None,
+            roles: None,
+            tag: scope.tag,
+            since: scope.since,
+            until: scope.until,
+        },
+    );
+    sql.push_str(&format!(
+        " ORDER BY {weakest} DESC, ({}) DESC, COALESCE(f.ended, f.started) DESC LIMIT ?",
+        counts.join(" + ")
+    ));
     params.push(Box::new(limit as i64));
 
     let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
@@ -2475,7 +2800,7 @@ pub fn search_sessions_multi_terms(
             kind: r.get(7)?,
             preview: None,
             summary: None,
-            tags: None,
+            tags: r.get(10)?,
             archived: r.get(8)?,
             parent_id: None,
             account: None,
@@ -2517,6 +2842,9 @@ pub fn search_like(
             tool,
             project,
             roles: None,
+            tag: None,
+            since: None,
+            until: None,
         },
     )
 }
@@ -2557,14 +2885,7 @@ fn search_like_terms(
         " x JOIN files f ON f.session_id = x.sid
          WHERE 1=1",
     );
-    if let Some(t) = filters.tool {
-        sql.push_str(" AND f.tool = ?");
-        args.push(Box::new(t.to_string()));
-    }
-    if let Some(p) = filters.project {
-        sql.push_str(" AND f.project LIKE ?");
-        args.push(Box::new(format!("%{}%", crate::util::nfc(p))));
-    }
+    push_session_scope(&mut sql, &mut args, &filters);
     sql.push_str(&format!(
         " GROUP BY f.session_id ORDER BY max(x.mid) DESC LIMIT {limit}"
     ));
@@ -3968,6 +4289,129 @@ mod native_id_tests {
         row2.path = "/x/opencode.db#s1".into();
         let v2 = serde_json::to_value(&row2).unwrap();
         assert!(v2["native_id"].is_null());
+    }
+}
+
+#[cfg(test)]
+mod listing_tests {
+    use super::*;
+
+    fn conn() -> Connection {
+        let c = Connection::open_in_memory().unwrap();
+        create_cache_schema(&c).unwrap();
+        c
+    }
+
+    fn session(c: &Connection, sid: &str, started: &str, ended: &str, msgs: i64) {
+        c.execute(
+            "INSERT INTO files(path, mtime, size, session_id, tool, started, ended, msg_count)
+             VALUES (?1, 1, 1, ?2, 'codex', ?3, ?4, ?5)",
+            params![format!("/{sid}.jsonl"), sid, started, ended, msgs],
+        )
+        .unwrap();
+    }
+
+    fn message(c: &Connection, sid: &str, role: &str, text: &str) {
+        c.execute(
+            "INSERT INTO messages(session_id, role, text) VALUES (?1, ?2, ?3)",
+            params![sid, role, text],
+        )
+        .unwrap();
+        c.execute(
+            "INSERT INTO msgs(rowid, text) VALUES (?1, ?2)",
+            params![c.last_insert_rowid(), text],
+        )
+        .unwrap();
+    }
+
+    fn ids(rows: &[SessionRow]) -> Vec<&str> {
+        rows.iter().map(|r| r.session_id.as_str()).collect()
+    }
+
+    #[test]
+    fn message_count_order_covers_sessions_beyond_the_limit_by_activity() {
+        let c = conn();
+        session(&c, "old-big", "2026-01-01T00:00:00+00:00", "2026-01-01T01:00:00+00:00", 900);
+        session(&c, "new-small", "2026-10-01T00:00:00+00:00", "2026-10-01T01:00:00+00:00", 3);
+        let by_msgs =
+            recent_range(&c, 1, None, None, None, false, None, None, SessionSort::Messages).unwrap();
+        assert_eq!(ids(&by_msgs), ["old-big"]);
+        let by_activity =
+            recent_range(&c, 1, None, None, None, false, None, None, SessionSort::LastActive).unwrap();
+        assert_eq!(ids(&by_activity), ["new-small"]);
+    }
+
+    #[test]
+    fn a_window_keeps_sessions_active_in_it_and_reads_browser_timestamps() {
+        let c = conn();
+        // Begun the day before, still going inside the window.
+        session(&c, "resumed", "2026-10-22T20:00:00+00:00", "2026-10-23T09:00:00.5+00:00", 5);
+        // Started exactly when the window opens (stored without fraction).
+        session(&c, "edge", "2026-10-22T21:00:00+00:00", "2026-10-22T21:00:00+00:00", 5);
+        session(&c, "before", "2026-10-20T10:00:00+00:00", "2026-10-20T11:00:00+00:00", 5);
+        // A local (UTC+3) day 2026-10-23, as the browser sends it.
+        let rows = recent_range(
+            &c,
+            50,
+            None,
+            None,
+            None,
+            false,
+            Some("2026-10-22T21:00:00.000Z"),
+            Some("2026-10-23T20:59:59.999Z"),
+            SessionSort::LastActive,
+        )
+        .unwrap();
+        assert_eq!(ids(&rows), ["resumed", "edge"]);
+    }
+
+    #[test]
+    fn search_applies_date_and_tag_before_the_limit() {
+        let c = conn();
+        session(&c, "recent", "2026-10-23T10:00:00+00:00", "2026-10-23T11:00:00+00:00", 1);
+        session(&c, "old", "2026-01-01T10:00:00+00:00", "2026-01-01T11:00:00+00:00", 1);
+        // The old session ranks first (two hits in one message).
+        message(&c, "old", "user", "migration migration plan");
+        message(&c, "recent", "user", "migration plan");
+        add_tag(&c, "recent", "db").unwrap();
+        let scope = SearchScope {
+            since: Some("2026-10-01"),
+            ..SearchScope::default()
+        };
+        let hits = search_scoped(&c, "migration", 1, None, None, scope).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].row.session_id, "recent");
+        let scope = SearchScope {
+            tag: Some("db"),
+            ..SearchScope::default()
+        };
+        let hits = search_scoped(&c, "migration", 10, None, None, scope).unwrap();
+        assert_eq!(hits.iter().map(|h| h.row.session_id.as_str()).collect::<Vec<_>>(), ["recent"]);
+    }
+
+    #[test]
+    fn multi_term_search_honours_roles_and_ranks_by_matches() {
+        let c = conn();
+        session(&c, "dense", "2026-01-01T10:00:00+00:00", "2026-01-01T11:00:00+00:00", 4);
+        session(&c, "sparse", "2026-10-01T10:00:00+00:00", "2026-10-01T11:00:00+00:00", 2);
+        session(&c, "toolonly", "2026-10-02T10:00:00+00:00", "2026-10-02T11:00:00+00:00", 2);
+        for _ in 0..2 {
+            message(&c, "dense", "user", "alpha topic");
+            message(&c, "dense", "assistant", "beta topic");
+        }
+        message(&c, "sparse", "user", "alpha topic");
+        message(&c, "sparse", "assistant", "beta topic");
+        message(&c, "toolonly", "tool", "alpha beta");
+        let rows = search_sessions_multi_terms(&c, &["alpha", "beta"], 10, None, SearchScope::default()).unwrap();
+        // Most matches first; equal counts fall back to the more recent session.
+        assert_eq!(ids(&rows), ["dense", "toolonly", "sparse"]);
+        let roles = [Role::User, Role::Assistant];
+        let scope = SearchScope {
+            roles: Some(&roles),
+            ..SearchScope::default()
+        };
+        let rows = search_sessions_multi_terms(&c, &["alpha", "beta"], 10, None, scope).unwrap();
+        assert_eq!(ids(&rows), ["dense", "sparse"]);
     }
 }
 

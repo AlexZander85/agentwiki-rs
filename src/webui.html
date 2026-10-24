@@ -3618,7 +3618,7 @@ function sortSessionRows(rows, sortMode, isSearch) {
         copy.sort((a, b) => {
           const tb = b.last_active || b.started || "";
           const ta = a.last_active || a.started || "";
-          return tb.localeCompare(ta);
+          return tb < ta ? -1 : tb > ta ? 1 : 0;
         });
       }
       break;
@@ -3627,7 +3627,7 @@ function sortSessionRows(rows, sortMode, isSearch) {
       copy.sort((a, b) => {
         const tb = b.started || "";
         const ta = a.started || "";
-        return tb.localeCompare(ta);
+        return tb < ta ? -1 : tb > ta ? 1 : 0;
       });
       break;
 
@@ -3635,7 +3635,7 @@ function sortSessionRows(rows, sortMode, isSearch) {
       copy.sort((a, b) => {
         const tb = b.last_active || b.started || "";
         const ta = a.last_active || a.started || "";
-        return tb.localeCompare(ta);
+        return tb < ta ? -1 : tb > ta ? 1 : 0;
       });
       break;
 
@@ -3646,7 +3646,7 @@ function sortSessionRows(rows, sortMode, isSearch) {
         if (mb !== ma) return mb - ma;
         const tb = b.last_active || b.started || "";
         const ta = a.last_active || a.started || "";
-        return tb.localeCompare(ta);
+        return tb < ta ? -1 : tb > ta ? 1 : 0;
       });
       break;
   }
@@ -4564,7 +4564,22 @@ function getDateBounds() {
     since = $("date-from").value || null;
     until = $("date-to").value || null;
   }
-  return { since, until, mode };
+  // The picked days are local calendar days, while sessions are stored in UTC:
+  // send the instants the local day starts and ends at, so a session begun at
+  // 01:00 local time is not filed under the previous (UTC) day.
+  const dayStart = (ymd) => {
+    const [y, m, d] = ymd.split("-").map(Number);
+    return new Date(y, m - 1, d, 0, 0, 0, 0).toISOString();
+  };
+  const dayEnd = (ymd) => {
+    const [y, m, d] = ymd.split("-").map(Number);
+    return new Date(y, m - 1, d, 23, 59, 59, 999).toISOString();
+  };
+  return {
+    since: since ? dayStart(since) : null,
+    until: until ? dayEnd(until) : null,
+    mode,
+  };
 }
 
 function updateDateUI() {
@@ -4675,6 +4690,11 @@ async function refresh() {
   const sParam = since ? `&since=${encodeURIComponent(since)}` : "";
   const uParam = until ? `&until=${encodeURIComponent(until)}` : "";
   const subParam = $("show-subagents-cb") && $("show-subagents-cb").checked ? "&subagents=1" : "";
+  const tagParam = currentTag ? `&tag=${encodeURIComponent(currentTag)}` : "";
+  // The listing is sorted by the server so "created" and "message count"
+  // cover every session, not just the 500 most recently active.
+  const sortMode = $("sort-mode") ? $("sort-mode").value : "last_active";
+  const sortParam = `&sort=${encodeURIComponent(sortMode === "relevance" ? "last_active" : sortMode)}`;
 
   const filePrefixMatch = inputVal.match(/^(?:file|path):(.+)$/i);
   const isRawFilePath = /^[a-zA-Z]:[\\/]/.test(inputVal) ||
@@ -4704,28 +4724,31 @@ async function refresh() {
     // Mode 3: Keyword filter chips via '+' -> cross-message session intersection!
     const sessionTermsParam = `&session_terms=${encodeURIComponent(searchKeywords.join(","))}`;
     const qParam = inputVal ? `&q=${encodeURIComponent(inputVal)}` : "";
-    items = await jget(`/api/search?limit=500${sessionTermsParam}${qParam}${t}${r}${sParam}${uParam}`);
+    items = await jget(`/api/search?limit=500${sessionTermsParam}${qParam}${t}${r}${tagParam}${sParam}${uParam}`);
   } else if (inputVal.length >= 2) {
     // Mode 1 & 2: Search bar input -> strictly within one message!
-    items = await jget(`/api/search?q=${encodeURIComponent(inputVal)}${t}${r}${sParam}${uParam}`);
+    items = await jget(`/api/search?q=${encodeURIComponent(inputVal)}${t}${r}${tagParam}${sParam}${uParam}`);
   } else if (currentTag) {
-    items = await jget(`/api/sessions?limit=500${t}&tag=${encodeURIComponent(currentTag)}${sParam}${uParam}${subParam}`);
+    items = await jget(`/api/sessions?limit=500${t}${tagParam}${sParam}${uParam}${subParam}${sortParam}`);
   } else {
-    items = await jget(`/api/sessions?limit=500${t}${sParam}${uParam}${subParam}`);
+    items = await jget(`/api/sessions?limit=500${t}${sParam}${uParam}${subParam}${sortParam}`);
   }
 
   if (currentOnlyFavorites) {
     items = items.filter((row) => favoriteSet.has(row.id));
   }
 
-  // Client-side date filter safeguard
+  // Client-side date filter for the modes the server does not filter by date
+  // (file trace). Same rule as the server: the session was active within the
+  // window - started before its end, last active after its start.
   if (since || until) {
+    const from = since ? Date.parse(since) : -Infinity;
+    const to = until ? Date.parse(until) : Infinity;
     items = items.filter((row) => {
       if (!row.started) return false;
-      const rowDay = row.started.slice(0, 10);
-      if (since && rowDay < since) return false;
-      if (until && rowDay > until) return false;
-      return true;
+      const start = Date.parse(row.started);
+      const last = Date.parse(row.last_active || row.started);
+      return start <= to && last >= from;
     });
   }
 
@@ -4793,7 +4816,9 @@ if ($("show-subagents-cb")) {
 if ($("sort-mode")) {
   $("sort-mode").addEventListener("change", () => {
     userHasCustomSort = true;
-    if (currentLoadedRows && currentLoadedRows.length) {
+    if (!currentIsSearch) {
+      refresh();
+    } else if (currentLoadedRows && currentLoadedRows.length) {
       renderItems(currentLoadedRows, currentIsSearch);
     }
   });
@@ -5939,12 +5964,17 @@ async function loadSnippets(query, lang) {
       filtered = filtered.filter((s) => s.lang && s.lang.toLowerCase() === lang.toLowerCase());
     }
     if (since || until) {
+      // Local calendar days: created_at is UTC, so compare instants.
+      const localDay = (ymd, end) => {
+        const [y, m, d] = ymd.split("-").map(Number);
+        return end ? new Date(y, m - 1, d, 23, 59, 59, 999).getTime() : new Date(y, m - 1, d).getTime();
+      };
+      const from = since ? localDay(since, false) : -Infinity;
+      const to = until ? localDay(until, true) : Infinity;
       filtered = filtered.filter((s) => {
         if (!s.created_at) return true;
-        const day = s.created_at.slice(0, 10);
-        if (since && day < since) return false;
-        if (until && day > until) return false;
-        return true;
+        const t = Date.parse(s.created_at);
+        return t >= from && t <= to;
       });
     }
 
