@@ -165,6 +165,14 @@ agentwiki doctor
 
 ---
 
+## 🙏 Acknowledgments & Credits
+
+AgentWiki stands on the shoulders of open-source excellence:
+- **[youdie006/sessionwiki](https://github.com/youdie006/sessionwiki)** &mdash; Sincere gratitude to the author of the original project for the rock-solid Rust foundation, the elegant SQLite FTS5 architecture, and the extensible adapter design for integrating diverse AI coding tools.
+- **[markdown-it](https://github.com/markdown-it/markdown-it)** &mdash; Huge thanks to the authors and maintainers of markdown-it for the lightning-fast, highly extensible, and rock-solid Markdown parser and rendering engine.
+
+---
+
 ## 📄 License
 
 Licensed under the [MIT License](LICENSE).
