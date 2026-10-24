@@ -294,7 +294,8 @@ impl OpenCode {
             started: created.and_then(DateTime::from_timestamp_millis),
             ended: updated.and_then(DateTime::from_timestamp_millis),
             title,
-            subagent: parent.is_some_and(|p| !p.is_empty()),
+            subagent: parent.as_ref().is_some_and(|p| !p.is_empty()),
+            parent_id: parent,
             messages,
             touched: dedup_paths(touched),
             edits,
@@ -403,7 +404,8 @@ impl OpenCode {
             started: created.and_then(DateTime::from_timestamp_millis),
             ended: updated.and_then(DateTime::from_timestamp_millis),
             title,
-            subagent: parent.is_some_and(|p| !p.is_empty()),
+            subagent: parent.as_ref().is_some_and(|p| !p.is_empty()),
+            parent_id: parent,
             messages,
             touched: dedup_paths(touched),
             edits: Vec::new(),
@@ -577,6 +579,7 @@ fn parse_json(tool: &'static str, path: &Path) -> Result<Session> {
         ended,
         title,
         subagent,
+        parent_id: None,
         messages,
         touched: dedup_paths(touched),
         edits: Vec::new(),
@@ -807,6 +810,7 @@ fn push(messages: &mut Vec<Message>, role: Role, text: &str, ts: Option<DateTime
             text: text.to_string(),
             ts,
             tool: None,
+            is_rewound: false,
         });
     }
 }
