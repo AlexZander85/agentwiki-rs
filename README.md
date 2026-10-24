@@ -23,11 +23,13 @@ Every day, coding agents like **Claude Code, Codex, Antigravity, OpenCode, Qoder
 
 **AgentWiki** unifies all your AI coding sessions into a single, blazing-fast, durable local database. It is delivered as a **single, dependency-free binary** containing:
 1. **A Native Desktop GUI** (powered by native OS WebViews &mdash; no heavy Electron or Chromium bundled).
-2. **Durable Agent Memory via MCP** (`save_memory` & `list_snippets` for Claude, Codex, Cursor, and Antigravity to remember architectural decisions across turns).
-3. **Microsecond Full-Text Search (FTS5 + Trigram)** across millions of messages and code changes.
-4. **Curated Knowledge Base & Bookmarks** with multi-filter sorting and language detection.
-5. **Activity Heatmap & Agent Analytics** (yearly contribution graph, hourly breakdown, agent share).
-6. **Code Provenance & AI Blame** tracing any modified line of code back to the conversation that created it.
+2. **One-Click & Scheduled Background Sync** (manual `🔄 Sync` button with spinner + background auto-sync every 10 minutes).
+3. **⭐ Favorites & Starred Sessions** (star crucial tasks, filter instantly with `⭐ Favorites (N)`, query via CLI & MCP).
+4. **Durable Agent Memory via MCP** (`save_memory` & `list_snippets` for Claude, Codex, Cursor, and Antigravity to remember architectural decisions across turns).
+5. **Microsecond Full-Text Search (FTS5 + Trigram)** across millions of messages and code changes.
+6. **Curated Knowledge Base & Bookmarks** with multi-filter sorting and language detection.
+7. **Activity Heatmap & Agent Analytics** (yearly contribution graph, hourly breakdown, agent share).
+8. **Code Provenance & AI Blame** tracing any modified line of code back to the conversation that created it.
 
 ---
 
@@ -38,32 +40,43 @@ Every day, coding agents like **Claude Code, Codex, Antigravity, OpenCode, Qoder
 - **Instant startup** (< 20ms) and minimal RAM usage (< 35 MB).
 - Compile once, run anywhere: Windows (`agentwiki-app.exe`), macOS, and Linux.
 
+### 🔄 One-Click Sync & Background Scheduled Auto-Sync
+- **Manual Sync (`🔄 Sync`)**: Real-time button right above the session list with animated spinner and `Last synced HH:MM` timestamp.
+- **Automated Periodic Sync (`Auto-sync (10m)`)**: Runs silently in the background every 10 minutes, indexing newly created agent turns without interrupting your workflow.
+- **Persistent State**: Auto-sync preferences and timestamps are saved in `localStorage`.
+
+### ⭐ Starred Sessions & Favorites Management
+- **One-Click Star / Unstar (`⭐`)**: Bookmark important debugging sessions, complex refactors, and architectural discussions.
+- **Instant Filter Chip**: Dedicated `⭐ Favorites (N)` quick-filter chip in the sidebar to isolate starred work with zero typing.
+- **Context Menu & CLI / MCP**: Right-click context menu (`Add to favorites`), CLI command (`agentwiki favorites`), and MCP tool (`list_favorites`).
+
 ### 🤖 14+ Agent Adapters Out of the Box
-Automatically locates and indexes sessions from:
+Automatically locates and indexes sessions from all major coding agents:
 - **Anthropic Claude Code** (`~/.claude/projects`)
-- **OpenAI Codex** (`~/.codex/sessions`)
+- **OpenAI Codex** (`~/.codex/sessions` & `thread_history_1.sqlite`)
 - **Google Antigravity IDE & CLI (`agy`)** (`~/.gemini/antigravity` & `~/.gemini/antigravity-cli`)
 - **OpenCode** (both **v1.x** SQLite/JSON and **v2.x** `session_v2` schemas)
 - **Qoder** (`AppData/Roaming/com.qoder.app.stable`)
 - **ZCode** (`~/.zcode/cli`)
 - **Cline, Roo Code, Kilo Code, Gajae Code** (`globalStorage`)
 - **DeepSeek Harness** (`~/.dsh/sessions`)
-- **Aider, Continue.dev, Hermes, GPT-me**, and more.
+- **Aider, Continue.dev, Hermes, Kimi, GPT-me**, and more.
 
 ### 🧠 Model Context Protocol (MCP) Durable Memory
 Empower your agents to remember solutions between independent tasks.
 - **`save_memory`**: Coding agents can store architectural invariants, debugging conclusions, and configurations directly into your local database.
 - **`list_snippets`**: Agents recall past solutions filtered by programming language, tags, or role (`assistant_memory`).
+- **`list_favorites`**: Agents can query only your starred, highest-priority sessions for authoritative context.
 
 ### 📊 Activity Heatmap & Analytics
-- **GitHub-style Contribution Graph**: 52-week heatmap showing session frequency and intensity.
+- **GitHub-style Contribution Graph**: 52-week heatmap showing session frequency and intensity with full Dark Mode support.
 - **24-Hour Circadian Distribution**: See when you and your agents are most active.
 - **Agent Market Share**: Visual breakdown of sessions handled by Claude vs Codex vs Antigravity vs OpenCode.
 - **Most Touched Files**: Top modified files across your entire project history.
 
 ### 📌 Bookmarks & Solution Snippets
 - Pin valuable code blocks, configurations, and prompts into a durable local knowledge base.
-- Filter by agent tool, message role, or date.
+- Filter by agent tool, message role (`assistant_memory`, `user`, `assistant`, `tool`), or date.
 - Sort by created time, original message date, relevance, title, or length.
 - Double-click to rename; one-click jump back to the exact turn in the original transcript.
 
@@ -105,6 +118,7 @@ Now your agents have direct, read-and-write access to your local knowledge base 
 - `search_sessions(query)` &mdash; search past solutions across all tools.
 - `save_memory(title, content, tags)` &mdash; save architectural decisions.
 - `list_snippets(role="assistant_memory")` &mdash; retrieve durable memories.
+- `list_favorites()` &mdash; retrieve starred reference sessions.
 
 ---
 
@@ -115,6 +129,12 @@ AgentWiki includes a comprehensive CLI alongside the desktop GUI:
 ```bash
 # Scan and report disk space used by AI coding agents
 agentwiki scan
+
+# Manually trigger index sync across all agent stores
+agentwiki sync
+
+# List starred / favorite sessions
+agentwiki favorites --json
 
 # Full-text search across all agent conversations
 agentwiki search "JWT authentication with RS256"
