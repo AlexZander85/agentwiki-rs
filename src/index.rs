@@ -2962,6 +2962,15 @@ pub fn save_snippet(
     Ok(conn.last_insert_rowid())
 }
 
+pub fn rename_snippet(conn: &Connection, id: i64, new_title: &str) -> Result<bool> {
+    ensure_snippets_table(conn)?;
+    let count = conn.execute(
+        "UPDATE snippets SET title = ?1 WHERE id = ?2",
+        params![new_title.trim(), id],
+    )?;
+    Ok(count > 0)
+}
+
 pub fn delete_snippet(conn: &Connection, id: i64) -> Result<bool> {
     ensure_snippets_table(conn)?;
     let count = conn.execute("DELETE FROM snippets WHERE id = ?1", params![id])?;

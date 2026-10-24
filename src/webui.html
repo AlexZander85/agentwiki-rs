@@ -1255,6 +1255,35 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     flex: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .snippet-card-title .title-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .snippet-card-title .title-edit-btn {
+    opacity: 0;
+    font-size: 10px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 1px 3px;
+    border-radius: 3px;
+    line-height: 1;
+    color: var(--ink-3);
+    transition: opacity 0.15s, color 0.15s, background 0.15s;
+    flex-shrink: 0;
+  }
+  .snippet-card:hover .snippet-card-title .title-edit-btn {
+    opacity: 0.65;
+  }
+  .snippet-card:hover .snippet-card-title .title-edit-btn:hover {
+    opacity: 1;
+    background: var(--card-subtle);
+    color: var(--ink);
   }
   .snippet-card-badges {
     display: flex;
@@ -2001,6 +2030,10 @@ const I18N = {
     sync: "Синхронизация", syncing: "Синхронизация...", autoSync: "Авто-синхронизация (10м)", synced: "синхронизировано", lastSynced: "Синхронизировано",
     ctxCopyMd: "Копировать как Markdown", ctxCopyText: "Копировать как текст", ctxSearchChat: "Искать в чате", ctxSearchGoogle: "Искать в Google",
     ctxPinSnippet: "📌 Сохранить выделение в сниппеты",
+    ctxRenameSnippet: "Переименовать", ctxDeleteSnippet: "Удалить сниппет",
+    ctxCopySnippetMd: "Копировать markdown", ctxExportSnippetMd: "Экспорт в md",
+    renameSnippetPrompt: "Введите новое название сниппета:", snippetRenamedToast: "✓ Сниппет переименован",
+    exportedSnippet: "Экспортирован", confirmDeleteSnippet: "Удалить сниппет \"%s\"?",
     copiedMd: "✓ Скопировано как Markdown", copiedText: "✓ Скопировано как текст",
     allDates: "все даты", today: "сегодня", yesterday: "вчера", singleDay: "один день…", dateRange: "диапазон дат…",
     lastActivePrefix: "посл.",
@@ -2062,6 +2095,10 @@ const I18N = {
     sync: "Sync", syncing: "Syncing...", autoSync: "Auto-sync (10m)", synced: "synced", lastSynced: "Last synced",
     ctxCopyMd: "Copy as Markdown", ctxCopyText: "Copy as plain text", ctxSearchChat: "Search in chat", ctxSearchGoogle: "Search in Google",
     ctxPinSnippet: "📌 Save selection to Snippets",
+    ctxRenameSnippet: "Rename snippet", ctxDeleteSnippet: "Delete snippet",
+    ctxCopySnippetMd: "Copy Markdown", ctxExportSnippetMd: "Export .md",
+    renameSnippetPrompt: "Enter new snippet title:", snippetRenamedToast: "✓ Snippet renamed",
+    exportedSnippet: "Exported", confirmDeleteSnippet: "Delete snippet \"%s\"?",
     copiedMd: "✓ Copied as Markdown", copiedText: "✓ Copied as text",
     allDates: "all dates", today: "today", yesterday: "yesterday", singleDay: "single day…", dateRange: "date range…",
     lastActivePrefix: "last",
@@ -2128,6 +2165,10 @@ const I18N = {
     sync: "동기화", syncing: "동기화 중...", autoSync: "자동 동기화 (10분)", synced: "동기화됨", lastSynced: "마지막 동기화",
     ctxCopyMd: "Markdown으로 복사", ctxCopyText: "일반 텍스트로 복사", ctxSearchChat: "이 대화에서 검색", ctxSearchGoogle: "Google에서 검색",
     ctxPinSnippet: "📌 선택 항목을 스니펫에 저장",
+    ctxRenameSnippet: "스니펫 이름 변경", ctxDeleteSnippet: "스니펫 삭제",
+    ctxCopySnippetMd: "Markdown 복사", ctxExportSnippetMd: ".md 내보내기",
+    renameSnippetPrompt: "새 스니펫 제목을 입력하세요:", snippetRenamedToast: "✓ 스니펫 이름이 변경되었습니다",
+    exportedSnippet: "내보냄", confirmDeleteSnippet: "스니펫 \"%s\"을(를) 삭제하시겠습니까?",
     copiedMd: "✓ Markdown으로 복사됨", copiedText: "✓ 텍스트로 복사됨",
     allDates: "모든 날짜", today: "오늘", yesterday: "어제", singleDay: "특정 날짜…", dateRange: "날짜 범위…",
     lastActivePrefix: "최근",
@@ -2189,6 +2230,10 @@ const I18N = {
     sync: "同期", syncing: "同期中...", autoSync: "自動同期 (10分)", synced: "同期済み", lastSynced: "最終同期",
     ctxCopyMd: "Markdownとしてコピー", ctxCopyText: "テキストとしてコピー", ctxSearchChat: "このチャット内を検索", ctxSearchGoogle: "Google で検索",
     ctxPinSnippet: "📌 選択範囲をスニペットに保存",
+    ctxRenameSnippet: "スニペットの名前を変更", ctxDeleteSnippet: "スニペットを削除",
+    ctxCopySnippetMd: "Markdownをコピー", ctxExportSnippetMd: ".mdエクスポート",
+    renameSnippetPrompt: "新しいスニペット名を入力してください:", snippetRenamedToast: "✓ スニペットの名前を変更しました",
+    exportedSnippet: "エクスポート完了", confirmDeleteSnippet: "スニペット \"%s\" を削除しますか？",
     copiedMd: "✓ Markdownとしてコピーしました", copiedText: "✓ テキストとしてコピーしました",
     allDates: "すべての日付", today: "今日", yesterday: "昨日", singleDay: "指定日…", dateRange: "期間指定…",
     lastActivePrefix: "最終",
@@ -2250,6 +2295,10 @@ const I18N = {
     sync: "同步", syncing: "同步中...", autoSync: "自动同步 (10分钟)", synced: "已同步", lastSynced: "上次同步",
     ctxCopyMd: "复制为 Markdown", ctxCopyText: "复制为纯文本", ctxSearchChat: "在当前对话中搜索", ctxSearchGoogle: "在 Google 中搜索",
     ctxPinSnippet: "📌 将选中文本保存为代码片段",
+    ctxRenameSnippet: "重命名代码片段", ctxDeleteSnippet: "删除代码片段",
+    ctxCopySnippetMd: "复制 Markdown", ctxExportSnippetMd: "导出 .md",
+    renameSnippetPrompt: "输入新的代码片段标题:", snippetRenamedToast: "✓ 代码片段已重命名",
+    exportedSnippet: "已导出", confirmDeleteSnippet: "确定删除代码片段 \"%s\" 吗？",
     copiedMd: "✓ 已复制为 Markdown", copiedText: "✓ 已复制为文本",
     allDates: "所有日期", today: "今天", yesterday: "昨天", singleDay: "指定日期…", dateRange: "日期范围…",
     lastActivePrefix: "最后",
@@ -4382,6 +4431,75 @@ function hideContextMenu() {
   if (menu) menu.style.display = "none";
 }
 
+async function promptRenameSnippet(snip) {
+  if (!snip) return;
+  const cur = snip.title || "Snippet";
+  const next = prompt(L.renameSnippetPrompt || "Enter new snippet title:", cur);
+  if (next && next.trim() && next.trim() !== cur) {
+    try {
+      const res = await jpost("/api/snippet/rename", { id: snip.id, title: next.trim() });
+      if (res && res.ok) {
+        snip.title = next.trim();
+        showToast(L.snippetRenamedToast || "✓ Snippet renamed");
+        loadSnippets($("snippet-q")?.value || "", snippetsSelectedLang);
+      }
+    } catch (err) {
+      showToast("Failed to rename snippet");
+    }
+  }
+}
+
+async function copySnippetMarkdown(snip) {
+  if (!snip) return;
+  try {
+    await navigator.clipboard.writeText(snip.content);
+    showToast(L.copiedMd || "✓ Copied as Markdown");
+  } catch (err) {
+    showToast("Failed to copy snippet");
+  }
+}
+
+function exportSnippetMarkdown(snip) {
+  if (!snip) return;
+  const cleanTitle = (snip.title || "snippet")
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
+    .slice(0, 60)
+    .trim();
+  const filename = `${cleanTitle || "snippet"}.md`;
+  const content = `# ${snip.title || "Snippet"}\n\n${snip.content}\n`;
+  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+  const a = document.createElement("a");
+  a.download = filename;
+  a.href = URL.createObjectURL(blob);
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  showToast("✓ " + (L.exportedSnippet || "Exported") + " " + filename);
+}
+
+async function deleteSnippet(snip) {
+  if (!snip) return;
+  const confirmMsg = (L.confirmDeleteSnippet || 'Delete snippet "%s"?').replace("%s", snip.title || "Snippet");
+  if (confirm(confirmMsg)) {
+    try {
+      await jget(`/api/snippet/delete?id=${snip.id}`);
+      showToast(L.snippetUnpinnedToast || "Snippet removed");
+      refreshSnippetsBadge();
+      loadSnippets($("snippet-q")?.value || "", snippetsSelectedLang);
+      if (currentSession && currentSession.id === snip.session_id) {
+        const pinBtn = document.querySelector(`#msg-${snip.message_idx} .msg-pin-btn`);
+        if (pinBtn) {
+          pinBtn.classList.remove("pinned");
+          pinBtn.innerHTML = pinBtnHtml(false);
+        }
+      }
+    } catch (err) {
+      showToast("Failed to delete snippet");
+    }
+  }
+}
+
 function setupContextMenu() {
   const menu = $("custom-context-menu");
   if (!menu) return;
@@ -4410,6 +4528,56 @@ function setupContextMenu() {
       hideContextMenu();
       return;
     }
+
+    const snippetCard = e.target.closest(".snippet-card");
+    if (snippetCard && snippetCard.snipData) {
+      e.preventDefault();
+      activeSnippetTarget = snippetCard.snipData;
+      activeSessionTarget = null;
+      activeFileTarget = null;
+      activeSelectionText = "";
+
+      if ($("ctx-fav-session")) $("ctx-fav-session").style.display = "none";
+      if ($("ctx-brief-session")) $("ctx-brief-session").style.display = "none";
+      if ($("ctx-export-session")) $("ctx-export-session").style.display = "none";
+      if ($("ctx-forget-session")) $("ctx-forget-session").style.display = "none";
+      if ($("ctx-divider-session")) $("ctx-divider-session").style.display = "none";
+      if ($("ctx-find-file")) $("ctx-find-file").style.display = "none";
+      if ($("ctx-copy-path")) $("ctx-copy-path").style.display = "none";
+      if ($("ctx-pin-snippet")) $("ctx-pin-snippet").style.display = "none";
+      if ($("ctx-copy-md")) $("ctx-copy-md").style.display = "none";
+      if ($("ctx-copy-text")) $("ctx-copy-text").style.display = "none";
+      if ($("ctx-divider-top")) $("ctx-divider-top").style.display = "none";
+      if ($("ctx-divider-bot")) $("ctx-divider-bot").style.display = "none";
+      if ($("ctx-search-chat")) $("ctx-search-chat").style.display = "none";
+      if ($("ctx-search-google")) $("ctx-search-google").style.display = "none";
+
+      if ($("ctx-rename-snippet")) {
+        $("ctx-rename-snippet").style.display = "flex";
+        $("ctx-rename-snippet-label").textContent = L.ctxRenameSnippet || "Rename snippet";
+      }
+      if ($("ctx-copy-snippet-md")) {
+        $("ctx-copy-snippet-md").style.display = "flex";
+        $("ctx-copy-snippet-md-label").textContent = L.ctxCopySnippetMd || "Copy Markdown";
+      }
+      if ($("ctx-export-snippet-md")) {
+        $("ctx-export-snippet-md").style.display = "flex";
+        $("ctx-export-snippet-md-label").textContent = L.ctxExportSnippetMd || "Export .md";
+      }
+      if ($("ctx-delete-snippet")) {
+        $("ctx-delete-snippet").style.display = "flex";
+        $("ctx-delete-snippet-label").textContent = L.ctxDeleteSnippet || "Delete snippet";
+      }
+
+      showMenuAt(e.clientX, e.clientY);
+      return;
+    }
+
+    if ($("ctx-rename-snippet")) $("ctx-rename-snippet").style.display = "none";
+    if ($("ctx-copy-snippet-md")) $("ctx-copy-snippet-md").style.display = "none";
+    if ($("ctx-export-snippet-md")) $("ctx-export-snippet-md").style.display = "none";
+    if ($("ctx-delete-snippet")) $("ctx-delete-snippet").style.display = "none";
+
 
     const sessionItem = e.target.closest(".item[data-id]");
     if (sessionItem) {
@@ -4535,6 +4703,27 @@ function setupContextMenu() {
   document.addEventListener("scroll", hideContextMenu, true);
 
   // Favorite session context click
+  // Snippet Context Menu actions
+  $("ctx-rename-snippet")?.addEventListener("click", () => {
+    hideContextMenu();
+    if (activeSnippetTarget) promptRenameSnippet(activeSnippetTarget);
+  });
+
+  $("ctx-copy-snippet-md")?.addEventListener("click", () => {
+    hideContextMenu();
+    if (activeSnippetTarget) copySnippetMarkdown(activeSnippetTarget);
+  });
+
+  $("ctx-export-snippet-md")?.addEventListener("click", () => {
+    hideContextMenu();
+    if (activeSnippetTarget) exportSnippetMarkdown(activeSnippetTarget);
+  });
+
+  $("ctx-delete-snippet")?.addEventListener("click", () => {
+    hideContextMenu();
+    if (activeSnippetTarget) deleteSnippet(activeSnippetTarget);
+  });
+
   $("ctx-fav-session")?.addEventListener("click", async () => {
     if (activeSessionTarget) {
       const sId = activeSessionTarget.id;
@@ -4971,9 +5160,25 @@ async function loadSnippets(query, lang) {
       const card = el("div", "snippet-card");
       card.onclick = () => jumpToSnippet(snip.session_id, snip.message_idx);
 
+      card.dataset.snippetId = snip.id;
+      card.snipData = snip;
+
       const head = el("div", "snippet-card-head");
-      const title = el("div", "snippet-card-title", snip.title || "Snippet");
-      title.title = snip.title;
+      const title = el("div", "snippet-card-title");
+      const titleText = el("span", "title-text", snip.title || "Snippet");
+      titleText.title = snip.title || "Snippet";
+      const editBtn = el("button", "title-edit-btn", "✏️");
+      editBtn.type = "button";
+      editBtn.title = L.ctxRenameSnippet || "Rename snippet";
+      editBtn.onclick = (e) => {
+        e.stopPropagation();
+        promptRenameSnippet(snip);
+      };
+      title.ondblclick = (e) => {
+        e.stopPropagation();
+        promptRenameSnippet(snip);
+      };
+      title.append(titleText, editBtn);
       head.appendChild(title);
 
       const badges = el("div", "snippet-card-badges");
@@ -5000,46 +5205,6 @@ async function loadSnippets(query, lang) {
         time.title = `${L.lastActivePrefix || "msg"}: ${fmtDateTime(snip.message_ts)} · saved: ${fmtDateTime(snip.created_at)}`;
       }
       foot.appendChild(time);
-
-      const actions = el("div", "snippet-card-actions");
-      const copyBtn = el("button", "snippet-btn-action", "📋 " + (L.copyPasted || "Copy"));
-      copyBtn.type = "button";
-      copyBtn.title = L.copyCode || "Copy snippet";
-      copyBtn.onclick = async (e) => {
-        e.stopPropagation();
-        try {
-          await navigator.clipboard.writeText(snip.content);
-          copyBtn.textContent = "✓ " + (L.copied || "Copied");
-          setTimeout(() => { copyBtn.textContent = "📋 " + (L.copyPasted || "Copy"); }, 1200);
-        } catch (err) {}
-      };
-
-      const delBtn = el("button", "snippet-btn-action del", "🗑️");
-      delBtn.type = "button";
-      delBtn.title = L.unpinSnippet || "Delete snippet";
-      delBtn.onclick = async (e) => {
-        e.stopPropagation();
-        if (confirm("Delete snippet \"" + (snip.title || "Snippet") + "\"?")) {
-          try {
-            await jget(`/api/snippet/delete?id=${snip.id}`);
-            showToast(L.snippetUnpinnedToast || "Snippet removed");
-            refreshSnippetsBadge();
-            loadSnippets($("snippet-q")?.value || "", snippetsSelectedLang);
-            if (currentSession && currentSession.id === snip.session_id) {
-              const pinBtn = document.querySelector(`#msg-${snip.message_idx} .msg-pin-btn`);
-              if (pinBtn) {
-                pinBtn.classList.remove("pinned");
-                pinBtn.innerHTML = pinBtnHtml(false);
-              }
-            }
-          } catch (err) {
-            showToast("Failed to delete snippet");
-          }
-        }
-      };
-
-      actions.append(copyBtn, delBtn);
-      foot.appendChild(actions);
       card.appendChild(foot);
       list.appendChild(card);
     }
@@ -5245,6 +5410,22 @@ function setupSnippetsControls() {
   <div class="menu-item" id="ctx-forget-session" style="display: none;">
     <span class="menu-icon">🗑️</span>
     <span class="menu-label" id="ctx-forget-session-label">Delete from index</span>
+  </div>
+  <div class="menu-item" id="ctx-rename-snippet" style="display: none;">
+    <span class="menu-icon">✏️</span>
+    <span class="menu-label" id="ctx-rename-snippet-label">Rename snippet</span>
+  </div>
+  <div class="menu-item" id="ctx-copy-snippet-md" style="display: none;">
+    <span class="menu-icon">📋</span>
+    <span class="menu-label" id="ctx-copy-snippet-md-label">Copy Markdown</span>
+  </div>
+  <div class="menu-item" id="ctx-export-snippet-md" style="display: none;">
+    <span class="menu-icon">💾</span>
+    <span class="menu-label" id="ctx-export-snippet-md-label">Export .md</span>
+  </div>
+  <div class="menu-item" id="ctx-delete-snippet" style="display: none;">
+    <span class="menu-icon">🗑️</span>
+    <span class="menu-label" id="ctx-delete-snippet-label">Delete snippet</span>
   </div>
   <div class="menu-separator" id="ctx-divider-session" style="display: none;"></div>
   <div class="menu-item" id="ctx-find-file" style="display: none;">

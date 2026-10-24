@@ -73,6 +73,7 @@ pub fn serve(port: u16, no_open: bool, sync: bool) -> Result<()> {
             "/api/snippets" => api_snippets(&conn, query),
             "/api/snippet/save" => api_snippet_save(&conn, &mut request, query),
             "/api/snippet/delete" => api_snippet_delete(&conn, query),
+            "/api/snippet/rename" => api_snippet_rename(&conn, &mut request, query),
             p if p.starts_with("/api/related/") => {
                 api_related(&conn, p.trim_start_matches("/api/related/"))
             }
@@ -485,6 +486,25 @@ fn api_snippet_delete(conn: &Connection, query: &str) -> Result<Boxed> {
         .context("invalid id")?;
     let ok = index::delete_snippet(conn, id)?;
     json_response(json!({ "ok": ok, "id": id }))
+}
+
+fn api_snippet_rename(conn: &Connection, req: &mut tiny_http::Request, query: &str) -> Result<Boxed> {
+    let mut body = String::new();
+    let _ = req.as_reader().read_to_string(&mut body);
+    let json_body: Option<serde_json::Value> = serde_json::from_str(&body).ok();
+
+    let id: i64 = json_body.as_ref()
+        .and_then(|v| v.get("id").and_then(|n| n.as_i64()))
+        .or_else(|| param(query, "id").and_then(|s| s.parse().ok()))
+        .context("missing id")?;
+
+    let title = json_body.as_ref()
+        .and_then(|v| v.get("title").and_then(|s| s.as_str()).map(String::from))
+        .or_else(|| param(query, "title"))
+        .context("missing title")?;
+
+    let ok = index::rename_snippet(conn, id, &title)?;
+    json_response(json!({ "ok": ok, "id": id, "title": title }))
 }
 
 fn api_snippet_save(conn: &Connection, req: &mut tiny_http::Request, query: &str) -> Result<Boxed> {
