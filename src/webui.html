@@ -1101,6 +1101,315 @@
     border-color: var(--accent);
   }
 
+  /* Sidebar Modes (Sessions vs Snippets Segmented Switcher) */
+  .sidebar-modes {
+    display: flex;
+    padding: 0 14px 10px;
+    gap: 6px;
+  }
+  .mode-tab {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 5px 8px;
+    font-size: 11.5px;
+    font-weight: 500;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink-2);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .mode-tab:hover {
+    background: var(--card-subtle);
+    color: var(--ink);
+  }
+  .mode-tab.active {
+    background: var(--card-subtle);
+    color: var(--ink);
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  .snippets-badge {
+    background: var(--line);
+    color: var(--ink-1);
+    font-size: 10px;
+    padding: 0px 5px;
+    border-radius: 10px;
+    font-weight: 600;
+  }
+  .mode-tab.active .snippets-badge {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  /* Snippets Container & Cards */
+  .snippets-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .snippets-controls {
+    padding: 0 14px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .snippet-lang-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding-top: 2px;
+  }
+  .snippet-lang-chip {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink-2);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .snippet-lang-chip:hover {
+    background: var(--card-subtle);
+    color: var(--ink);
+  }
+  .snippet-lang-chip.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .snippets-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .empty-snippets {
+    text-align: center;
+    padding: 30px 14px;
+    color: var(--ink-2);
+  }
+  .snippet-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 9px 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    cursor: pointer;
+  }
+  .snippet-card:hover {
+    border-color: var(--line-strong);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  }
+  .snippet-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .snippet-card-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+  .snippet-card-badges {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .snippet-card-badge {
+    font-size: 9.5px;
+    font-family: var(--font-mono);
+    background: var(--card-subtle);
+    border: 1px solid var(--line);
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: var(--ink-2);
+  }
+  .snippet-card-badge.role-user {
+    background: rgba(34, 197, 94, 0.1);
+    border-color: rgba(34, 197, 94, 0.3);
+    color: #16a34a;
+  }
+  .snippet-card-badge.role-assistant {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.3);
+    color: #2563eb;
+  }
+  .snippet-card-badge.role-tool {
+    background: rgba(168, 85, 247, 0.1);
+    border-color: rgba(168, 85, 247, 0.3);
+    color: #9333ea;
+  }
+  .snippet-card-badge.tool {
+    background: var(--card-subtle);
+    color: var(--ink-2);
+    font-weight: 500;
+  }
+  .snippet-card-lang {
+    font-size: 9.5px;
+    font-family: var(--font-mono);
+    background: var(--card-subtle);
+    border: 1px solid var(--line);
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: var(--ink-2);
+    text-transform: uppercase;
+  }
+  .snippet-card-code {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.4;
+    background: var(--card-subtle);
+    border-radius: 4px;
+    padding: 6px 8px;
+    max-height: 85px;
+    overflow: hidden;
+    color: var(--ink-1);
+    white-space: pre-wrap;
+    word-break: break-all;
+    position: relative;
+  }
+  .snippet-card-code::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 20px;
+    background: linear-gradient(transparent, var(--card-subtle));
+    pointer-events: none;
+  }
+  .snippet-card-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 10.5px;
+    color: var(--ink-3);
+    margin-top: 1px;
+  }
+  .snippet-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .snippet-btn-action {
+    background: transparent;
+    border: none;
+    font-size: 11px;
+    color: var(--ink-2);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all 0.15s;
+  }
+  .snippet-btn-action:hover {
+    background: var(--hover);
+    color: var(--ink);
+  }
+  .snippet-btn-action.del:hover {
+    color: #e53e3e;
+  }
+
+  /* Pin Button on Assistant Messages */
+  .msg-pin-btn {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink-2);
+    cursor: pointer;
+    opacity: 0.6;
+    transition: all 0.15s ease;
+  }
+  .msg:hover .msg-pin-btn {
+    opacity: 1;
+  }
+  .msg-pin-btn:hover {
+    background: var(--card-subtle);
+    color: var(--ink);
+    border-color: var(--line-strong);
+  }
+  .msg-pin-btn.pinned {
+    opacity: 1;
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.4);
+    color: #b45309;
+  }
+  [data-theme="dark"] .msg-pin-btn.pinned {
+    background: rgba(245, 158, 11, 0.2);
+    border-color: rgba(245, 158, 11, 0.5);
+    color: #fbbf24;
+  }
+
+  /* Pin button on code pre blocks */
+  .msg .body pre .pin-code-btn {
+    position: absolute;
+    top: 6px;
+    right: 76px;
+    font-size: 11px;
+    padding: 2px 7px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    color: var(--ink-2);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s;
+    user-select: none;
+    z-index: 2;
+  }
+  .msg .body pre:hover .pin-code-btn {
+    opacity: 1;
+  }
+  .msg .body pre .pin-code-btn:hover {
+    background: var(--card-subtle);
+    color: var(--ink);
+  }
+  .msg .body pre .pin-code-btn.pinned {
+    color: #b45309;
+    border-color: rgba(245, 158, 11, 0.4);
+    background: rgba(245, 158, 11, 0.12);
+  }
+  [data-theme="dark"] .msg .body pre .pin-code-btn.pinned {
+    color: #fbbf24;
+    border-color: rgba(245, 158, 11, 0.5);
+    background: rgba(245, 158, 11, 0.2);
+  }
+
+  /* Highlight pulse when jumping to a snippet */
+  @keyframes highlight-pulse-anim {
+    0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.8); }
+    50% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0.35); }
+    100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+  }
+  .highlight-pulse {
+    animation: highlight-pulse-anim 1.8s ease-out;
+    border-radius: 8px;
+  }
+
   /* Clean GFM Tables (GitHub/MDHero Grid style with clear column dividers) */
   .table-wrap {
     width: 100%;
@@ -1414,7 +1723,15 @@
       </label>
       <span id="last-sync-time" class="last-sync-time" title="Last sync timestamp"></span>
     </div>
-    <div class="controls">
+    <div class="sidebar-modes">
+      <button type="button" class="mode-tab active" id="tab-sessions" data-mode="sessions">
+        <span>💬</span> <span id="tab-sessions-label">Sessions</span>
+      </button>
+      <button type="button" class="mode-tab" id="tab-snippets" data-mode="snippets">
+        <span>📌</span> <span id="tab-snippets-label">Snippets</span> <span id="snippets-badge" class="snippets-badge" style="display:none">0</span>
+      </button>
+    </div>
+    <div class="controls" id="session-controls">
       <div class="filter-row">
         <select id="tool" aria-label="Filter by tool">
           <option value="">all tools</option>
@@ -1462,6 +1779,55 @@
       <div id="available-tags" class="available-tags-row" style="display:none"></div>
     </div>
     <nav id="list"></nav>
+    <div id="snippets-container" class="snippets-container" style="display:none">
+      <div class="controls" id="snippet-controls">
+        <div class="filter-row">
+          <select id="snippet-tool" aria-label="Filter by tool">
+            <option value="">all tools</option>
+          </select>
+          <select id="snippet-role" aria-label="Filter by message role">
+            <option value="">all message roles</option>
+            <option value="user,assistant">user and assistant</option>
+            <option value="user">user messages</option>
+            <option value="assistant">assistant replies</option>
+            <option value="tool">tool output</option>
+          </select>
+        </div>
+        <div class="filter-row" style="margin-top: 6px;">
+          <select id="snippet-date-mode" aria-label="Filter by date">
+            <option value="all">all dates</option>
+            <option value="today">today</option>
+            <option value="yesterday">yesterday</option>
+            <option value="single">single day&hellip;</option>
+            <option value="range">date range&hellip;</option>
+          </select>
+          <select id="snippet-sort-mode" aria-label="Sort snippets by">
+            <option value="created" selected>📅 created date</option>
+            <option value="message_ts">🕒 message date</option>
+            <option value="relevance">🎯 relevance</option>
+            <option value="title">🔤 title A-Z</option>
+            <option value="length">📏 length</option>
+          </select>
+        </div>
+        <div class="date-row" id="snippet-date-custom-row" style="margin-top: 6px; display: none;">
+          <div id="snippet-date-single-wrap" class="date-input-wrap">
+            <input type="date" id="snippet-date-single" class="date-input" title="Choose day">
+          </div>
+          <div id="snippet-date-range-wrap" class="date-input-wrap">
+            <input type="date" id="snippet-date-from" class="date-input" title="From date">
+            <span style="font-size:11px;color:var(--ink-3)">&ndash;</span>
+            <input type="date" id="snippet-date-to" class="date-input" title="To date">
+          </div>
+          <button id="snippet-date-clear" class="date-clear-btn" title="Reset date filter">&times;</button>
+        </div>
+        <div class="searchwrap">
+          <svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="5"/><path d="m11 11 3.5 3.5"/></svg>
+          <input type="search" id="snippet-q" placeholder="Search pinned snippets..." autocomplete="off">
+        </div>
+        <div id="snippet-lang-chips" class="snippet-lang-chips" style="display:none"></div>
+      </div>
+      <div id="snippets-list" class="snippets-list"></div>
+    </div>
     <div class="sidefoot">
       <div class="hint-row">
         <span class="hint" id="hint">read-only view &middot; refresh: sessionwiki list</span>
@@ -1557,9 +1923,10 @@ const I18N = {
     themeDark: "Dark", themeLight: "Light",
     stats: (s, t, b) => `${s} sessions · ${t} tools · ${b}`,
     exportMd: "Export session to Markdown (.md)", exportMdBtn: "Export .md", exported: "Saved!",
-    sortRelevance: "🎯 relevance", sortCreated: "📅 created date", sortLastActive: "🕒 last message", sortMsgs: "💬 message count",
+    sortRelevance: "🎯 relevance", sortCreated: "📅 created date", sortLastActive: "🕒 last message", sortMessageTs: "🕒 message date", sortMsgs: "💬 message count",
     sync: "Sync", syncing: "Syncing...", autoSync: "Auto-sync (10m)", synced: "synced", lastSynced: "Last synced",
     ctxCopyMd: "Copy as Markdown", ctxCopyText: "Copy as plain text", ctxSearchChat: "Search in chat", ctxSearchGoogle: "Search in Google",
+    ctxPinSnippet: "📌 Save selection to Snippets",
     copiedMd: "✓ Copied as Markdown", copiedText: "✓ Copied as text",
     allDates: "all dates", today: "today", yesterday: "yesterday", singleDay: "single day…", dateRange: "date range…",
     lastActivePrefix: "last",
@@ -1573,9 +1940,21 @@ const I18N = {
     deletedFromIndex: "✓ Session deleted from index",
     aiBriefBtn: "AI Brief", aiBriefTip: "Copy condensed markdown briefing for Claude / Cursor / agents",
     copiedBrief: (t) => `✓ Copied AI Brief (~${t} tokens)`, filterFavoritesChip: (n) => `⭐ Favorites (${n})`,
-    pastedContent: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Вставленный фрагмент" : "Pasted content",
-    copyPasted: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Копировать" : "Copy",
-    copiedPasted: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Скопировано" : "Copied",
+    pastedContent: "Pasted content",
+    copyPasted: "Copy",
+    copiedPasted: "Copied",
+    snippetsTab: "Snippets",
+    sessionsTab: "Sessions",
+    searchSnippets: "Search pinned snippets...",
+    pinSnippet: "Pin snippet to Knowledge Base",
+    unpinSnippet: "Unpin snippet",
+    pinnedSnippet: "Pinned",
+    pinSnippetBtn: "Pin",
+    snippetPinnedToast: "📌 Snippet saved to Knowledge Base",
+    snippetUnpinnedToast: "Snippet removed from Knowledge Base",
+    noSnippets: "No pinned snippets yet.",
+    noSnippetsSub: "Click 📌 Pin on assistant messages or code blocks to save key solutions here.",
+    allLangs: "All",
   },
   ko: {
     loading: "인덱스 불러오는 중…",
@@ -1610,9 +1989,10 @@ const I18N = {
     themeDark: "다크", themeLight: "라이트",
     stats: (s, t, b) => `세션 ${s} · 툴 ${t} · ${b}`,
     exportMd: "세션을 Markdown(.md)으로 내보내기", exportMdBtn: ".md 내보내기", exported: "저장됨!",
-    sortRelevance: "🎯 관련도순", sortCreated: "📅 생성일순", sortLastActive: "🕒 최근 메시지순", sortMsgs: "💬 메시지 수순",
+    sortRelevance: "🎯 관련도순", sortCreated: "📅 생성일순", sortLastActive: "🕒 최근 메시지순", sortMessageTs: "🕒 메시지 일시순", sortMsgs: "💬 메시지 수순",
     sync: "동기화", syncing: "동기화 중...", autoSync: "자동 동기화 (10분)", synced: "동기화됨", lastSynced: "마지막 동기화",
     ctxCopyMd: "Markdown으로 복사", ctxCopyText: "일반 텍스트로 복사", ctxSearchChat: "이 대화에서 검색", ctxSearchGoogle: "Google에서 검색",
+    ctxPinSnippet: "📌 선택 항목을 스니펫에 저장",
     copiedMd: "✓ Markdown으로 복사됨", copiedText: "✓ 텍스트로 복사됨",
     allDates: "모든 날짜", today: "오늘", yesterday: "어제", singleDay: "특정 날짜…", dateRange: "날짜 범위…",
     lastActivePrefix: "최근",
@@ -1627,6 +2007,15 @@ const I18N = {
     aiBriefBtn: "AI 브리프", aiBriefTip: "Claude / Cursor용 요약 Markdown 브리핑 복사",
     copiedBrief: (t) => `✓ AI 브리프 복사됨 (~${t} 토큰)`, filterFavoritesChip: (n) => `⭐ 즐겨찾기 (${n})`,
     pastedContent: "붙여넣은 내용", copyPasted: "복사", copiedPasted: "복사됨",
+    snippetsTab: "스니펫", sessionsTab: "세션",
+    searchSnippets: "고정된 스니펫 검색...",
+    pinSnippet: "지식 베이스에 스니펫 고정", unpinSnippet: "스니펫 고정 해제",
+    pinnedSnippet: "고정됨", pinSnippetBtn: "고정",
+    snippetPinnedToast: "📌 스니펫이 지식 베이스에 저장되었습니다",
+    snippetUnpinnedToast: "스니펫이 지식 베이스에서 삭제되었습니다",
+    noSnippets: "고정된 스니펫이 없습니다.",
+    noSnippetsSub: "어시스턴트 메시지나 코드 블록의 📌 고정 버튼을 눌러 중요한 솔루션을 여기에 저장하세요.",
+    allLangs: "전체",
   },
   ja: {
     loading: "インデックスを読み込み中…",
@@ -1661,9 +2050,10 @@ const I18N = {
     themeDark: "ダーク", themeLight: "ライト",
     stats: (s, t, b) => `セッション ${s} · ツール ${t} · ${b}`,
     exportMd: "セッションをMarkdown(.md)にエクスポート", exportMdBtn: ".md エクスポート", exported: "保存完了!",
-    sortRelevance: "🎯 関連度順", sortCreated: "📅 作成日時順", sortLastActive: "🕒 最終メッセージ順", sortMsgs: "💬 メッセージ数順",
+    sortRelevance: "🎯 関連度順", sortCreated: "📅 作成日時順", sortLastActive: "🕒 最終メッセージ順", sortMessageTs: "🕒 メッセージ日時順", sortMsgs: "💬 メッセージ数順",
     sync: "同期", syncing: "同期中...", autoSync: "自動同期 (10分)", synced: "同期済み", lastSynced: "最終同期",
     ctxCopyMd: "Markdownとしてコピー", ctxCopyText: "テキストとしてコピー", ctxSearchChat: "このチャット内を検索", ctxSearchGoogle: "Google で検索",
+    ctxPinSnippet: "📌 選択範囲をスニペットに保存",
     copiedMd: "✓ Markdownとしてコピーしました", copiedText: "✓ テキストとしてコピーしました",
     allDates: "すべての日付", today: "今日", yesterday: "昨日", singleDay: "指定日…", dateRange: "期間指定…",
     lastActivePrefix: "最終",
@@ -1678,6 +2068,15 @@ const I18N = {
     aiBriefBtn: "AI ブリーフ", aiBriefTip: "Claude / Cursor用の要約Markdownブリーフをコピー",
     copiedBrief: (t) => `✓ AI ブリーフをコピーしました (~${t} トークン)`, filterFavoritesChip: (n) => `⭐ お気に入り (${n})`,
     pastedContent: "貼り付けられたコンテンツ", copyPasted: "コピー", copiedPasted: "コピー完了",
+    snippetsTab: "スニペット", sessionsTab: "セッション",
+    searchSnippets: "固定されたスニペットを検索...",
+    pinSnippet: "ナレッジベースにスニペットを保存", unpinSnippet: "スニペットの保存を解除",
+    pinnedSnippet: "固定済み", pinSnippetBtn: "固定",
+    snippetPinnedToast: "📌 スニペットをナレッジベースに保存しました",
+    snippetUnpinnedToast: "スニペットをナレッジベースから削除しました",
+    noSnippets: "固定されたスニペットはありません。",
+    noSnippetsSub: "アシスタントメッセージやコードブロックの 📌 ボタンを押して重要な解決策を保存してください。",
+    allLangs: "すべて",
   },
   zh: {
     loading: "正在加载索引…",
@@ -1712,9 +2111,10 @@ const I18N = {
     themeDark: "深色", themeLight: "浅色",
     stats: (s, t, b) => `${s} 个会话 · ${t} 个工具 · ${b}`,
     exportMd: "导出会话为 Markdown (.md)", exportMdBtn: "导出 .md", exported: "已保存!",
-    sortRelevance: "🎯 相关度", sortCreated: "📅 创建时间", sortLastActive: "🕒 最后消息", sortMsgs: "💬 消息数量",
+    sortRelevance: "🎯 相关度", sortCreated: "📅 创建时间", sortLastActive: "🕒 最后消息", sortMessageTs: "🕒 消息时间", sortMsgs: "💬 消息数量",
     sync: "同步", syncing: "同步中...", autoSync: "自动同步 (10分钟)", synced: "已同步", lastSynced: "上次同步",
     ctxCopyMd: "复制为 Markdown", ctxCopyText: "复制为纯文本", ctxSearchChat: "在当前对话中搜索", ctxSearchGoogle: "在 Google 中搜索",
+    ctxPinSnippet: "📌 将选中文本保存为代码片段",
     copiedMd: "✓ 已复制为 Markdown", copiedText: "✓ 已复制为文本",
     allDates: "所有日期", today: "今天", yesterday: "昨天", singleDay: "指定日期…", dateRange: "日期范围…",
     lastActivePrefix: "最后",
@@ -1729,10 +2129,22 @@ const I18N = {
     aiBriefBtn: "AI 简报", aiBriefTip: "复制适用于 Claude / Cursor 的 Markdown 简报",
     copiedBrief: (t) => `✓ 已复制 AI 简报 (~${t} 词元)`, filterFavoritesChip: (n) => `⭐ 收藏夹 (${n})`,
     pastedContent: "粘贴的内容", copyPasted: "复制", copiedPasted: "已复制",
+    snippetsTab: "代码片段", sessionsTab: "会话",
+    searchSnippets: "搜索收藏的代码片段...",
+    pinSnippet: "收藏代码片段到知识库", unpinSnippet: "取消收藏代码片段",
+    pinnedSnippet: "已收藏", pinSnippetBtn: "收藏",
+    snippetPinnedToast: "📌 代码片段已保存至知识库",
+    snippetUnpinnedToast: "代码片段已从知识库删除",
+    noSnippets: "暂无收藏的代码片段。",
+    noSnippetsSub: "点击助理消息或代码块上的 📌 按钮，将关键解决方案保存至此处。",
+    allLangs: "全部",
   },
 };
-const lang = localStorage.getItem("sdx-lang")
-  || ((navigator.language || "en").slice(0, 2) in I18N ? (navigator.language || "en").slice(0, 2) : "en");
+let savedLang = localStorage.getItem("sdx-lang");
+const navLang = (typeof navigator !== "undefined" && navigator.language ? navigator.language : "en").toLowerCase();
+const lang = (savedLang && savedLang in I18N)
+  ? savedLang
+  : (navLang.slice(0, 2) in I18N ? navLang.slice(0, 2) : "en");
 const L = I18N[lang] || I18N.en;
 document.documentElement.lang = lang;
 
@@ -1992,6 +2404,34 @@ function applyStaticStrings() {
   if ($("ctx-brief-session-label")) $("ctx-brief-session-label").textContent = L.aiBriefBtn || "Copy AI Brief";
   if ($("ctx-export-session-label")) $("ctx-export-session-label").textContent = L.exportMdBtn || "Export .md";
   if ($("ctx-forget-session-label")) $("ctx-forget-session-label").textContent = L.deleteFromIndex || "Delete from index";
+  if ($("tab-sessions-label")) $("tab-sessions-label").textContent = L.sessionsTab || "Sessions";
+  if ($("tab-snippets-label")) $("tab-snippets-label").textContent = L.snippetsTab || "Snippets";
+  if ($("snippet-q")) $("snippet-q").placeholder = L.searchSnippets || "Search pinned snippets...";
+  if ($("snippet-tool") && $("snippet-tool").options.length > 0) {
+    $("snippet-tool").options[0].textContent = L.allTools;
+  }
+  if ($("snippet-role")) {
+    $("snippet-role").options[0].textContent = L.allRoles;
+    $("snippet-role").options[1].textContent = L.conversationRoles;
+    $("snippet-role").options[2].textContent = L.userRole;
+    $("snippet-role").options[3].textContent = L.assistantRole;
+    $("snippet-role").options[4].textContent = L.toolRole;
+  }
+  if ($("snippet-date-mode")) {
+    $("snippet-date-mode").options[0].textContent = L.allDates || "all dates";
+    $("snippet-date-mode").options[1].textContent = L.today || "today";
+    $("snippet-date-mode").options[2].textContent = L.yesterday || "yesterday";
+    $("snippet-date-mode").options[3].textContent = L.singleDay || "single day…";
+    $("snippet-date-mode").options[4].textContent = L.dateRange || "date range…";
+  }
+  if ($("snippet-sort-mode")) {
+    $("snippet-sort-mode").options[0].textContent = L.sortCreated || "📅 created date";
+    $("snippet-sort-mode").options[1].textContent = L.sortMessageTs || "🕒 message date";
+    $("snippet-sort-mode").options[2].textContent = L.sortRelevance || "🎯 relevance";
+    $("snippet-sort-mode").options[3].textContent = L.sortTitle || "🔤 title A-Z";
+    $("snippet-sort-mode").options[4].textContent = L.sortLength || "📏 length";
+  }
+  if ($("ctx-pin-snippet-label")) $("ctx-pin-snippet-label").textContent = L.ctxPinSnippet || "Save selection to Snippets";
   for (const b of $("langmenu").children) {
     b.setAttribute("aria-selected", b.dataset.lang === lang ? "true" : "false");
   }
@@ -2018,6 +2458,7 @@ $("langbtn").onclick = (e) => {
 for (const b of $("langmenu").children) {
   b.onclick = () => {
     localStorage.setItem("sdx-lang", b.dataset.lang);
+    localStorage.setItem("sdx-lang-explicit", "1");
     location.reload();
   };
 }
@@ -2045,6 +2486,16 @@ $("recentbtn").onclick = () => showRecentView();
 /* ---------- helpers ---------- */
 async function jget(url) {
   const r = await fetch(url);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+async function jpost(url, data) {
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
@@ -2153,6 +2604,48 @@ function postProcessMarkdown(container) {
       };
       pre.appendChild(copyBtn);
     }
+    if (!pre.querySelector(".pin-code-btn")) {
+      const pinBtn = document.createElement("button");
+      pinBtn.className = "pin-code-btn";
+      pinBtn.type = "button";
+      pinBtn.title = L.pinSnippet || "📌 Pin code snippet";
+      pinBtn.textContent = "📌 Pin";
+      pinBtn.onclick = async (e) => {
+        e.stopPropagation();
+        const code = pre.querySelector("code")?.textContent || pre.textContent;
+        const msgEl = pre.closest(".msg") || pre.closest(".toolrow");
+        const msgIdx = parseInt(msgEl?.dataset.msgIdx || "0", 10);
+        const msgRole = msgEl?.dataset.role || (msgEl?.classList.contains("user") ? "user" : (msgEl?.classList.contains("toolrow") ? "tool" : "assistant"));
+        const tool = currentSession?.tool || null;
+        const msgTs = currentSession?.messages?.[msgIdx]?.ts || currentSession?.started || currentSession?.ended || null;
+        const langMatch = (pre.querySelector("code")?.className || "").match(/language-([a-zA-Z0-9_\-#+]+)/);
+        const lang = langMatch ? langMatch[1].toLowerCase() : "";
+        const title = (currentSession?.title || "Snippet") + (lang ? " (" + lang + ")" : "");
+        try {
+          const res = await jpost("/api/snippet/save", {
+            session_id: currentSession?.id,
+            message_idx: msgIdx,
+            title: title,
+            lang: lang || null,
+            content: code,
+            tags: lang || null,
+            tool: tool,
+            role: msgRole,
+            message_ts: msgTs,
+          });
+          if (res && res.ok) {
+            pinBtn.textContent = "✓ Pinned";
+            pinBtn.classList.add("pinned");
+            showToast(L.snippetPinnedToast || "📌 Snippet saved to Knowledge Base");
+            refreshSnippetsBadge();
+            if (currentSidebarMode === "snippets") loadSnippets();
+          }
+        } catch (err) {
+          showToast("Failed to save snippet");
+        }
+      };
+      pre.appendChild(pinBtn);
+    }
   });
 
   // Wrap tables in responsive container for smooth horizontal scrolling
@@ -2208,7 +2701,7 @@ function renderRichMarkdown(rawText, container) {
       badge.className = "pasted-content-badge";
       const badgeLabel = (typeof L !== "undefined" && L.pastedContent)
         ? L.pastedContent
-        : ((typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Вставленный фрагмент" : "Pasted content");
+        : "Pasted content";
       const copyLabel = (typeof L !== "undefined" && L.copyPasted) ? L.copyPasted : "Copy";
       const copiedLabel = (typeof L !== "undefined" && L.copiedPasted) ? L.copiedPasted : "Copied";
 
@@ -2788,11 +3281,26 @@ function renderCurrentSession(keepScroll) {
   window.currentLazyObserver = lazyObserver;
 
   const EAGER_MSG_COUNT = 30; // First 30 messages render eagerly for instant zero-lag open
+  const pinnedSet = new Set((s.pinned_indices || []).map(Number));
 
   for (let vi = 0; vi < visibleMessages.length; vi++) {
-    const { m } = visibleMessages[vi];
+    const { m, origIndex } = visibleMessages[vi];
+    const msgIdx = origIndex != null ? origIndex : vi;
     if (m.role === "tool") {
       const row = el("div", "toolrow");
+      row.dataset.msgIdx = msgIdx;
+      row.dataset.role = "tool";
+      row.id = "msg-" + msgIdx;
+      const isPinned = pinnedSet.has(Number(msgIdx));
+      const pinBtn = el("button", "msg-pin-btn tool-pin-btn" + (isPinned ? " pinned" : ""));
+      pinBtn.type = "button";
+      pinBtn.title = isPinned ? (L.unpinSnippet || "Unpin from Snippets") : (L.pinSnippet || "📌 Pin snippet to Knowledge Base");
+      pinBtn.innerHTML = isPinned ? "📌 <span>" + (L.pinnedSnippet || "Pinned") + "</span>" : "📌 <span>" + (L.pinSnippetBtn || "Pin") + "</span>";
+      pinBtn.onclick = async (e) => {
+        e.stopPropagation();
+        await togglePinMessage(s, msgIdx, m.text, pinBtn, pinnedSet, "tool", m.ts);
+      };
+      row.appendChild(pinBtn);
       const sum = el("summary", "", m.text.split("\n")[0].slice(0, 140));
       const summary = m.tool?.kind === "summary" ? m.tool.value : null;
       const compact = m.text.startsWith("→ ") && m.text.includes(" ⇒ ") && !m.text.includes("\n");
@@ -2811,6 +3319,9 @@ function renderCurrentSession(keepScroll) {
     }
     const wrap = el("div", "msg " + m.role);
     wrap.dataset.rawText = m.text;
+    wrap.dataset.msgIdx = msgIdx;
+    wrap.dataset.role = m.role || "assistant";
+    wrap.id = "msg-" + msgIdx;
     const av = el("div", "avatar", m.role === "user" ? "U" : "A");
     if (m.ts) av.title = fmtDateTime(m.ts);
     const content = el("div", "content");
@@ -2819,6 +3330,16 @@ function renderCurrentSession(keepScroll) {
     if (m.ts) {
       whoEl.appendChild(el("span", "msg-time", " · " + fmtDateTime(m.ts)));
     }
+    const isPinned = pinnedSet.has(Number(msgIdx));
+    const pinBtn = el("button", "msg-pin-btn" + (isPinned ? " pinned" : ""));
+    pinBtn.type = "button";
+    pinBtn.title = isPinned ? (L.unpinSnippet || "Unpin from Snippets") : (L.pinSnippet || "📌 Pin snippet to Knowledge Base");
+    pinBtn.innerHTML = isPinned ? "📌 <span>" + (L.pinnedSnippet || "Pinned") + "</span>" : "📌 <span>" + (L.pinSnippetBtn || "Pin") + "</span>";
+    pinBtn.onclick = async (e) => {
+      e.stopPropagation();
+      await togglePinMessage(s, msgIdx, m.text, pinBtn, pinnedSet, m.role || "assistant", m.ts);
+    };
+    whoEl.appendChild(pinBtn);
     content.appendChild(whoEl);
     const body = el("div", "body");
 
@@ -3552,6 +4073,8 @@ async function loadStats() {
   }
   let sessions = 0, bytes = 0;
   const existingTools = new Set(Array.from($("tool").options).map((o) => o.value));
+  const snippetToolSelect = $("snippet-tool");
+  const existingSnippetTools = snippetToolSelect ? new Set(Array.from(snippetToolSelect.options).map((o) => o.value)) : new Set();
   for (const t of stats.tools) {
     sessions += t.sessions;
     bytes += t.bytes;
@@ -3559,6 +4082,11 @@ async function loadStats() {
       const opt = el("option", "", t.tool);
       opt.value = t.tool;
       $("tool").appendChild(opt);
+    }
+    if (snippetToolSelect && !existingSnippetTools.has(t.tool)) {
+      const opt = el("option", "", t.tool);
+      opt.value = t.tool;
+      snippetToolSelect.appendChild(opt);
     }
   }
   $("stats").textContent =
@@ -3714,6 +4242,7 @@ function setupContextMenu() {
   let activeSelectionMd = "";
   let activeFileTarget = null;
   let activeSessionTarget = null;
+  let activeSnippetTarget = null;
 
   function showMenuAt(clientX, clientY) {
     menu.style.display = "block";
@@ -3742,6 +4271,7 @@ function setupContextMenu() {
       activeSessionTarget = { id: sId, title, element: sessionItem };
       activeFileTarget = null;
       activeSelectionText = "";
+      activeSnippetTarget = null;
 
       if ($("ctx-find-file")) $("ctx-find-file").style.display = "none";
       if ($("ctx-copy-path")) $("ctx-copy-path").style.display = "none";
@@ -3749,6 +4279,7 @@ function setupContextMenu() {
       if ($("ctx-copy-text")) $("ctx-copy-text").style.display = "none";
       if ($("ctx-search-chat")) $("ctx-search-chat").style.display = "none";
       if ($("ctx-search-google")) $("ctx-search-google").style.display = "none";
+      if ($("ctx-pin-snippet")) $("ctx-pin-snippet").style.display = "none";
       if ($("ctx-divider-top")) $("ctx-divider-top").style.display = "none";
       if ($("ctx-divider-bot")) $("ctx-divider-bot").style.display = "none";
       if ($("ctx-divider-session")) $("ctx-divider-session").style.display = "none";
@@ -3790,6 +4321,7 @@ function setupContextMenu() {
       activeFileTarget = chip.title || chip.textContent.trim();
       activeSelectionText = activeFileTarget;
       activeSelectionMd = activeFileTarget;
+      activeSnippetTarget = null;
 
       if ($("ctx-find-file")) $("ctx-find-file").style.display = "flex";
       if ($("ctx-copy-path")) $("ctx-copy-path").style.display = "flex";
@@ -3797,6 +4329,7 @@ function setupContextMenu() {
       if ($("ctx-copy-md")) $("ctx-copy-md").style.display = selectedText ? "flex" : "none";
       if ($("ctx-copy-text")) $("ctx-copy-text").style.display = selectedText ? "flex" : "none";
       if ($("ctx-search-chat")) $("ctx-search-chat").style.display = "none";
+      if ($("ctx-pin-snippet")) $("ctx-pin-snippet").style.display = "none";
       if ($("ctx-divider-top")) $("ctx-divider-top").style.display = selectedText ? "block" : "none";
       if ($("ctx-divider-bot")) $("ctx-divider-bot").style.display = "block";
 
@@ -3812,13 +4345,30 @@ function setupContextMenu() {
       const looksLikeFile = !selectedText.includes("\n") && selectedText.length < 250 && /[\.\/\\]/.test(selectedText);
       activeFileTarget = looksLikeFile ? selectedText : null;
 
+      const msgRow = e.target.closest("[data-msg-idx]") ||
+                     sel?.anchorNode?.parentElement?.closest("[data-msg-idx]");
+      const msgIdx = msgRow ? parseInt(msgRow.dataset.msgIdx, 10) || 0 : 0;
+      const msgRole = msgRow?.dataset?.role ||
+                     (msgRow?.classList?.contains("user") ? "user" :
+                     (msgRow?.classList?.contains("toolrow") ? "tool" : "assistant"));
+      const msgTs = currentSession?.messages?.[msgIdx]?.ts || currentSession?.started || currentSession?.ended || null;
+      activeSnippetTarget = {
+        sessionId: currentSession ? currentSession.id : null,
+        messageIdx: msgIdx,
+        text: selectedText,
+        role: msgRole,
+        tool: currentSession?.tool || null,
+        messageTs: msgTs,
+      };
+
       if ($("ctx-find-file")) $("ctx-find-file").style.display = activeFileTarget ? "flex" : "none";
       if ($("ctx-copy-path")) $("ctx-copy-path").style.display = activeFileTarget ? "flex" : "none";
       if ($("ctx-copy-md")) $("ctx-copy-md").style.display = "flex";
       if ($("ctx-copy-text")) $("ctx-copy-text").style.display = "flex";
       if ($("ctx-search-chat")) $("ctx-search-chat").style.display = "flex";
       if ($("ctx-search-google")) $("ctx-search-google").style.display = "flex";
-      if ($("ctx-divider-top")) $("ctx-divider-top").style.display = activeFileTarget ? "block" : "none";
+      if ($("ctx-pin-snippet")) $("ctx-pin-snippet").style.display = currentSession ? "flex" : "none";
+      if ($("ctx-divider-top")) $("ctx-divider-top").style.display = (activeFileTarget || currentSession) ? "block" : "none";
       if ($("ctx-divider-bot")) $("ctx-divider-bot").style.display = "block";
 
       showMenuAt(e.clientX, e.clientY);
@@ -3968,6 +4518,44 @@ function setupContextMenu() {
     hideContextMenu();
   });
 
+  // Save selection to snippets context click
+  $("ctx-pin-snippet")?.addEventListener("click", async () => {
+    if (activeSnippetTarget && activeSnippetTarget.sessionId && activeSnippetTarget.text) {
+      const text = activeSnippetTarget.text;
+      const sId = activeSnippetTarget.sessionId;
+      const msgIdx = activeSnippetTarget.messageIdx;
+      const fenceMatch = text.match(/```([a-zA-Z0-9_\-#+]+)/);
+      const detectedLang = fenceMatch ? fenceMatch[1].toLowerCase() : (text.includes("SELECT ") || text.includes("FROM ") ? "sql" : (text.startsWith("{") || text.startsWith("[") ? "json" : (text.includes("function") || text.includes("const ") || text.includes("let ") ? "js" : "text")));
+      const lines = text.trim().split("\n");
+      const firstLine = lines[0].replace(/^[#*\s`>-]+/, "").trim();
+      const title = firstLine ? firstLine.slice(0, 60) : (currentSession?.title || "Snippet");
+
+      try {
+        const res = await jpost("/api/snippet/save", {
+          session_id: sId,
+          message_idx: msgIdx,
+          title: title,
+          lang: detectedLang,
+          content: text,
+          tags: detectedLang !== "text" && detectedLang !== "markdown" ? detectedLang : null,
+          tool: activeSnippetTarget.tool,
+          role: activeSnippetTarget.role || "assistant",
+          message_ts: activeSnippetTarget.messageTs,
+        });
+        if (res && res.ok) {
+          showToast(L.snippetPinnedToast || "📌 Snippet saved to Knowledge Base");
+          refreshSnippetsBadge();
+          if (currentSidebarMode === "snippets") loadSnippets();
+        } else {
+          showToast("Failed to save snippet");
+        }
+      } catch (err) {
+        showToast("Failed to save snippet");
+      }
+    }
+    hideContextMenu();
+  });
+
   // Search in chat click
   $("ctx-search-chat")?.addEventListener("click", () => {
     const selText = activeSelectionText || (window.getSelection()?.toString().trim() || "");
@@ -4043,6 +4631,443 @@ function setupSyncControls() {
   manageAutoSync(savedAuto);
 }
 
+/* ---------- snippets & knowledge base ---------- */
+let currentSidebarMode = "sessions"; // "sessions" | "snippets"
+let snippetsSelectedLang = "";
+let snippetSearchTimer = null;
+
+function switchSidebarMode(mode) {
+  currentSidebarMode = mode;
+  const tabSessions = $("tab-sessions");
+  const tabSnippets = $("tab-snippets");
+  const sessionControls = $("session-controls") || document.querySelector("#sidebar > .controls");
+  const list = $("list");
+  const snippetsContainer = $("snippets-container");
+  const sidefootHint = $("hint");
+  const sidefootCount = $("list-count");
+
+  if (mode === "snippets") {
+    tabSessions?.classList.remove("active");
+    tabSnippets?.classList.add("active");
+    if (sessionControls) sessionControls.style.display = "none";
+    if (list) list.style.display = "none";
+    if (snippetsContainer) snippetsContainer.style.display = "flex";
+    if (sidefootHint) sidefootHint.style.display = "none";
+    if (sidefootCount) sidefootCount.style.display = "none";
+    loadSnippets($("snippet-q")?.value || "", snippetsSelectedLang);
+  } else {
+    tabSessions?.classList.add("active");
+    tabSnippets?.classList.remove("active");
+    if (sessionControls) sessionControls.style.display = "";
+    if (list) list.style.display = "";
+    if (snippetsContainer) snippetsContainer.style.display = "none";
+    if (sidefootHint) sidefootHint.style.display = "";
+    if (sidefootCount) sidefootCount.style.display = "";
+  }
+}
+
+async function refreshSnippetsBadge() {
+  try {
+    const snips = await jget("/api/snippets?limit=200");
+    const badge = $("snippets-badge");
+    if (badge && snips && Array.isArray(snips)) {
+      if (snips.length > 0) {
+        badge.textContent = snips.length;
+        badge.style.display = "inline-block";
+      } else {
+        badge.style.display = "none";
+      }
+    }
+  } catch (e) {}
+}
+
+function getSnippetDateBounds() {
+  const mode = $("snippet-date-mode")?.value || "all";
+  let since = null;
+  let until = null;
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const toYMD = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+  if (mode === "today") {
+    since = toYMD(now);
+    until = toYMD(now);
+  } else if (mode === "yesterday") {
+    const y = new Date(now.getTime() - 86400000);
+    since = toYMD(y);
+    until = toYMD(y);
+  } else if (mode === "single") {
+    const val = $("snippet-date-single")?.value;
+    if (val) {
+      since = val;
+      until = val;
+    }
+  } else if (mode === "range") {
+    since = $("snippet-date-from")?.value || null;
+    until = $("snippet-date-to")?.value || null;
+  }
+  return { since, until, mode };
+}
+
+function updateSnippetDateUI() {
+  const mode = $("snippet-date-mode")?.value || "all";
+  const singleWrap = $("snippet-date-single-wrap");
+  const rangeWrap = $("snippet-date-range-wrap");
+  const clearBtn = $("snippet-date-clear");
+  const customRow = $("snippet-date-custom-row");
+
+  const isCustom = (mode === "single" || mode === "range");
+  if (customRow) customRow.style.display = isCustom ? "flex" : "none";
+  singleWrap?.classList.toggle("active", mode === "single");
+  rangeWrap?.classList.toggle("active", mode === "range");
+  clearBtn?.classList.toggle("active", mode !== "all");
+}
+
+async function loadSnippets(query, lang) {
+  const list = $("snippets-list");
+  if (!list) return;
+  list.innerHTML = `<div class="file-hist-empty">${L.loading || "Loading snippets..."}</div>`;
+  try {
+    const selectedTool = $("snippet-tool")?.value || "";
+    const selectedRole = $("snippet-role")?.value || "";
+    let url = "/api/snippets?limit=300";
+    if (query) url += "&q=" + encodeURIComponent(query);
+    if (selectedTool) url += "&tool=" + encodeURIComponent(selectedTool);
+    if (selectedRole) url += "&role=" + encodeURIComponent(selectedRole);
+    if (lang) url += "&lang=" + encodeURIComponent(lang);
+    const snips = await jget(url);
+    if (!snips) {
+      list.innerHTML = `<div class="file-hist-empty">${L.loadFailed || "Failed to load snippets"}</div>`;
+      return;
+    }
+
+    renderSnippetLangChips(snips);
+
+    const { since, until } = getSnippetDateBounds();
+    let filtered = Array.isArray(snips) ? [...snips] : [];
+
+    // Client-side filtering
+    if (selectedTool) {
+      filtered = filtered.filter((s) => s.tool && s.tool.toLowerCase() === selectedTool.toLowerCase());
+    }
+    if (selectedRole) {
+      if (selectedRole === "user,assistant") {
+        filtered = filtered.filter((s) => s.role === "user" || s.role === "assistant");
+      } else {
+        filtered = filtered.filter((s) => s.role && s.role.toLowerCase() === selectedRole.toLowerCase());
+      }
+    }
+    if (lang) {
+      filtered = filtered.filter((s) => s.lang && s.lang.toLowerCase() === lang.toLowerCase());
+    }
+    if (since || until) {
+      filtered = filtered.filter((s) => {
+        if (!s.created_at) return true;
+        const day = s.created_at.slice(0, 10);
+        if (since && day < since) return false;
+        if (until && day > until) return false;
+        return true;
+      });
+    }
+
+    const sortMode = $("snippet-sort-mode")?.value || "created";
+    if (sortMode === "message_ts") {
+      filtered.sort((a, b) => {
+        const tsA = a.message_ts || a.created_at || "";
+        const tsB = b.message_ts || b.created_at || "";
+        const cmp = tsB.localeCompare(tsA);
+        if (cmp !== 0) return cmp;
+        return (b.id || 0) - (a.id || 0);
+      });
+    } else if (sortMode === "title") {
+      filtered.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+    } else if (sortMode === "length") {
+      filtered.sort((a, b) => (b.content?.length || 0) - (a.content?.length || 0));
+    } else if (sortMode === "relevance" && query) {
+      const qLower = query.toLowerCase();
+      const score = (s) => {
+        let sc = 0;
+        const t = (s.title || "").toLowerCase();
+        const c = (s.content || "").toLowerCase();
+        if (t === qLower) sc += 100;
+        else if (t.startsWith(qLower)) sc += 50;
+        else if (t.includes(qLower)) sc += 20;
+        if (c.includes(qLower)) sc += 10;
+        return sc;
+      };
+      filtered.sort((a, b) => score(b) - score(a));
+    } else {
+      filtered.sort((a, b) => {
+        if (b.created_at && a.created_at) {
+          const cmp = b.created_at.localeCompare(a.created_at);
+          if (cmp !== 0) return cmp;
+        }
+        return (b.id || 0) - (a.id || 0);
+      });
+    }
+
+    if (!filtered.length) {
+      const isFiltered = !!(query || lang || selectedTool || selectedRole || since || until);
+      list.innerHTML = `
+        <div class="empty-snippets">
+          <div style="font-size: 28px; margin-bottom: 8px;">📌</div>
+          <div style="font-weight: 600; color: var(--ink); margin-bottom: 4px;">${isFiltered ? (L.noMatches || "No matches.") : (L.noSnippets || "No pinned snippets yet.")}</div>
+          <div style="font-size: 11.5px; color: var(--ink-2); line-height: 1.4;">${isFiltered ? "" : (L.noSnippetsSub || "Click 📌 Pin on messages or code blocks to save key solutions here.")}</div>
+        </div>
+      `;
+      return;
+    }
+
+    list.replaceChildren();
+    for (const snip of filtered) {
+      const card = el("div", "snippet-card");
+      card.onclick = () => jumpToSnippet(snip.session_id, snip.message_idx);
+
+      const head = el("div", "snippet-card-head");
+      const title = el("div", "snippet-card-title", snip.title || "Snippet");
+      title.title = snip.title;
+      head.appendChild(title);
+
+      const badges = el("div", "snippet-card-badges");
+      if (snip.role) {
+        badges.appendChild(el("span", "snippet-card-badge role-" + snip.role, snip.role));
+      }
+      if (snip.tool) {
+        badges.appendChild(el("span", "snippet-card-badge tool", snip.tool));
+      }
+      if (snip.lang) {
+        badges.appendChild(el("span", "snippet-card-lang", snip.lang));
+      }
+      head.appendChild(badges);
+      card.appendChild(head);
+
+      const previewText = snip.content.length > 300 ? snip.content.slice(0, 300) + "…" : snip.content;
+      const codePreview = el("div", "snippet-card-code", previewText);
+      card.appendChild(codePreview);
+
+      const foot = el("div", "snippet-card-foot");
+      const displayTs = snip.message_ts || snip.created_at;
+      const time = el("span", "snippet-card-time", displayTs ? fmtDate(displayTs) : "");
+      if (snip.message_ts && snip.created_at) {
+        time.title = `${L.lastActivePrefix || "msg"}: ${fmtDateTime(snip.message_ts)} · saved: ${fmtDateTime(snip.created_at)}`;
+      }
+      foot.appendChild(time);
+
+      const actions = el("div", "snippet-card-actions");
+      const copyBtn = el("button", "snippet-btn-action", "📋 " + (L.copyPasted || "Copy"));
+      copyBtn.type = "button";
+      copyBtn.title = L.copyCode || "Copy snippet";
+      copyBtn.onclick = async (e) => {
+        e.stopPropagation();
+        try {
+          await navigator.clipboard.writeText(snip.content);
+          copyBtn.textContent = "✓ " + (L.copied || "Copied");
+          setTimeout(() => { copyBtn.textContent = "📋 " + (L.copyPasted || "Copy"); }, 1200);
+        } catch (err) {}
+      };
+
+      const delBtn = el("button", "snippet-btn-action del", "🗑️");
+      delBtn.type = "button";
+      delBtn.title = L.unpinSnippet || "Delete snippet";
+      delBtn.onclick = async (e) => {
+        e.stopPropagation();
+        if (confirm("Delete snippet \"" + (snip.title || "Snippet") + "\"?")) {
+          try {
+            await jget(`/api/snippet/delete?id=${snip.id}`);
+            showToast(L.snippetUnpinnedToast || "Snippet removed");
+            refreshSnippetsBadge();
+            loadSnippets($("snippet-q")?.value || "", snippetsSelectedLang);
+            if (currentSession && currentSession.id === snip.session_id) {
+              const pinBtn = document.querySelector(`#msg-${snip.message_idx} .msg-pin-btn`);
+              if (pinBtn) {
+                pinBtn.classList.remove("pinned");
+                pinBtn.innerHTML = "📌 <span>" + (L.pinSnippetBtn || "Pin") + "</span>";
+              }
+            }
+          } catch (err) {
+            showToast("Failed to delete snippet");
+          }
+        }
+      };
+
+      actions.append(copyBtn, delBtn);
+      foot.appendChild(actions);
+      card.appendChild(foot);
+      list.appendChild(card);
+    }
+  } catch (e) {
+    list.innerHTML = `<div class="file-hist-empty">${L.loadFailed || "Failed to load snippets"}</div>`;
+  }
+}
+
+function renderSnippetLangChips(allSnippets) {
+  const container = $("snippet-lang-chips");
+  const select = $("snippet-lang-select");
+  const langs = new Set();
+  allSnippets.forEach((s) => {
+    if (s.lang) langs.add(s.lang.toLowerCase());
+  });
+
+  if (select) {
+    const currentVal = snippetsSelectedLang || select.value;
+    select.replaceChildren();
+    const optAll = el("option", "", L.allLangsSelect || "all languages");
+    optAll.value = "";
+    select.appendChild(optAll);
+    Array.from(langs).sort().forEach((l) => {
+      const opt = el("option", "", l);
+      opt.value = l;
+      if (l === currentVal) opt.selected = true;
+      select.appendChild(opt);
+    });
+  }
+
+  if (!container) return;
+  if (langs.size === 0) {
+    container.style.display = "none";
+    return;
+  }
+  container.style.display = "flex";
+  container.replaceChildren();
+
+  const allChip = el("button", "snippet-lang-chip" + (!snippetsSelectedLang ? " active" : ""), L.allLangs || "All");
+  allChip.type = "button";
+  allChip.onclick = () => {
+    snippetsSelectedLang = "";
+    if (select) select.value = "";
+    loadSnippets($("snippet-q")?.value || "", "");
+  };
+  container.appendChild(allChip);
+
+  Array.from(langs).sort().forEach((l) => {
+    const chip = el("button", "snippet-lang-chip" + (snippetsSelectedLang === l ? " active" : ""), l);
+    chip.type = "button";
+    chip.onclick = () => {
+      snippetsSelectedLang = (snippetsSelectedLang === l ? "" : l);
+      if (select) select.value = snippetsSelectedLang;
+      loadSnippets($("snippet-q")?.value || "", snippetsSelectedLang);
+    };
+    container.appendChild(chip);
+  });
+}
+
+async function jumpToSnippet(sessionId, messageIdx) {
+  await openSession(sessionId);
+  setTimeout(() => {
+    const target = document.getElementById("msg-" + messageIdx) || document.querySelector(`[data-msg-idx="${messageIdx}"]`);
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.classList.add("highlight-pulse");
+      setTimeout(() => target.classList.remove("highlight-pulse"), 2200);
+    }
+  }, 120);
+}
+
+async function togglePinMessage(s, msgIdx, text, btn, pinnedSet, role, ts) {
+  const isPinned = pinnedSet.has(Number(msgIdx));
+  if (isPinned) {
+    try {
+      const snips = await jget(`/api/snippets?session_id=${encodeURIComponent(s.id)}`);
+      const target = (snips || []).find((x) => Number(x.message_idx) === Number(msgIdx));
+      if (target) {
+        await jget(`/api/snippet/delete?id=${target.id}`);
+        pinnedSet.delete(Number(msgIdx));
+        btn.classList.remove("pinned");
+        btn.innerHTML = "📌 <span>" + (L.pinSnippetBtn || "Pin") + "</span>";
+        btn.title = L.pinSnippet || "📌 Pin snippet to Knowledge Base";
+        showToast(L.snippetUnpinnedToast || "Snippet removed from Knowledge Base");
+        refreshSnippetsBadge();
+        if (currentSidebarMode === "snippets") loadSnippets();
+      }
+    } catch (e) {
+      showToast("Failed to remove snippet");
+    }
+  } else {
+    try {
+      const fenceMatch = text.match(/```([a-zA-Z0-9_\-#+]+)/);
+      const detectedLang = fenceMatch ? fenceMatch[1].toLowerCase() : (text.includes("SELECT ") || text.includes("FROM ") ? "sql" : "markdown");
+      const lines = text.trim().split("\n");
+      const firstLine = lines[0].replace(/^[#*\s`>-]+/, "").trim();
+      const title = firstLine ? firstLine.slice(0, 60) : (s.title || "Snippet");
+      const effectiveTs = ts || s.messages?.[msgIdx]?.ts || s.started || s.ended || null;
+
+      const res = await jpost("/api/snippet/save", {
+        session_id: s.id,
+        message_idx: msgIdx,
+        title: title,
+        lang: detectedLang,
+        content: text,
+        tags: detectedLang !== "markdown" ? detectedLang : null,
+        tool: s.tool || currentSession?.tool || null,
+        role: role || "assistant",
+        message_ts: effectiveTs,
+      });
+      if (res && res.ok) {
+        pinnedSet.add(Number(msgIdx));
+        btn.classList.add("pinned");
+        btn.innerHTML = "📌 <span>" + (L.pinnedSnippet || "Pinned") + "</span>";
+        btn.title = L.unpinSnippet || "Unpin from Snippets";
+        showToast(L.snippetPinnedToast || "📌 Snippet saved to Knowledge Base");
+        refreshSnippetsBadge();
+        if (currentSidebarMode === "snippets") loadSnippets();
+      }
+    } catch (e) {
+      showToast("Failed to save snippet");
+    }
+  }
+}
+
+function setupSnippetsControls() {
+  $("tab-sessions")?.addEventListener("click", () => switchSidebarMode("sessions"));
+  $("tab-snippets")?.addEventListener("click", () => switchSidebarMode("snippets"));
+
+  const snippetQ = $("snippet-q");
+  if (snippetQ) {
+    snippetQ.addEventListener("input", () => {
+      clearTimeout(snippetSearchTimer);
+      snippetSearchTimer = setTimeout(() => {
+        loadSnippets(snippetQ.value.trim(), snippetsSelectedLang);
+      }, 180);
+    });
+  }
+
+  $("snippet-tool")?.addEventListener("change", () => {
+    loadSnippets($("snippet-q")?.value.trim() || "", snippetsSelectedLang);
+  });
+
+  $("snippet-role")?.addEventListener("change", () => {
+    loadSnippets($("snippet-q")?.value.trim() || "", snippetsSelectedLang);
+  });
+
+  $("snippet-sort-mode")?.addEventListener("change", () => {
+    loadSnippets($("snippet-q")?.value.trim() || "", snippetsSelectedLang);
+  });
+
+  $("snippet-date-mode")?.addEventListener("change", () => {
+    updateSnippetDateUI();
+    loadSnippets($("snippet-q")?.value.trim() || "", snippetsSelectedLang);
+  });
+  $("snippet-date-single")?.addEventListener("change", () => {
+    loadSnippets($("snippet-q")?.value.trim() || "", snippetsSelectedLang);
+  });
+  $("snippet-date-from")?.addEventListener("change", () => {
+    loadSnippets($("snippet-q")?.value.trim() || "", snippetsSelectedLang);
+  });
+  $("snippet-date-to")?.addEventListener("change", () => {
+    loadSnippets($("snippet-q")?.value.trim() || "", snippetsSelectedLang);
+  });
+  $("snippet-date-clear")?.addEventListener("click", () => {
+    if ($("snippet-date-mode")) $("snippet-date-mode").value = "all";
+    if ($("snippet-date-single")) $("snippet-date-single").value = "";
+    if ($("snippet-date-from")) $("snippet-date-from").value = "";
+    if ($("snippet-date-to")) $("snippet-date-to").value = "";
+    updateSnippetDateUI();
+    loadSnippets($("snippet-q")?.value.trim() || "", snippetsSelectedLang);
+  });
+
+  refreshSnippetsBadge();
+}
+
 (async function init() {
   await loadStats();
   try {
@@ -4051,6 +5076,7 @@ function setupSyncControls() {
   } catch (e) {}
   setupSyncControls();
   setupFavoritesControls();
+  setupSnippetsControls();
   setupContextMenu();
   await refresh();
 })();
@@ -4082,6 +5108,10 @@ function setupSyncControls() {
     <span class="menu-label" id="ctx-copy-path-label">Copy file path</span>
   </div>
   <div class="menu-separator" id="ctx-divider-top" style="display: none;"></div>
+  <div class="menu-item" id="ctx-pin-snippet" style="display: none;">
+    <span class="menu-icon">📌</span>
+    <span class="menu-label" id="ctx-pin-snippet-label">Save selection to Snippets</span>
+  </div>
   <div class="menu-item" id="ctx-copy-md">
     <span class="menu-icon">📋</span>
     <span class="menu-label" id="ctx-copy-md-label">Copy as Markdown</span>

@@ -29,7 +29,7 @@ pub fn serve(port: u16, no_open: bool, sync: bool) -> Result<()> {
         println!("(WSL detected - open the URL above in your browser; auto-open is off here to avoid stray windows)");
     }
 
-    for request in server.incoming_requests() {
+    for mut request in server.incoming_requests() {
         // Defend against DNS rebinding: a page on a malicious site can rebind its
         // own hostname to 127.0.0.1 and have the browser fetch this server, then
         // read your sessions same-origin. Such a request carries the attacker's
@@ -70,6 +70,9 @@ pub fn serve(port: u16, no_open: bool, sync: bool) -> Result<()> {
             "/api/favorite" => api_favorite(&conn, query),
             "/api/forget" => api_forget(&mut conn, query),
             "/api/brief" => api_brief(&conn, query),
+            "/api/snippets" => api_snippets(&conn, query),
+            "/api/snippet/save" => api_snippet_save(&conn, &mut request, query),
+            "/api/snippet/delete" => api_snippet_delete(&conn, query),
             p if p.starts_with("/api/related/") => {
                 api_related(&conn, p.trim_start_matches("/api/related/"))
             }
@@ -386,6 +389,8 @@ fn api_session(conn: &Connection, id: &str) -> Result<Boxed> {
     if index::is_favorite(conn, &row.session_id)? {
         v["favorite"] = json!(true);
     }
+    let pinned = index::snippet_indices_for_session(conn, &row.session_id).unwrap_or_default();
+    v["pinned_indices"] = json!(pinned);
     json_response(v)
 }
 
@@ -441,6 +446,97 @@ fn api_brief(conn: &Connection, query: &str) -> Result<Boxed> {
         "chars": chars,
         "est_tokens": est_tokens
     }))
+}
+
+fn api_snippets(conn: &Connection, query: &str) -> Result<Boxed> {
+    let q = param(query, "q");
+    let lang = param(query, "lang");
+    let session_id = param(query, "session_id");
+    let tool = param(query, "tool");
+    let role = param(query, "role");
+    let limit = param(query, "limit")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(200);
+    let snippets = index::list_snippets(
+        conn,
+        q.as_deref(),
+        lang.as_deref(),
+        session_id.as_deref(),
+        tool.as_deref(),
+        role.as_deref(),
+        limit,
+    )?;
+    json_response(json!(snippets))
+}
+
+fn api_snippet_delete(conn: &Connection, query: &str) -> Result<Boxed> {
+    let id: i64 = param(query, "id")
+        .context("missing id")?
+        .parse()
+        .context("invalid id")?;
+    let ok = index::delete_snippet(conn, id)?;
+    json_response(json!({ "ok": ok, "id": id }))
+}
+
+fn api_snippet_save(conn: &Connection, req: &mut tiny_http::Request, query: &str) -> Result<Boxed> {
+    let mut body = String::new();
+    let _ = req.as_reader().read_to_string(&mut body);
+    let json_body: Option<serde_json::Value> = serde_json::from_str(&body).ok();
+
+    let session_id = json_body.as_ref()
+        .and_then(|v| v.get("session_id").and_then(|s| s.as_str()).map(String::from))
+        .or_else(|| param(query, "session_id"))
+        .context("missing session_id")?;
+
+    let message_idx: usize = json_body.as_ref()
+        .and_then(|v| v.get("message_idx").and_then(|n| n.as_u64()).map(|n| n as usize))
+        .or_else(|| param(query, "message_idx").and_then(|s| s.parse().ok()))
+        .unwrap_or(0);
+
+    let title = json_body.as_ref()
+        .and_then(|v| v.get("title").and_then(|s| s.as_str()).map(String::from))
+        .or_else(|| param(query, "title"))
+        .unwrap_or_else(|| "Saved snippet".to_string());
+
+    let lang = json_body.as_ref()
+        .and_then(|v| v.get("lang").and_then(|s| s.as_str()).map(String::from))
+        .or_else(|| param(query, "lang"));
+
+    let content = json_body.as_ref()
+        .and_then(|v| v.get("content").and_then(|s| s.as_str()).map(String::from))
+        .or_else(|| param(query, "content"))
+        .context("missing content")?;
+
+    let tags = json_body.as_ref()
+        .and_then(|v| v.get("tags").and_then(|s| s.as_str()).map(String::from))
+        .or_else(|| param(query, "tags"));
+
+    let tool = json_body.as_ref()
+        .and_then(|v| v.get("tool").and_then(|s| s.as_str()).map(String::from))
+        .or_else(|| param(query, "tool"));
+
+    let role = json_body.as_ref()
+        .and_then(|v| v.get("role").and_then(|s| s.as_str()).map(String::from))
+        .or_else(|| param(query, "role"));
+
+    let message_ts = json_body.as_ref()
+        .and_then(|v| v.get("message_ts").and_then(|s| s.as_str()).map(String::from))
+        .or_else(|| param(query, "message_ts"));
+
+    let id = index::save_snippet(
+        conn,
+        &session_id,
+        message_idx,
+        &title,
+        lang.as_deref(),
+        &content,
+        tags.as_deref(),
+        tool.as_deref(),
+        role.as_deref(),
+        message_ts.as_deref(),
+    )?;
+
+    json_response(json!({ "ok": true, "id": id }))
 }
 
 /// Delegate to SessionRow's Serialize derive so the web JSON and the CLI
@@ -518,6 +614,7 @@ pub(crate) fn open_browser(url: &str) {
         .chain(std::iter::once(0))
         .collect();
 
+    #[link(name = "shell32")]
     extern "system" {
         fn ShellExecuteW(
             hwnd: *mut std::ffi::c_void,

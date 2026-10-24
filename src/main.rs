@@ -41,6 +41,24 @@ enum Command {
         #[arg(long)]
         no_sync: bool,
     },
+    /// Browse or query saved snippets from the knowledge base
+    Snippets {
+        /// Filter by keyword in title, content, or tags
+        #[arg(short = 'q', long)]
+        query: Option<String>,
+        /// Filter by programming language (bash, rust, python, etc.)
+        #[arg(long)]
+        lang: Option<String>,
+        /// Filter by origin session ID
+        #[arg(long)]
+        session: Option<String>,
+        /// Max snippets to return
+        #[arg(short = 'n', long, default_value_t = 20)]
+        limit: usize,
+        /// Emit as a JSON array
+        #[arg(long)]
+        json: bool,
+    },
     /// Search sessions; terms are ANDed within one message and quotes mark phrases
     Search {
         /// AND terms within a message; phrase whitespace follows the configured tokenizer
@@ -343,6 +361,19 @@ fn main() {
             all,
             json,
             no_sync,
+        ),
+        Command::Snippets {
+            query,
+            lang,
+            session,
+            limit,
+            json,
+        } => commands::snippets(
+            query.as_deref(),
+            lang.as_deref(),
+            session.as_deref(),
+            limit,
+            json,
         ),
         Command::Search {
             query,

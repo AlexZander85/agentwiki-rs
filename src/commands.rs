@@ -229,6 +229,46 @@ pub fn list(
     Ok(())
 }
 
+/// Browse or query saved snippets from the knowledge base.
+pub fn snippets(
+    query: Option<&str>,
+    lang: Option<&str>,
+    session: Option<&str>,
+    limit: usize,
+    json: bool,
+) -> Result<()> {
+    let conn = index::open_readonly()?;
+    let items = index::list_snippets(&conn, query, lang, session, None, None, limit)?;
+    if json {
+        println!("{}", serde_json::to_string(&items)?);
+        return Ok(());
+    }
+    if items.is_empty() {
+        println!("No snippets found in knowledge base.");
+        return Ok(());
+    }
+    println!(
+        "{}",
+        bold(&format!(
+            "{:<6} {:<10} {:<10} {:<10} {:<14} {:<24} {}",
+            "ID", "TOOL", "ROLE", "LANG", "SESSION", "TITLE", "CREATED"
+        ))
+    );
+    for item in items {
+        println!(
+            "{:<6} {:<10} {:<10} {:<10} {:<14} {:<24} {}",
+            item.id,
+            item.tool.as_deref().unwrap_or("-"),
+            item.role.as_deref().unwrap_or("-"),
+            cyan(item.lang.as_deref().unwrap_or("-")),
+            yellow(&truncate(&item.session_id, 13)),
+            truncate(&item.title, 24),
+            dim(&item.created_at.chars().take(10).collect::<String>()),
+        );
+    }
+    Ok(())
+}
+
 pub struct SearchOptions<'a> {
     pub limit: usize,
     pub tool: Option<&'a str>,
