@@ -2436,6 +2436,56 @@ function updateSidebarSessionTags(sessionId, tags) {
   }
 }
 
+async function saveMarkdownFile(suggestedFilename, content) {
+  const rawClean = (suggestedFilename || "document")
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 100) || "document";
+  const defaultFilename = rawClean.toLowerCase().endsWith(".md") ? rawClean : `${rawClean}.md`;
+
+  let saved = false;
+
+  // 1. Native Save As dialog (File System Access API) - opens Windows Explorer Save dialog
+  // with prefilled filename in the input box and directory selection.
+  if (typeof window.showSaveFilePicker === "function") {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: defaultFilename,
+        types: [{
+          description: "Markdown Document (*.md)",
+          accept: { "text/markdown": [".md"] }
+        }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(content);
+      await writable.close();
+      saved = true;
+    } catch (err) {
+      if (err && (err.name === "AbortError" || err.code === 20)) {
+        // User deliberately clicked Cancel in the system Save As dialog
+        return false;
+      }
+      console.warn("showSaveFilePicker failed, falling back to download link:", err);
+    }
+  }
+
+  // 2. Fallback for environments where showSaveFilePicker is restricted or not supported
+  if (!saved) {
+    const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+    const a = document.createElement("a");
+    a.download = defaultFilename;
+    a.href = URL.createObjectURL(blob);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+    saved = true;
+  }
+
+  return defaultFilename;
+}
+
 async function exportSessionToMarkdown(s, visibleList) {
   if (!s) return;
   const roleFilter = $("role") ? $("role").value : "";
@@ -2493,46 +2543,10 @@ async function exportSessionToMarkdown(s, visibleList) {
   }
 
   const content = lines.join("\n");
-  const rawTitle = (s.title || s.id || "session")
-    .replace(/[<>:"/\\|?*\x00-\x1F]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 100) || "session";
+  const rawTitle = (s.title || s.id || "session");
   const defaultFilename = `${rawTitle}.md`;
-
-  let saved = false;
-  if (typeof window.showSaveFilePicker === "function") {
-    try {
-      const handle = await window.showSaveFilePicker({
-        suggestedName: defaultFilename,
-        types: [{
-          description: "Markdown Document (*.md)",
-          accept: { "text/markdown": [".md"] }
-        }]
-      });
-      const writable = await handle.createWritable();
-      await writable.write(content);
-      await writable.close();
-      saved = true;
-    } catch (err) {
-      if (err && err.name === "AbortError") {
-        // User deliberately clicked Cancel in the system Save dialog
-        return;
-      }
-    }
-  }
-
-  if (!saved) {
-    const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
-    const a = document.createElement("a");
-    a.download = defaultFilename;
-    a.href = URL.createObjectURL(blob);
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(a.href), 1500);
-    saved = true;
-  }
+  const savedName = await saveMarkdownFile(defaultFilename, content);
+  if (!savedName) return false;
 
   const btn = $("export-session-md");
   if (btn) {
@@ -4459,23 +4473,15 @@ async function copySnippetMarkdown(snip) {
   }
 }
 
-function exportSnippetMarkdown(snip) {
+async function exportSnippetMarkdown(snip) {
   if (!snip) return;
-  const cleanTitle = (snip.title || "snippet")
-    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
-    .slice(0, 60)
-    .trim();
-  const filename = `${cleanTitle || "snippet"}.md`;
+  const title = (snip.title || "snippet").trim();
+  const defaultFilename = `${title}.md`;
   const content = `# ${snip.title || "Snippet"}\n\n${snip.content}\n`;
-  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
-  const a = document.createElement("a");
-  a.download = filename;
-  a.href = URL.createObjectURL(blob);
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
-  showToast("✓ " + (L.exportedSnippet || "Exported") + " " + filename);
+  const savedName = await saveMarkdownFile(defaultFilename, content);
+  if (savedName) {
+    showToast("✓ " + (L.exportedSnippet || "Exported") + " " + savedName);
+  }
 }
 
 async function deleteSnippet(snip) {
@@ -4714,9 +4720,9 @@ function setupContextMenu() {
     if (activeSnippetTarget) copySnippetMarkdown(activeSnippetTarget);
   });
 
-  $("ctx-export-snippet-md")?.addEventListener("click", () => {
+  $("ctx-export-snippet-md")?.addEventListener("click", async () => {
     hideContextMenu();
-    if (activeSnippetTarget) exportSnippetMarkdown(activeSnippetTarget);
+    if (activeSnippetTarget) await exportSnippetMarkdown(activeSnippetTarget);
   });
 
   $("ctx-delete-snippet")?.addEventListener("click", () => {
