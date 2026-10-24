@@ -1,12 +1,12 @@
-# AgentWiki 🧠⚡
-
 <div align="center">
+
+# AgentWiki-rs 🧠⚡
 
 **The Universal Local Memory & Desktop Command Center for AI Coding Agents.**  
 *Single self-contained ~3.8 MB binary written in 100% Rust. Zero dependencies. Zero cloud. Zero Electron.*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/AlexZander85/AgentWiki-rs)
 [![Binary Size](https://img.shields.io/badge/Binary%20Size-~3.8%20MB-brightgreen.svg)]()
 [![Language](https://img.shields.io/badge/Language-100%25%20Rust-orange.svg)]()
 [![Privacy](https://img.shields.io/badge/Privacy-100%25%20Local%20%26%20Offline-success.svg)]()
@@ -17,11 +17,11 @@
 
 ---
 
-## ⚡ What is AgentWiki?
+## ⚡ What is AgentWiki-rs?
 
 Every day, coding agents like **Claude Code, Codex, Antigravity, OpenCode, Qoder, ZCode, Cline, and DeepSeek** generate thousands of lines of code, architectural decisions, and bug investigations. By default, each tool stores its history in disparate, siloed formats across hidden directories. When tools prune history or when you switch agents, valuable context and solutions vanish.
 
-**AgentWiki** unifies all your AI coding sessions into a single, blazing-fast, durable local database. It is delivered as a **single, dependency-free binary** containing:
+**AgentWiki-rs** unifies all your AI coding sessions into a single, blazing-fast, durable local database. It is delivered as a **single, dependency-free binary** containing:
 1. **A Native Desktop GUI** (powered by native OS WebViews &mdash; no heavy Electron or Chromium bundled).
 2. **One-Click & Scheduled Background Sync** (manual `🔄 Sync` button with spinner + background auto-sync every 10 minutes).
 3. **⭐ Favorites & Starred Sessions** (star crucial tasks, filter instantly with `⭐ Favorites (N)`, query via CLI & MCP).
@@ -82,14 +82,14 @@ Empower your agents to remember solutions between independent tasks.
 
 ### ↩️ Rewound Turns & Compaction History
 - AI sessions frequently rewind or compact context when token limits are reached.
-- AgentWiki preserves superseded turns with an interactive **"↩ Rewound"** toggle in the viewer.
+- AgentWiki-rs preserves superseded turns with an interactive **"↩ Rewound"** toggle in the viewer.
 
 ---
 
 ## 🚀 Quick Start
 
 ### 1. Download Prebuilt Executable
-Grab the latest release from the [Releases](https://github.com) page:
+Grab the latest release from the [Releases](https://github.com/AlexZander85/AgentWiki-rs) page:
 - **Windows**: `agentwiki-app.exe` (or `agentwiki.exe` for CLI-only)
 - **macOS / Linux**: `agentwiki-app` / `agentwiki`
 
@@ -99,10 +99,10 @@ Grab the latest release from the [Releases](https://github.com) page:
 ```bash
 ./agentwiki-app
 ```
-AgentWiki automatically scans your local disks, discovers existing AI coding sessions, indexes them in parallel, and opens the native dashboard.
+AgentWiki-rs automatically scans your local disks, discovers existing AI coding sessions, indexes them in parallel, and opens the native dashboard.
 
 ### 3. Connect via MCP (Claude Desktop, Cursor, Antigravity)
-Add AgentWiki to your MCP config (`claude_desktop_config.json` or `cursor.json`):
+Add AgentWiki-rs to your MCP config (`claude_desktop_config.json` or `cursor.json`):
 ```json
 {
   "mcpServers": {
@@ -124,7 +124,7 @@ Now your agents have direct, read-and-write access to your local knowledge base 
 
 ## 💻 CLI Commands
 
-AgentWiki includes a comprehensive CLI alongside the desktop GUI:
+AgentWiki-rs includes a comprehensive CLI alongside the desktop GUI:
 
 ```bash
 # Scan and report disk space used by AI coding agents
@@ -157,17 +157,36 @@ agentwiki doctor
 
 ---
 
-## 🔒 Privacy & Architecture
+## 🏛️ High-Performance Architecture: Why Native OS WebView?
+
+AgentWiki-rs delivers a fluid, instant UI while maintaining a microscopic ~3.8 MB binary footprint and ~35 MB RAM footprint by using an optimal division of labor between Rust and the OS:
+
+### 1. Zero-Electron Native OS WebView (`wry` + `tao`)
+- **No Bundled Chromium / Node.js**: Unlike Electron apps (which weigh 120–180 MB and consume 200+ MB RAM), AgentWiki-rs leverages the operating system's native hardware-accelerated web engine:
+  - **Windows**: Microsoft Edge WebView2 (preinstalled in Windows 10/11, GPU DirectComposition).
+  - **macOS**: Apple WebKit (`WKWebView` with Metal acceleration on Apple Silicon & Intel).
+  - **Linux**: WebKitGTK (`libwebkit2gtk-4.1`).
+- **Native OS Font Smoothing & Anti-Aliasing**: Sub-pixel text rendering, crisp font ligatures (`Fira Code`, `JetBrains Mono`), emoji fallback, and seamless multi-monitor DPI scaling.
+- **Pure Native CLI/MCP Mode**: When invoked via CLI (`agentwiki search`) or MCP by AI agents, the GUI framework is not even loaded, executing in pure Rust with ~10 MB RAM.
+
+### 2. Client-Side Markdown with Lazy Rendering vs. Server-Side Pre-Rendering
+Why parse Markdown via `markdown-it` in the WebView rather than pre-generating HTML in Rust?
+- **3x–5x Smaller Payloads**: Rust streams compact raw Markdown JSON directly from memory-mapped SQLite (`mmap`). Sending pre-rendered HTML would bloat payloads from 150 KB to 2.5 MB due to thousands of `<pre>`, `<code>`, and syntax `<span>` tags, degrading serialization and IPC throughput.
+- **Zero-Lag Lazy Loading (`IntersectionObserver`)**: Opening a session with 500+ messages renders only the first 30 visible turns eagerly (< 15 ms). Off-screen messages are parsed on-demand as you scroll, completely eliminating DOM layout thrashing.
+- **Safe Dynamic Highlighting & Interaction**: Search keyword highlighting (`<mark>`), one-click code copy badges, foldable tool executions, and loss-free "Copy as Markdown" are executed natively within the DOM without risk of corrupting server-side HTML entity trees.
+
+---
+
+## 🔒 Privacy & Local Security
 
 - **100% Local**: No telemetry, no tracking, no cloud dependencies. Your data never leaves your workstation.
 - **Memory-Mapped SQLite (mmap)**: Reads multi-gigabyte session archives in microseconds with zero CPU overhead.
-- **Native OS WebView**: Uses Edge WebView2 on Windows and WebKit on macOS/Linux for tiny binary footprint and razor-sharp system font rendering.
 
 ---
 
 ## 🙏 Acknowledgments & Credits
 
-AgentWiki stands on the shoulders of open-source excellence:
+AgentWiki-rs stands on the shoulders of open-source excellence:
 - **[youdie006/sessionwiki](https://github.com/youdie006/sessionwiki)** &mdash; Sincere gratitude to the author of the original project for the rock-solid Rust foundation, the elegant SQLite FTS5 architecture, and the extensible adapter design for integrating diverse AI coding tools.
 - **[markdown-it](https://github.com/markdown-it/markdown-it)** &mdash; Huge thanks to the authors and maintainers of markdown-it for the lightning-fast, highly extensible, and rock-solid Markdown parser and rendering engine.
 

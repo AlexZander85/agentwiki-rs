@@ -301,43 +301,79 @@ pub fn ensure_snippets_table(conn: &Connection) -> Result<()> {
         );
         CREATE INDEX IF NOT EXISTS idx_snippets_session ON snippets(session_id);",
     )?;
-    let _ = conn.execute("ALTER TABLE snippets ADD COLUMN tool TEXT", []);
-    let _ = conn.execute("ALTER TABLE snippets ADD COLUMN role TEXT", []);
-    let _ = conn.execute("ALTER TABLE snippets ADD COLUMN message_ts TEXT", []);
-    let _ = conn.execute("ALTER TABLE files ADD COLUMN parent_id TEXT", []);
-    let _ = conn.execute("ALTER TABLE messages ADD COLUMN is_rewound INTEGER DEFAULT 0", []);
-    let _ = conn.execute(
-        "UPDATE snippets SET tool = (
-            SELECT tool FROM sessions WHERE sessions.session_id = snippets.session_id
-         ) WHERE tool IS NULL OR tool = ''",
+    // Columns added after these tables first shipped. Checked with a read so a
+    // normal open writes nothing: every ALTER/UPDATE here used to run on each
+    // open, and each one waits on the write lock while a sync holds it. A
+    // read-only handle (the MCP server) leaves repairs to the next writer.
+    if conn.is_readonly(rusqlite::MAIN_DB).unwrap_or(true) {
+        return Ok(());
+    }
+    for (table, column, decl) in [
+        ("snippets", "tool", "TEXT"),
+        ("snippets", "role", "TEXT"),
+        ("snippets", "message_ts", "TEXT"),
+        ("files", "parent_id", "TEXT"),
+        ("messages", "is_rewound", "INTEGER DEFAULT 0"),
+    ] {
+        if let Err(e) = add_missing_column(conn, table, column, decl) {
+            eprintln!("warning: could not add {table}.{column}: {e:#}");
+        }
+    }
+    if let Err(e) = backfill_snippet_metadata(conn) {
+        eprintln!("warning: could not backfill snippet metadata: {e:#}");
+    }
+    Ok(())
+}
+
+/// `ALTER TABLE .. ADD COLUMN` unless the table lacks nothing - or does not
+/// exist yet, in which case its CREATE already carries the column.
+fn add_missing_column(conn: &Connection, table: &str, column: &str, decl: &str) -> Result<()> {
+    let mut stmt = conn.prepare_cached("SELECT name FROM pragma_table_info(?1)")?;
+    let cols: Vec<String> = stmt
+        .query_map([table], |r| r.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    if !cols.is_empty() && !cols.iter().any(|c| c == column) {
+        conn.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {column} {decl}"))?;
+    }
+    Ok(())
+}
+
+/// Fill tool/role/timestamp on snippets saved before those columns existed.
+/// Runs once per index (gated in `meta`); new snippets get them on insert.
+fn backfill_snippet_metadata(conn: &Connection) -> Result<()> {
+    const KEY: &str = "snippet_meta_backfilled";
+    let done = conn
+        .query_row("SELECT 1 FROM meta WHERE key = ?1", [KEY], |_| Ok(()))
+        .optional()?
+        .is_some();
+    if done {
+        return Ok(());
+    }
+    let files_exist: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'files')",
         [],
-    );
-    let _ = conn.execute(
-        "UPDATE snippets SET tool = (
-            SELECT tool FROM archive WHERE archive.session_id = snippets.session_id
-         ) WHERE tool IS NULL OR tool = ''",
-        [],
-    );
-    let _ = conn.execute(
-        "UPDATE snippets SET role = 'assistant' WHERE role IS NULL OR role = ''",
-        [],
-    );
-    let _ = conn.execute(
-        "UPDATE snippets SET message_ts = (
-            SELECT started FROM sessions WHERE sessions.session_id = snippets.session_id
-         ) WHERE message_ts IS NULL OR message_ts = ''",
-        [],
-    );
-    let _ = conn.execute(
-        "UPDATE snippets SET message_ts = (
-            SELECT started FROM archive WHERE archive.session_id = snippets.session_id
-         ) WHERE message_ts IS NULL OR message_ts = ''",
-        [],
-    );
-    let _ = conn.execute(
-        "UPDATE snippets SET message_ts = created_at WHERE message_ts IS NULL OR message_ts = ''",
-        [],
-    );
+        |r| r.get(0),
+    )?;
+    if !files_exist {
+        // Fresh index: the cache tables come next, and nothing needs filling.
+        return Ok(());
+    }
+    conn.execute_batch(
+        "UPDATE snippets SET tool = coalesce(
+            (SELECT tool FROM files WHERE files.session_id = snippets.session_id LIMIT 1),
+            (SELECT tool FROM archive WHERE archive.session_id = snippets.session_id)
+         ) WHERE tool IS NULL OR tool = '';
+         UPDATE snippets SET role = 'assistant' WHERE role IS NULL OR role = '';
+         UPDATE snippets SET message_ts = coalesce(
+            (SELECT started FROM files WHERE files.session_id = snippets.session_id LIMIT 1),
+            (SELECT started FROM archive WHERE archive.session_id = snippets.session_id),
+            created_at
+         ) WHERE message_ts IS NULL OR message_ts = '';",
+    )?;
+    conn.execute(
+        "INSERT OR IGNORE INTO meta(key, value) VALUES (?1, '1')",
+        [KEY],
+    )?;
     Ok(())
 }
 
@@ -776,6 +812,9 @@ pub fn open() -> Result<Connection> {
     conn.pragma_update(None, "journal_mode", "WAL")?;
     conn.pragma_update(None, "synchronous", "NORMAL")?;
     conn.busy_timeout(std::time::Duration::from_millis(5000))?;
+    // A full sync grows the WAL by the size of everything it wrote; without a
+    // limit the file keeps that size on disk after the checkpoint.
+    let _ = conn.pragma_update(None, "journal_size_limit", 64i64 * 1024 * 1024);
     let _ = conn.pragma_update(None, "mmap_size", 268435456i64);
     let _ = conn.pragma_update(None, "cache_size", -32000i64);
     let _ = conn.pragma_update(None, "temp_store", "MEMORY");
@@ -1405,6 +1444,34 @@ fn report_indexed(tool: &str, total: usize, failed: usize) {
     }
 }
 
+/// How much one sync transaction takes before it commits and starts the next.
+/// Each session is written whole inside one transaction, so a commit between
+/// sessions never exposes a half-indexed one; slicing keeps the WAL bounded,
+/// lets readers and the hook's writer in, and makes an interrupted first sync
+/// keep what it already indexed instead of rolling all of it back.
+#[derive(Default)]
+struct SyncBatch {
+    sessions: usize,
+    messages: usize,
+}
+
+impl SyncBatch {
+    const MAX_SESSIONS: usize = 200;
+    const MAX_MESSAGES: usize = 20_000;
+
+    /// Count one indexed session; true when the batch is full (and reset).
+    fn add(&mut self, messages: usize) -> bool {
+        self.sessions += 1;
+        self.messages += messages;
+        if self.sessions >= Self::MAX_SESSIONS || self.messages >= Self::MAX_MESSAGES {
+            *self = Self::default();
+            true
+        } else {
+            false
+        }
+    }
+}
+
 pub fn sync(conn: &mut Connection, only_tool: Option<&str>) -> Result<()> {
     sync_bounded(conn, only_tool, None)
 }
@@ -1522,7 +1589,8 @@ pub fn sync_with(
                     store.keys.iter().map(|(k, t)| (k.as_str(), *t)).collect();
                 let total = pending.len();
                 let mut failed = 0usize;
-                let tx = conn.transaction()?;
+                let mut batch = SyncBatch::default();
+                let mut tx = conn.transaction()?;
                 for (i, key) in pending.iter().enumerate() {
                     if progress {
                         eprint!("\r[{tool}] indexing {}/{total}", i + 1);
@@ -1540,6 +1608,10 @@ pub fn sync_with(
                     };
                     let token = token_of.get(key.as_str()).copied().unwrap_or(0);
                     index_one(&tx, &session, key, token, 0, output_mode)?;
+                    if batch.add(session.messages.len()) {
+                        tx.commit()?;
+                        tx = conn.transaction()?;
+                    }
                 }
                 tx.commit()?;
                 report_indexed(tool, total, failed);
@@ -1613,7 +1685,8 @@ pub fn sync_with(
         let total = pending.len();
         let mut done = 0usize;
         let mut failed = 0usize;
-        let tx = conn.transaction()?;
+        let mut batch = SyncBatch::default();
+        let mut tx = conn.transaction()?;
         for (path, mtime, size) in pending {
             done += 1;
             if progress {
@@ -1633,10 +1706,17 @@ pub fn sync_with(
             };
             let key = path.to_string_lossy();
             index_one(&tx, &session, &key, mtime, size, output_mode)?;
+            if batch.add(session.messages.len()) {
+                tx.commit()?;
+                tx = conn.transaction()?;
+            }
         }
         tx.commit()?;
         report_indexed(tool, total, failed);
     }
+    // Keep planner statistics current for the tables a sync just grew; bounded
+    // so it stays cheap on a large index, and skipped if another writer is busy.
+    let _ = conn.execute_batch("PRAGMA analysis_limit = 400; PRAGMA optimize;");
 
     // The one passive signal that archive is earning its keep: how many
     // sessions we kept this run that the tool deleted, and the running total.
@@ -2939,7 +3019,7 @@ pub fn save_snippet(
         Some(t) if !t.trim().is_empty() => Some(t.trim().to_string()),
         _ => conn
             .query_row(
-                "SELECT tool FROM sessions WHERE session_id = ?1",
+                "SELECT tool FROM files WHERE session_id = ?1 LIMIT 1",
                 params![session_id],
                 |r| r.get(0),
             )
@@ -2965,7 +3045,7 @@ pub fn save_snippet(
         Some(ts) if !ts.trim().is_empty() => ts.trim().to_string(),
         _ => conn
             .query_row(
-                "SELECT started FROM sessions WHERE session_id = ?1",
+                "SELECT started FROM files WHERE session_id = ?1 LIMIT 1",
                 params![session_id],
                 |r| r.get(0),
             )

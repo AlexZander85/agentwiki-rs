@@ -7,7 +7,6 @@ use crate::util::short_id;
 use anyhow::Result;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
 
 #[derive(Clone, Debug)]
 pub struct Antigravity {
@@ -127,6 +126,25 @@ fn extract_user_request(text: &str) -> String {
     text.trim().to_string()
 }
 
+/// The transcript of one conversation folder: the first directory (in
+/// `conversation_id`'s nesting order) that holds one, preferring
+/// `transcript.jsonl` over `transcript_full.jsonl` beside it.
+fn conversation_transcript(conv: &Path) -> Option<PathBuf> {
+    let logs = conv.join(".system_generated").join("logs");
+    let dirs = [
+        logs,
+        conv.join(".system_generated"),
+        conv.join("logs"),
+        conv.to_path_buf(),
+    ];
+    dirs.iter().find_map(|dir| {
+        ["transcript.jsonl", "transcript_full.jsonl"]
+            .iter()
+            .map(|name| dir.join(name))
+            .find(|p| p.is_file())
+    })
+}
+
 fn conversation_id(path: &Path) -> Option<String> {
     let mut current = path.parent()?;
     if current.file_name().is_some_and(|n| n == "logs") {
@@ -171,36 +189,35 @@ impl Adapter for Antigravity {
         if !root.exists() {
             return Vec::new().into();
         }
+        // Probe the few places a conversation keeps its transcript instead of
+        // walking the brain: each conversation folder also holds artifacts,
+        // screenshots and recordings, and a walk over them (50k entries for
+        // ~100 conversations) dominated every sync.
         let mut had_error = false;
-        let files: Vec<PathBuf> = WalkDir::new(root)
-            .min_depth(2)
-            .max_depth(5)
-            .into_iter()
-            .filter_map(|e| ok_or_flag(e, &mut had_error))
-            .filter(|e| e.file_type().is_file())
-            .filter(|e| {
-                e.file_name() == "transcript.jsonl" || e.file_name() == "transcript_full.jsonl"
-            })
-            .map(|e| e.into_path())
-            .collect();
-
-        // If both transcript.jsonl and transcript_full.jsonl exist in the same folder, keep transcript.jsonl
-        let mut dedupped: Vec<PathBuf> = Vec::new();
-        for f in files {
-            if f.file_name().is_some_and(|n| n == "transcript_full.jsonl") {
-                if let Some(p) = f.parent() {
-                    if p.join("transcript.jsonl").exists() {
-                        continue;
-                    }
+        let mut files: Vec<PathBuf> = Vec::new();
+        let entries = match std::fs::read_dir(&root) {
+            Ok(entries) => entries,
+            Err(_) => {
+                return Discovered {
+                    files,
+                    had_error: true,
                 }
             }
-            dedupped.push(f);
+        };
+        for entry in entries {
+            let Some(entry) = ok_or_flag(entry, &mut had_error) else {
+                continue;
+            };
+            if !entry.file_type().is_ok_and(|t| t.is_dir()) {
+                continue;
+            }
+            if let Some(found) = conversation_transcript(&entry.path()) {
+                files.push(found);
+            }
         }
+        files.sort();
 
-        Discovered {
-            files: dedupped,
-            had_error,
-        }
+        Discovered { files, had_error }
     }
 
     fn parse(&self, path: &Path) -> Result<Session> {
