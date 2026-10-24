@@ -38,8 +38,8 @@
    - Standalone native desktop application built with 100% Rust, Wry, and Tao (using system WebView2 on Windows, WebKit on macOS/Linux), completely eliminating Electron and Node.js runtimes.
    - Compiled with `#![windows_subsystem = "windows"]` on Windows — double-clicking launches a clean native desktop window without popping up a console terminal.
    - Automatically checks for a running server and transparently starts the embedded web engine in a background thread within the same process.
-2. **Industrial-Grade Markdown Rendering Engine (`markdown-it 14.3.3`)**:
-   - Completely replaced primitive regex string splitting with the full-featured `markdown-it 14.3.3` engine (CommonMark + GFM).
+2. **Industrial-Grade Markdown Rendering Engine (`markdown-it 15.0.3`)**:
+   - Completely replaced primitive regex string splitting with the full-featured `markdown-it 15.0.3` engine (CommonMark + GFM).
    - Rich typography support: styled H1–H6 headings with divider lines, bulleted and nested numbered lists, blockquotes with accent border, horizontal rules (`hr`), bold/italic formatting, and inline code.
    - Safe link handling: automatically appends `target="_blank"` and `rel="noopener noreferrer"`.
 3. **GitHub Flavored Markdown Tables (GFM Tables)**:
