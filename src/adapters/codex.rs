@@ -78,13 +78,15 @@ fn conversation_line(line: &str) -> bool {
         let rest = &line[at + tag.len()..];
         &rest[..rest.find('"').unwrap_or(0)]
     });
-    matches!(
-        (tags.next(), tags.next()),
-        (
-            Some("response_item" | "event_msg"),
+    match tags.next() {
+        // Older rollouts wrote a message at the top level.
+        Some("message") => true,
+        Some("response_item" | "event_msg") => matches!(
+            tags.next(),
             Some("message" | "user_message" | "agent_message")
-        )
-    )
+        ),
+        _ => false,
+    }
 }
 
 impl Adapter for Codex {

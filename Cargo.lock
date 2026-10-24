@@ -2152,7 +2152,7 @@ dependencies = [
 
 [[package]]
 name = "sessionwiki"
-version = "0.34.9"
+version = "0.34.10"
 dependencies = [
  "anyhow",
  "chrono",
