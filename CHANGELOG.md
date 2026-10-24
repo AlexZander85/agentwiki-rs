@@ -21,6 +21,12 @@
 - **Related Sessions Header**: Displays `🔗 Related sessions (N)` directly in the session header.
 - **Default Role Filter**: Default view is set to **«пользователь и агент»** (`user and agent`), hiding noisy tool outputs until selected.
 - **Modern Terminology Rebranding**: Replaced «Ассистент» with **«Агент»** across all UI elements, dropdowns, headers, and Markdown exports.
+- **Rich Markdown Engine Enhancements (reposeek / MDHero)**:
+  - **GitHub Alerts / Admonitions**: Full support for `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, and `> [!CAUTION]` with color-coded accent borders, themed backgrounds, and localized headers.
+  - **Collapsible Long Code Blocks (>40 lines)**: Blocks longer than 40 lines automatically collapse (`max-height: 22rem`) with bottom gradient fade and an interactive toggle bar («▾ N lines / строк» / «▴ Collapse / Свернуть»).
+  - **Emoji Shortcodes**: Automatic conversion of standard markdown emoji shortcodes (`:rocket:` ➔ 🚀, `:fire:` ➔ 🔥, `:white_check_mark:` ➔ ✅, `:bug:` ➔ 🐛, `:warning:` ➔ ⚠️, `:zap:` ➔ ⚡, etc.).
+  - **Markdown-it 15 Linkify Fix**: Ported `www.` prefix autolinking rule (`WWW_TAIL`) ensuring `www.example.com` links properly like on GitHub without corrupting bare file names (`README.md`).
+  - **Lazy Image Loading**: Automatically injects `loading="lazy"` and `decoding="async"` attributes to markdown images.
 
 ### Fixed
 - **Snippet Metadata Regression**: Corrected pinned snippet metadata lookup to query `files` table instead of non-existent `sessions` table (covered by 2 regression tests).

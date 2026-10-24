@@ -1197,6 +1197,47 @@
     color: var(--accent);
     border-color: var(--accent);
   }
+  .msg .body pre.code-collapsed {
+    max-height: 22rem;
+    overflow: hidden;
+    position: relative;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .msg .body pre.code-collapsed::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 60px;
+    background: linear-gradient(to bottom, transparent, var(--code-bg));
+    pointer-events: none;
+  }
+  .code-expand-btn {
+    display: block;
+    width: 100%;
+    padding: 6px 12px;
+    margin-top: -1px;
+    margin-bottom: 12px;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--ink-2);
+    background: var(--card-subtle);
+    border: 1px solid var(--line);
+    border-top: 1px dashed var(--line);
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s ease;
+    user-select: none;
+  }
+  .code-expand-btn:hover {
+    background: var(--hover);
+    color: var(--ink);
+  }
+
 
   /* Sidebar Modes (Sessions vs Snippets Segmented Switcher) */
   .sidebar-modes {
@@ -1984,6 +2025,77 @@
     background: var(--card-subtle);
     border-radius: 0 6px 6px 0;
   }
+  /* GitHub Alerts / Admonitions (MDV-3 / reposeek style) */
+  .msg .body .markdown-alert {
+    border-left: 4px solid var(--line-strong);
+    border-radius: 6px;
+    padding: 8px 14px;
+    margin: 12px 0;
+    background: var(--card-subtle);
+    color: var(--ink-1);
+  }
+  .msg .body .markdown-alert p {
+    margin: 4px 0;
+  }
+  .msg .body .markdown-alert-title {
+    font-weight: 600;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px !important;
+  }
+  .msg .body .markdown-alert-note {
+    border-left-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.07);
+  }
+  .msg .body .markdown-alert-note .markdown-alert-title {
+    color: #2563eb;
+  }
+  [data-theme="dark"] .msg .body .markdown-alert-note .markdown-alert-title {
+    color: #60a5fa;
+  }
+  .msg .body .markdown-alert-tip {
+    border-left-color: #10b981;
+    background: rgba(16, 185, 129, 0.07);
+  }
+  .msg .body .markdown-alert-tip .markdown-alert-title {
+    color: #059669;
+  }
+  [data-theme="dark"] .msg .body .markdown-alert-tip .markdown-alert-title {
+    color: #34d399;
+  }
+  .msg .body .markdown-alert-important {
+    border-left-color: #8b5cf6;
+    background: rgba(139, 92, 246, 0.07);
+  }
+  .msg .body .markdown-alert-important .markdown-alert-title {
+    color: #7c3aed;
+  }
+  [data-theme="dark"] .msg .body .markdown-alert-important .markdown-alert-title {
+    color: #a78bfa;
+  }
+  .msg .body .markdown-alert-warning {
+    border-left-color: #f59e0b;
+    background: rgba(245, 158, 11, 0.07);
+  }
+  .msg .body .markdown-alert-warning .markdown-alert-title {
+    color: #d97706;
+  }
+  [data-theme="dark"] .msg .body .markdown-alert-warning .markdown-alert-title {
+    color: #fbbf24;
+  }
+  .msg .body .markdown-alert-caution {
+    border-left-color: #ef4444;
+    background: rgba(239, 68, 68, 0.07);
+  }
+  .msg .body .markdown-alert-caution .markdown-alert-title {
+    color: #dc2626;
+  }
+  [data-theme="dark"] .msg .body .markdown-alert-caution .markdown-alert-title {
+    color: #f87171;
+  }
+
   .msg .body hr {
     border: none;
     border-top: 1px solid var(--line);
@@ -2549,6 +2661,8 @@ const I18N = {
     noSnippets: "Закладок пока нет.",
     noSnippetsSub: "Нажмите 📌 Сниппет на сообщении агента или блоке кода, либо выделите текст мышью и нажмите правую кнопку мыши.",
     allLangs: "Все",
+    alertNote: "Заметка", alertTip: "Совет", alertImportant: "Важно", alertWarning: "Предупреждение", alertCaution: "Осторожно",
+    codeLines: "строк", codeCollapse: "Свернуть",
   },
   en: {
     loading: "loading index…",
@@ -2646,6 +2760,8 @@ const I18N = {
     noSnippets: "No pinned snippets yet.",
     noSnippetsSub: "Click 📌 Pin on agent messages or code blocks to save key solutions here.",
     allLangs: "All",
+    alertNote: "Note", alertTip: "Tip", alertImportant: "Important", alertWarning: "Warning", alertCaution: "Caution",
+    codeLines: "lines", codeCollapse: "Collapse",
   },
   ko: {
     loading: "인덱스 불러오는 중…",
@@ -2736,6 +2852,8 @@ const I18N = {
     noSnippets: "고정된 스니펫이 없습니다.",
     noSnippetsSub: "에이전트 메시지나 코드 블록의 📌 고정 버튼을 눌러 중요한 솔루션을 여기에 저장하세요.",
     allLangs: "전체",
+    alertNote: "참고", alertTip: "팁", alertImportant: "중요", alertWarning: "경고", alertCaution: "주의",
+    codeLines: "줄", codeCollapse: "접기",
   },
   ja: {
     loading: "インデックスを読み込み中…",
@@ -2826,6 +2944,8 @@ const I18N = {
     noSnippets: "固定されたスニペットはありません。",
     noSnippetsSub: "エージェントメッセージやコードブロックの 📌 ボタンを押して重要な解決策を保存してください。",
     allLangs: "すべて",
+    alertNote: "ノート", alertTip: "ヒント", alertImportant: "重要", alertWarning: "警告", alertCaution: "注意",
+    codeLines: "行", codeCollapse: "折りたたむ",
   },
   zh: {
     loading: "正在加载索引…",
@@ -2916,6 +3036,8 @@ const I18N = {
     noSnippets: "暂无收藏的代码片段。",
     noSnippetsSub: "点击代理消息或代码块上的 📌 按钮，将关键解决方案保存至此处。",
     allLangs: "全部",
+    alertNote: "注意", alertTip: "提示", alertImportant: "重要", alertWarning: "警告", alertCaution: "小心",
+    codeLines: "行", codeCollapse: "折叠",
   },
 };
 let savedLang = localStorage.getItem("sdx-lang");
@@ -3367,6 +3489,102 @@ function snippetNodes(text) {
 
 /* Markdown-lite: code fences, inline code, bold, autolinks.
    Built with DOM nodes only - message text never touches innerHTML. */
+/* markdown-it 15 linkify fix: domain after `www.` and an optional port/path (reposeek/MDV-1) */
+const WWW_TAIL = /^[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?(?:[/?#][^\s<>"'`]*)?/i;
+const TRAILING_PUNCT = /[.,:;!?)\]*_~]+$/;
+
+function configureMarkdownIt(parser) {
+  if (parser && parser.linkify && typeof parser.linkify.add === "function") {
+    // markdown-it 15 (linkify-it 6) disabled fuzzy links by default; bring back www. links like GitHub
+    parser.linkify.add("www.", {
+      validate: (text, pos) => {
+        const tail = text.slice(pos);
+        const m = WWW_TAIL.exec(tail);
+        if (!m) return 0;
+        return m[0].replace(TRAILING_PUNCT, "").length;
+      },
+      normalize: (match) => {
+        match.url = `http://${match.url}`;
+      },
+    });
+  }
+}
+
+/* Emoji shortcodes dictionary (reposeek / MDHero style) */
+const EMOJI_SHORTCODES = {
+  rocket: "🚀", star: "⭐", sparkles: "✨", fire: "🔥", bug: "🐛",
+  warning: "⚠️", bulb: "💡", books: "📚", book: "📖", memo: "📝",
+  lock: "🔒", wrench: "🔧", hammer: "🔨", package: "📦", gift: "🎁",
+  tada: "🎉", wave: "👋", thumbsup: "👍", thumbsdown: "👎", heart: "❤️",
+  eyes: "👀", pray: "🙏", computer: "💻", pencil: "✏️", zap: "⚡",
+  boom: "💥", question: "❓", heavy_check_mark: "✔️", x: "❌", white_check_mark: "✅",
+  point_right: "👉", 100: "💯", coffee: "☕", pizza: "🍕", robot: "🤖",
+  seedling: "🌱", globe_with_meridians: "🌐", key: "🔑", bar_chart: "📊",
+  clipboard: "📋", wastebasket: "🗑️", construction: "🚧", hourglass: "⏳", soon: "🔜",
+};
+
+function replaceEmojiShortcodes(text) {
+  if (!text) return "";
+  return text.replace(/:([a-z0-9_+-]+):/gi, (match, name) => {
+    return EMOJI_SHORTCODES[name.toLowerCase()] || match;
+  });
+}
+
+/* GitHub Alerts / Admonitions parser (MDV-3 / reposeek style) */
+const ALERT_TYPES = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"];
+const ALERT_ICONS = { NOTE: "ℹ️", TIP: "💡", IMPORTANT: "🔔", WARNING: "⚠️", CAUTION: "🛑" };
+
+function getAlertTitle(type) {
+  if (typeof L !== "undefined") {
+    if (type === "NOTE" && L.alertNote) return L.alertNote;
+    if (type === "TIP" && L.alertTip) return L.alertTip;
+    if (type === "IMPORTANT" && L.alertImportant) return L.alertImportant;
+    if (type === "WARNING" && L.alertWarning) return L.alertWarning;
+    if (type === "CAUTION" && L.alertCaution) return L.alertCaution;
+  }
+  const isRu = typeof navigator !== "undefined" && navigator.language?.startsWith("ru");
+  if (isRu) {
+    if (type === "NOTE") return "Заметка";
+    if (type === "TIP") return "Совет";
+    if (type === "IMPORTANT") return "Важно";
+    if (type === "WARNING") return "Предупреждение";
+    if (type === "CAUTION") return "Осторожно";
+  }
+  if (type === "NOTE") return "Note";
+  if (type === "TIP") return "Tip";
+  if (type === "IMPORTANT") return "Important";
+  if (type === "WARNING") return "Warning";
+  if (type === "CAUTION") return "Caution";
+  return type;
+}
+
+function renderAlerts(html) {
+  if (!html || !html.includes("[!")) return html;
+  let out = html;
+  for (const type of ALERT_TYPES) {
+    const pattern = new RegExp(
+      `<blockquote>\\s*<p>\\[!${type}\\]\\s*([\\s\\S]*?)<\\/p>\\s*([\\s\\S]*?)<\\/blockquote>`,
+      "gi"
+    );
+    out = out.replace(pattern, (_match, first, rest) => {
+      const icon = ALERT_ICONS[type];
+      const title = getAlertTitle(type);
+      const body = first.trim() ? `<p>${first.trim()}</p>${rest}` : rest;
+      return `<blockquote class="markdown-alert markdown-alert-${type.toLowerCase()}">` +
+        `<p class="markdown-alert-title"><span class="alert-icon">${icon}</span> ${title}</p>` +
+        body + `</blockquote>`;
+    });
+  }
+  return out;
+}
+
+function makeImagesLazy(container) {
+  if (!container) return;
+  container.querySelectorAll("img").forEach((img) => {
+    if (!img.getAttribute("loading")) img.setAttribute("loading", "lazy");
+    if (!img.getAttribute("decoding")) img.setAttribute("decoding", "async");
+  });
+}
 let mdParser = null;
 function getMarkdownParser() {
   if (!mdParser && typeof window.markdownit === "function") {
@@ -3376,6 +3594,7 @@ function getMarkdownParser() {
       breaks: false, // Standard markdown paragraph spacing
       typographer: false,
     });
+    configureMarkdownIt(mdParser);
   }
   return mdParser;
 }
@@ -3389,13 +3608,38 @@ function getMarkdownParserBreaks() {
       breaks: true, // Preserve line breaks for pasted content
       typographer: false,
     });
+    configureMarkdownIt(mdParserBreaks);
   }
   return mdParserBreaks;
 }
 
 function postProcessMarkdown(container) {
-  // Add copy button to code blocks (reposeek-app / MDHero style)
+  makeImagesLazy(container);
+
+  // Add copy button and auto-collapse long code blocks (>40 lines) (reposeek-app / MDHero style)
   container.querySelectorAll("pre").forEach((pre) => {
+    const codeText = pre.querySelector("code")?.textContent || pre.textContent || "";
+    const lines = codeText.split("\n").length;
+    if (lines > 40 && !pre.classList.contains("code-collapsible")) {
+      pre.classList.add("code-collapsible", "code-collapsed");
+      const expandBtn = document.createElement("button");
+      expandBtn.type = "button";
+      expandBtn.className = "code-expand-btn";
+      const linesLabel = (typeof L !== "undefined" && L.codeLines) ? L.codeLines : "lines";
+      const collapseLabel = (typeof L !== "undefined" && L.codeCollapse) ? L.codeCollapse : "Collapse";
+      expandBtn.textContent = `▾ ${lines} ${linesLabel}`;
+      expandBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (pre.classList.contains("code-collapsed")) {
+          pre.classList.add("code-collapsed");
+          expandBtn.textContent = `▾ ${lines} ${linesLabel}`;
+        } else {
+          pre.classList.remove("code-collapsed");
+          expandBtn.textContent = `▴ ${collapseLabel}`;
+        }
+      };
+      pre.parentNode.insertBefore(expandBtn, pre.nextSibling);
+    }
     if (!pre.querySelector(".copy-code-btn")) {
       const copyBtn = document.createElement("button");
       copyBtn.className = "copy-code-btn";
@@ -3544,7 +3788,8 @@ function renderRichMarkdown(rawText, container) {
       body.className = "pasted-content-body";
       const breaksParser = getMarkdownParserBreaks() || parser;
       try {
-        body.innerHTML = breaksParser.render(pastedText);
+        const withEmoji = replaceEmojiShortcodes(pastedText);
+        body.innerHTML = renderAlerts(breaksParser.render(withEmoji));
       } catch (_) {
         body.textContent = pastedText;
       }
@@ -3570,7 +3815,8 @@ function renderRichMarkdown(rawText, container) {
   let html = mdCache.get(rawText);
   if (!html) {
     try {
-      html = parser.render(rawText);
+      const withEmoji = replaceEmojiShortcodes(rawText);
+      html = renderAlerts(parser.render(withEmoji));
       if (mdCache.size >= MAX_MD_CACHE_SIZE) {
         const firstKey = mdCache.keys().next().value;
         mdCache.delete(firstKey);
