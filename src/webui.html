@@ -2259,9 +2259,9 @@
         </select>
         <select id="role" aria-label="Filter by message role">
           <option value="">all message roles</option>
-          <option value="user,assistant">user and assistant</option>
+          <option value="user,assistant" selected>user and agent</option>
           <option value="user">user messages</option>
-          <option value="assistant">assistant replies</option>
+          <option value="assistant">agent replies</option>
           <option value="tool">tool output</option>
         </select>
       </div>
@@ -2318,10 +2318,10 @@
           </select>
           <select id="snippet-role" aria-label="Filter by message role">
             <option value="">all message roles</option>
-            <option value="user,assistant">user and assistant</option>
+            <option value="user,assistant" selected>user and agent</option>
             <option value="user">user messages</option>
-            <option value="assistant">assistant replies</option>
-            <option value="assistant_memory">assistant memory</option>
+            <option value="assistant">agent replies</option>
+            <option value="assistant_memory">agent memory</option>
             <option value="tool">tool output</option>
           </select>
         </div>
@@ -2451,10 +2451,13 @@ const I18N = {
     searchPh: "Поиск по сессиям",
     allTools: "все инструменты",
     allRoles: "все роли сообщений",
-    conversationRoles: "пользователь и ассистент",
+    conversationRoles: "пользователь и агент",
     userRole: "сообщения пользователя",
-    assistantRole: "ответы ассистента",
-    assistantMemoryRole: "память ассистента",
+    assistantRole: "ответы агента",
+    assistantMemoryRole: "память агента",
+    roleAgent: "агент",
+    roleUser: "пользователь",
+    roleTool: "инструмент",
     assistantMemoryBadge: "🧠 память",
     toolRole: "вывод инструментов",
     groups: { today: "Сегодня", yesterday: "Вчера", week: "На этой неделе", month: "В этом месяце", earlier: "Ранее" },
@@ -2532,7 +2535,7 @@ const I18N = {
     snippetPinnedToast: "📌 Сниппет сохранён в базу знаний",
     snippetUnpinnedToast: "Сниппет удалён из базы знаний",
     noSnippets: "Закладок пока нет.",
-    noSnippetsSub: "Нажмите 📌 Сниппет на сообщении ассистента или блоке кода, либо выделите текст мышью и нажмите правую кнопку мыши.",
+    noSnippetsSub: "Нажмите 📌 Сниппет на сообщении агента или блоке кода, либо выделите текст мышью и нажмите правую кнопку мыши.",
     allLangs: "Все",
   },
   en: {
@@ -2540,10 +2543,13 @@ const I18N = {
     searchPh: "Search sessions",
     allTools: "all tools",
     allRoles: "all message roles",
-    conversationRoles: "user and assistant",
+    conversationRoles: "user and agent",
     userRole: "user messages",
-    assistantRole: "assistant replies",
-    assistantMemoryRole: "assistant memory",
+    assistantRole: "agent replies",
+    assistantMemoryRole: "agent memory",
+    roleAgent: "agent",
+    roleUser: "user",
+    roleTool: "tool",
     assistantMemoryBadge: "🧠 memory",
     toolRole: "tool output",
     groups: { today: "Today", yesterday: "Yesterday", week: "This week", month: "This month", earlier: "Earlier" },
@@ -2626,7 +2632,7 @@ const I18N = {
     snippetPinnedToast: "📌 Snippet saved to Knowledge Base",
     snippetUnpinnedToast: "Snippet removed from Knowledge Base",
     noSnippets: "No pinned snippets yet.",
-    noSnippetsSub: "Click 📌 Pin on assistant messages or code blocks to save key solutions here.",
+    noSnippetsSub: "Click 📌 Pin on agent messages or code blocks to save key solutions here.",
     allLangs: "All",
   },
   ko: {
@@ -2634,9 +2640,12 @@ const I18N = {
     searchPh: "세션 검색",
     allTools: "모든 툴",
     allRoles: "모든 메시지 역할",
-    conversationRoles: "사용자와 어시스턴트",
+    conversationRoles: "사용자와 에이전트",
     userRole: "사용자 메시지",
-    assistantRole: "어시스턴트 답변",
+    assistantRole: "에이전트 답변",
+    roleAgent: "에이전트",
+    roleUser: "사용자",
+    roleTool: "도구",
     toolRole: "도구 출력",
     groups: { today: "오늘", yesterday: "어제", week: "이번 주", month: "이번 달", earlier: "이전" },
     msgs: (n) => `메시지 ${n}`,
@@ -2713,7 +2722,7 @@ const I18N = {
     snippetPinnedToast: "📌 스니펫이 지식 베이스에 저장되었습니다",
     snippetUnpinnedToast: "스니펫이 지식 베이스에서 삭제되었습니다",
     noSnippets: "고정된 스니펫이 없습니다.",
-    noSnippetsSub: "어시스턴트 메시지나 코드 블록의 📌 고정 버튼을 눌러 중요한 솔루션을 여기에 저장하세요.",
+    noSnippetsSub: "에이전트 메시지나 코드 블록의 📌 고정 버튼을 눌러 중요한 솔루션을 여기에 저장하세요.",
     allLangs: "전체",
   },
   ja: {
@@ -2721,9 +2730,12 @@ const I18N = {
     searchPh: "セッションを検索",
     allTools: "すべてのツール",
     allRoles: "すべてのメッセージ役割",
-    conversationRoles: "ユーザーとアシスタント",
+    conversationRoles: "ユーザーとエージェント",
     userRole: "ユーザーメッセージ",
-    assistantRole: "アシスタントの返答",
+    assistantRole: "エージェントの返答",
+    roleAgent: "エージェント",
+    roleUser: "ユーザー",
+    roleTool: "ツール",
     toolRole: "ツール出力",
     groups: { today: "今日", yesterday: "昨日", week: "今週", month: "今月", earlier: "それ以前" },
     msgs: (n) => `${n}件`,
@@ -2800,7 +2812,7 @@ const I18N = {
     snippetPinnedToast: "📌 スニペットをナレッジベースに保存しました",
     snippetUnpinnedToast: "スニペットをナレッジベースから削除しました",
     noSnippets: "固定されたスニペットはありません。",
-    noSnippetsSub: "アシスタントメッセージやコードブロックの 📌 ボタンを押して重要な解決策を保存してください。",
+    noSnippetsSub: "エージェントメッセージやコードブロックの 📌 ボタンを押して重要な解決策を保存してください。",
     allLangs: "すべて",
   },
   zh: {
@@ -2808,9 +2820,12 @@ const I18N = {
     searchPh: "搜索会话",
     allTools: "全部工具",
     allRoles: "全部消息角色",
-    conversationRoles: "用户和助手",
+    conversationRoles: "用户和代理",
     userRole: "用户消息",
-    assistantRole: "助手回复",
+    assistantRole: "代理回复",
+    roleAgent: "代理",
+    roleUser: "用户",
+    roleTool: "工具",
     toolRole: "工具输出",
     groups: { today: "今天", yesterday: "昨天", week: "本周", month: "本月", earlier: "更早" },
     msgs: (n) => `${n}条`,
@@ -2887,7 +2902,7 @@ const I18N = {
     snippetPinnedToast: "📌 代码片段已保存至知识库",
     snippetUnpinnedToast: "代码片段已从知识库删除",
     noSnippets: "暂无收藏的代码片段。",
-    noSnippetsSub: "点击助理消息或代码块上的 📌 按钮，将关键解决方案保存至此处。",
+    noSnippetsSub: "点击代理消息或代码块上的 📌 按钮，将关键解决方案保存至此处。",
     allLangs: "全部",
   },
 };
@@ -3094,7 +3109,7 @@ async function exportSessionToMarkdown(s, visibleList) {
   if (msgs.length) {
     for (let i = 0; i < msgs.length; i++) {
       const m = msgs[i];
-      const roleTitle = m.role === "user" ? "User" : m.role === "assistant" ? "Assistant" : "Tool";
+      const roleTitle = m.role === "user" ? "User" : m.role === "assistant" ? "Agent" : "Tool";
       const tsStr = m.ts ? ` *(${fmtDateTime(m.ts)})*` : "";
       lines.push(`### ${roleTitle}${tsStr}\n`);
       if (m.text) {
@@ -4334,7 +4349,8 @@ function buildMessageRow(s, m, msgIdx) {
   if (m.ts) av.title = fmtDateTime(m.ts);
   const content = el("div", "content");
   const whoEl = el("div", "who");
-  whoEl.appendChild(el("span", "role-name", m.role));
+  const roleDisplay = m.role === "assistant" ? (L.roleAgent || "agent") : m.role === "user" ? (L.roleUser || "user") : m.role;
+  whoEl.appendChild(el("span", "role-name", roleDisplay));
   if (m.is_rewound) {
     whoEl.appendChild(el("span", "badge-rewound", "↩ " + (L.rewound || "rewound")));
   }
@@ -6056,6 +6072,10 @@ async function loadSnippets(query, lang) {
       if (snip.role) {
         const badgeLabel = snip.role === "assistant_memory"
           ? (L.assistantMemoryBadge || "🧠 memory")
+          : snip.role === "assistant"
+          ? (L.roleAgent || "agent")
+          : snip.role === "user"
+          ? (L.roleUser || "user")
           : snip.role;
         badges.appendChild(el("span", "snippet-card-badge role-" + snip.role, badgeLabel));
       }
@@ -6523,6 +6543,9 @@ function renderActivityDashboard(data) {
 }
 
 (async function init() {
+  if ($("role") && !$("role").value) {
+    $("role").value = "user,assistant";
+  }
   await loadStats();
   try {
     const favs = await jget("/api/favorites");
