@@ -74,6 +74,7 @@ pub fn serve(port: u16, no_open: bool, sync: bool) -> Result<()> {
             "/api/snippet/save" => api_snippet_save(&conn, &mut request, query),
             "/api/snippet/delete" => api_snippet_delete(&conn, query),
             "/api/snippet/rename" => api_snippet_rename(&conn, &mut request, query),
+            "/api/subagents" => api_subagents(&conn, query),
             p if p.starts_with("/api/related/") => {
                 api_related(&conn, p.trim_start_matches("/api/related/"))
             }
@@ -190,13 +191,15 @@ fn api_sessions(conn: &Connection, query: &str) -> Result<Boxed> {
     let limit = param(query, "limit")
         .and_then(|s| s.parse().ok())
         .unwrap_or(500);
+    let include_subagents = param(query, "subagents").is_some_and(|v| v == "1" || v == "true")
+        || param(query, "all").is_some_and(|v| v == "1" || v == "true");
     let rows = index::recent_range(
         conn,
         limit,
         tool.as_deref(),
         project.as_deref(),
         tag.as_deref(),
-        false,
+        include_subagents,
         since.as_deref(),
         until.as_deref(),
     )?;
@@ -401,6 +404,18 @@ fn api_session(conn: &Connection, id: &str) -> Result<Boxed> {
     }
     let pinned = index::snippet_indices_for_session(conn, &row.session_id).unwrap_or_default();
     v["pinned_indices"] = json!(pinned);
+    if let Some(pid) = row.parent_id.as_ref().or(session.parent_id.as_ref()) {
+        v["parent_id"] = json!(pid);
+        if let Ok(parents) = index::resolve(conn, pid) {
+            if let Some(prow) = parents.first() {
+                v["parent"] = row_json(prow);
+            }
+        }
+    }
+    let subagents = index::subagents_for_parent(conn, &row.session_id).unwrap_or_default();
+    if !subagents.is_empty() {
+        v["subagents"] = json!(subagents.iter().map(row_json).collect::<Vec<_>>());
+    }
     json_response(v)
 }
 
@@ -456,6 +471,15 @@ fn api_brief(conn: &Connection, query: &str) -> Result<Boxed> {
         "chars": chars,
         "est_tokens": est_tokens
     }))
+}
+
+fn api_subagents(conn: &Connection, query: &str) -> Result<Boxed> {
+    let parent_id = param(query, "parent_id").unwrap_or_default();
+    if parent_id.is_empty() {
+        return json_response(json!([]));
+    }
+    let rows = index::subagents_for_parent(conn, &parent_id)?;
+    json_response(json!(rows.iter().map(row_json).collect::<Vec<_>>()))
 }
 
 fn api_snippets(conn: &Connection, query: &str) -> Result<Boxed> {

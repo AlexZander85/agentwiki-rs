@@ -329,6 +329,7 @@ mod tests {
             ended: None,
             title: "refactor token guard".into(),
             subagent: false,
+            parent_id: None,
             messages,
             touched: vec![],
             edits: Vec::new(),

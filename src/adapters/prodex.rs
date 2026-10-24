@@ -292,6 +292,7 @@ impl Adapter for Prodex {
             ended: ended.or(started),
             title,
             subagent: false,
+            parent_id: None,
             messages,
             touched,
             edits: Vec::new(),

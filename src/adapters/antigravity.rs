@@ -283,6 +283,7 @@ impl Adapter for Antigravity {
             ended,
             title,
             subagent: false,
+            parent_id: None,
             messages,
             touched: dedup_paths(touched),
             edits,

@@ -285,6 +285,7 @@ fn session_from_run(path: &Path, idx: usize, run: &Run) -> Result<Session> {
         ended: None,
         title: title_from(&messages),
         subagent: false,
+        parent_id: None,
         messages,
         touched,
         edits: Vec::new(),

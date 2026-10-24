@@ -43,6 +43,7 @@ impl Adapter for OneFileAdapter {
             ended: None,
             title: "embedded conversation".into(),
             subagent: false,
+            parent_id: None,
             messages: vec![Message {
                 role: Role::User,
                 text: fs::read_to_string(path)?,
@@ -174,6 +175,7 @@ impl Adapter for ToolOutputAdapter {
             ended: None,
             title: "archived tool output".into(),
             subagent: false,
+            parent_id: None,
             messages: vec![Message {
                 role: Role::Tool,
                 text: "→ shell(cargo test) ⇒ ok · 2 lines".into(),

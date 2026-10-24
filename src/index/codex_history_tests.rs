@@ -21,7 +21,9 @@ fn adapters(home: &Path) -> Vec<Box<dyn Adapter>> {
 fn rollout(home: &Path, dir: &str, id: &str, text: &str) -> PathBuf {
     let path = home
         .join(dir)
-        .join("2026/10/01")
+        .join("2026")
+        .join("10")
+        .join("01")
         .join(format!("rollout-2026-10-01T10-00-00-{id}.jsonl"));
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(
@@ -466,7 +468,10 @@ fn a_rollout_moved_back_from_archived_sessions_is_listed_once_and_keeps_its_tags
 
     let after = home
         .path()
-        .join("sessions/2026/10/01")
+        .join("sessions")
+        .join("2026")
+        .join("10")
+        .join("01")
         .join(before.file_name().unwrap());
     std::fs::create_dir_all(after.parent().unwrap()).unwrap();
     std::fs::rename(&before, &after).unwrap();

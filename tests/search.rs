@@ -379,6 +379,7 @@ impl Adapter for SearchAdapter {
             ended: None,
             title: "reindex fixture".into(),
             subagent: false,
+            parent_id: None,
             messages: vec![Message {
                 role: Role::User,
                 text: std::fs::read_to_string(path)?,

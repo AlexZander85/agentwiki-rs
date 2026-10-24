@@ -1920,11 +1920,14 @@ mod tests {
                 "recall_solution",
                 "get_session_summary",
                 "list_favorites",
-                "list_snippets"
+                "list_snippets",
+                "remember"
             ]
         );
         for t in tools {
-            assert_eq!(t["annotations"]["readOnlyHint"], true);
+            if t["name"] != "remember" {
+                assert_eq!(t["annotations"]["readOnlyHint"], true);
+            }
             assert_eq!(t["inputSchema"]["type"], "object");
         }
         assert!(v["result"].get("nextCursor").is_none());

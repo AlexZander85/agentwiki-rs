@@ -532,6 +532,67 @@
   .doc-head .chips-row .chips {
     margin-top: 0;
   }
+  .parent-chip {
+    background: var(--bg-hover);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .parent-chip:hover {
+    background: var(--accent);
+    color: #fff;
+  }
+  .subagents-details {
+    margin-top: 8px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--card);
+    overflow: hidden;
+  }
+  .subagents-details summary {
+    padding: 6px 10px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--ink-2);
+    cursor: pointer;
+    user-select: none;
+    background: var(--bg-sunken);
+  }
+  .subagents-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px 8px;
+  }
+  .subagent-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 8px;
+    border-radius: 5px;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    cursor: pointer;
+    font-size: 11.5px;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .subagent-item:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent);
+  }
+  .subagent-name {
+    flex: 1;
+    font-weight: 500;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .subagent-meta {
+    font-size: 10.5px;
+    color: var(--ink-3);
+    white-space: nowrap;
+  }
   .export-md-btn {
     display: inline-flex;
     align-items: center;
@@ -1866,6 +1927,12 @@
           <option value="msgs">💬 message count</option>
         </select>
       </div>
+      <div class="subagents-row" style="margin-top: 4px; display: flex; align-items: center; justify-content: space-between;">
+        <label class="subagents-label" style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--ink-2); cursor: pointer; user-select: none;">
+          <input type="checkbox" id="show-subagents-cb" style="margin: 0; cursor: pointer;">
+          <span id="show-subagents-label">🤖 Subagents</span>
+        </label>
+      </div>
       <div class="date-row" id="date-custom-row" style="margin-top: 6px; display: none;">
         <div id="date-single-wrap" class="date-input-wrap">
           <input type="date" id="date-single" class="date-input" title="Choose day">
@@ -2013,6 +2080,11 @@ const I18N = {
     groups: { today: "Сегодня", yesterday: "Вчера", week: "На этой неделе", month: "В этом месяце", earlier: "Ранее" },
     msgs: (n) => `${n} сообщ.`,
     subagent: "подагент",
+    showSubagents: "🤖 Подагенты",
+    subagentsLabel: "Подагенты",
+    parent: "Родитель",
+    parentSession: "Родительская сессия",
+    goToParent: "Перейти к родительской сессии",
     untitled: "(без названия)",
     noMatches: "Ничего не найдено.",
     emptyIndex: "Индекс пуст — выполните sessionwiki list в терминале",
@@ -2080,6 +2152,11 @@ const I18N = {
     groups: { today: "Today", yesterday: "Yesterday", week: "This week", month: "This month", earlier: "Earlier" },
     msgs: (n) => `${n} msgs`,
     subagent: "subagent",
+    showSubagents: "🤖 Subagents",
+    subagentsLabel: "Subagents",
+    parent: "Parent",
+    parentSession: "Parent session",
+    goToParent: "Go to parent session",
     untitled: "(untitled)",
     noMatches: "No matches.",
     emptyIndex: "Index is empty - run: sessionwiki list",
@@ -2150,6 +2227,11 @@ const I18N = {
     groups: { today: "오늘", yesterday: "어제", week: "이번 주", month: "이번 달", earlier: "이전" },
     msgs: (n) => `메시지 ${n}`,
     subagent: "서브에이전트",
+    showSubagents: "🤖 서브에이전트",
+    subagentsLabel: "서브에이전트",
+    parent: "상위",
+    parentSession: "상위 세션",
+    goToParent: "상위 세션으로 이동",
     untitled: "(제목 없음)",
     noMatches: "결과가 없습니다.",
     emptyIndex: "인덱스가 비어 있습니다 - 터미널에서 sessionwiki list 실행",
@@ -2215,6 +2297,11 @@ const I18N = {
     groups: { today: "今日", yesterday: "昨日", week: "今週", month: "今月", earlier: "それ以前" },
     msgs: (n) => `${n}件`,
     subagent: "サブエージェント",
+    showSubagents: "🤖 サブエージェント",
+    subagentsLabel: "サブエージェント",
+    parent: "親",
+    parentSession: "親セッション",
+    goToParent: "親セッションへ移動",
     untitled: "(無題)",
     noMatches: "該当なし。",
     emptyIndex: "インデックスが空です - ターミナルで sessionwiki list を実行",
@@ -2280,6 +2367,11 @@ const I18N = {
     groups: { today: "今天", yesterday: "昨天", week: "本周", month: "本月", earlier: "更早" },
     msgs: (n) => `${n}条`,
     subagent: "子代理",
+    showSubagents: "🤖 子代理",
+    subagentsLabel: "子代理",
+    parent: "父会话",
+    parentSession: "父会话",
+    goToParent: "前往父会话",
     untitled: "(无标题)",
     noMatches: "没有匹配结果。",
     emptyIndex: "索引为空 - 请在终端运行 sessionwiki list",
@@ -2577,6 +2669,7 @@ async function exportSessionToMarkdown(s, visibleList) {
 function applyStaticStrings() {
   $("q").placeholder = L.searchPh;
   $("tool").options[0].textContent = L.allTools;
+  if ($("show-subagents-label")) $("show-subagents-label").textContent = L.showSubagents || "🤖 Subagents";
   if ($("date-mode")) {
     $("date-mode").options[0].textContent = L.allDates || "all dates";
     $("date-mode").options[1].textContent = L.today || "today";
@@ -3256,6 +3349,21 @@ function renderCurrentSession(keepScroll) {
     : `${s.messages.length}`;
   chips.appendChild(el("span", "chip", L.messages(countStr)));
 
+  if (s.parent || s.parent_id) {
+    const pId = s.parent ? s.parent.id : s.parent_id;
+    const pTitle = s.parent && s.parent.title ? s.parent.title : (L.parentSession || "Parent session");
+    const parentChip = el("span", "chip parent-chip");
+    parentChip.title = `${L.goToParent || "Go to parent session"}: ${pTitle}`;
+    parentChip.style.cursor = "pointer";
+    const truncTitle = pTitle.length > 25 ? pTitle.slice(0, 25) + '…' : pTitle;
+    parentChip.appendChild(document.createTextNode(`🔗 ${L.parent || "Parent"}: ${truncTitle}`));
+    parentChip.onclick = (e) => {
+      e.stopPropagation();
+      openSession(pId);
+    };
+    chips.appendChild(parentChip);
+  }
+
   const chipsRow = el("div", "chips-row");
   chipsRow.appendChild(chips);
 
@@ -3398,6 +3506,27 @@ function renderCurrentSession(keepScroll) {
 
   chipsRow.appendChild(actions);
   head.appendChild(chipsRow);
+
+  if (s.subagents && s.subagents.length) {
+    const subDet = el("details", "subagents-details");
+    subDet.open = true;
+    const subSum = el("summary", "", `🤖 ${L.subagentsLabel || "Subagents"} (${s.subagents.length})`);
+    subDet.appendChild(subSum);
+    const subList = el("div", "subagents-list");
+    for (const sub of s.subagents) {
+      const item = el("div", "subagent-item");
+      const dot = el("span", "dot " + sub.tool);
+      const name = el("span", "subagent-name", sub.title || L.untitled);
+      const meta = el("span", "subagent-meta", `${fmtDate(sub.started)} · ${L.msgs(sub.msgs)}`);
+      item.appendChild(dot);
+      item.appendChild(name);
+      item.appendChild(meta);
+      item.onclick = () => openSession(sub.id);
+      subList.appendChild(item);
+    }
+    subDet.appendChild(subList);
+    head.appendChild(subDet);
+  }
 
   renderSessionTags(s, tagsList);
   head.appendChild(el("div", "path", s.path));
@@ -3908,6 +4037,7 @@ async function refresh() {
   const { since, until } = getDateBounds();
   const sParam = since ? `&since=${encodeURIComponent(since)}` : "";
   const uParam = until ? `&until=${encodeURIComponent(until)}` : "";
+  const subParam = $("show-subagents-cb") && $("show-subagents-cb").checked ? "&subagents=1" : "";
 
   const filePrefixMatch = inputVal.match(/^(?:file|path):(.+)$/i);
   const isRawFilePath = /^[a-zA-Z]:[\\/]/.test(inputVal) ||
@@ -3942,9 +4072,9 @@ async function refresh() {
     // Mode 1 & 2: Search bar input -> strictly within one message!
     items = await jget(`/api/search?q=${encodeURIComponent(inputVal)}${t}${r}${sParam}${uParam}`);
   } else if (currentTag) {
-    items = await jget(`/api/sessions?limit=500${t}&tag=${encodeURIComponent(currentTag)}${sParam}${uParam}`);
+    items = await jget(`/api/sessions?limit=500${t}&tag=${encodeURIComponent(currentTag)}${sParam}${uParam}${subParam}`);
   } else {
-    items = await jget(`/api/sessions?limit=500${t}${sParam}${uParam}`);
+    items = await jget(`/api/sessions?limit=500${t}${sParam}${uParam}${subParam}`);
   }
 
   if (currentOnlyFavorites) {
@@ -4015,6 +4145,12 @@ function renderTagBar() {
     chip.appendChild(x);
     bar.appendChild(chip);
   }
+}
+
+if ($("show-subagents-cb")) {
+  $("show-subagents-cb").addEventListener("change", () => {
+    refresh();
+  });
 }
 
 if ($("sort-mode")) {

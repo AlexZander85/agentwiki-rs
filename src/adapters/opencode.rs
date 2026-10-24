@@ -146,7 +146,7 @@ fn table_exists(conn: &Connection, table: &str) -> bool {
 }
 
 impl OpenCode {
-    fn parse_v2(&self, conn: &Connection, _db: &str, sid: &str, key: &str) -> Result<Session> {
+    fn parse_v2(&self, conn: &Connection, db: &str, sid: &str, key: &str) -> Result<Session> {
         let (project, raw_title, created, updated, parent): (
             String,
             String,
@@ -234,6 +234,11 @@ impl OpenCode {
             redacted_truncate(&raw_title, 80)
         };
 
+        let parent_id = parent
+            .as_ref()
+            .filter(|p| !p.is_empty())
+            .map(|p| short_id(&make_key(Path::new(db), p)));
+
         Ok(Session {
             id: short_id(key),
             tool: self.name(),
@@ -243,13 +248,14 @@ impl OpenCode {
             ended: updated.and_then(DateTime::from_timestamp_millis),
             title,
             subagent: parent.is_some_and(|p| !p.is_empty()),
+            parent_id,
             messages,
             touched: dedup_paths(touched),
             edits,
         })
     }
 
-    fn parse_v1(&self, conn: &Connection, _db: &str, sid: &str, key: &str) -> Result<Session> {
+    fn parse_v1(&self, conn: &Connection, db: &str, sid: &str, key: &str) -> Result<Session> {
         let (project, raw_title, created, updated): (String, String, Option<i64>, Option<i64>) =
             conn.query_row(
                 "SELECT directory, title, time_created, time_updated
@@ -344,6 +350,11 @@ impl OpenCode {
             redacted_truncate(&raw_title, 80)
         };
 
+        let parent_id = parent
+            .as_ref()
+            .filter(|p| !p.is_empty())
+            .map(|p| short_id(&make_key(Path::new(db), p)));
+
         Ok(Session {
             id: short_id(key),
             tool: self.name(),
@@ -353,6 +364,7 @@ impl OpenCode {
             ended: updated.and_then(DateTime::from_timestamp_millis),
             title,
             subagent: parent.is_some_and(|p| !p.is_empty()),
+            parent_id,
             messages,
             touched: dedup_paths(touched),
             edits,
@@ -449,7 +461,12 @@ fn parse_json(tool: &'static str, path: &Path) -> Result<Session> {
         .to_string();
     let started = s.pointer("/time/created").and_then(epoch_ms);
     let ended = s.pointer("/time/updated").and_then(epoch_ms);
-    let subagent = s.get("parentID").is_some();
+    let parent_id = s
+        .get("parentID")
+        .and_then(Value::as_str)
+        .filter(|p| !p.is_empty())
+        .map(|pid| short_id(&path.with_file_name(format!("{pid}.json")).to_string_lossy()));
+    let subagent = parent_id.is_some() || s.get("parentID").is_some();
     let session_title = s
         .get("title")
         .and_then(Value::as_str)
@@ -527,6 +544,7 @@ fn parse_json(tool: &'static str, path: &Path) -> Result<Session> {
         ended,
         title,
         subagent,
+        parent_id,
         messages,
         touched: dedup_paths(touched),
         edits,

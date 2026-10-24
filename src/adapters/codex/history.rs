@@ -193,6 +193,7 @@ impl Adapter for CodexHistory {
             ended,
             title: title_from_messages(&messages),
             subagent,
+            parent_id: None,
             messages,
             touched: dedup_paths(touched),
             edits: Vec::new(),

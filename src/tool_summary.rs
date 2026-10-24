@@ -440,6 +440,7 @@ mod tests {
             ended: None,
             title: "test".into(),
             subagent: false,
+            parent_id: None,
             messages,
             touched: vec![],
             edits: vec![],

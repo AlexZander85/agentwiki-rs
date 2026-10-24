@@ -339,6 +339,7 @@ fn parse_task(tool: &'static str, path: &Path) -> Result<Session> {
         ended,
         title,
         subagent: false,
+        parent_id: None,
         messages,
         touched: dedup_paths(touched),
         edits: Vec::new(),

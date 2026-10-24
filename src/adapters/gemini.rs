@@ -107,7 +107,7 @@ pub(crate) fn project_root(chat: &Path) -> Option<String> {
     let store = chats_dir(chat)?.parent()?;
     let root = crate::util::read_to_string_capped(&store.join(".project_root")).ok()?;
     let root = root.trim();
-    Path::new(root).is_absolute().then(|| root.to_string())
+    (Path::new(root).is_absolute() || root.starts_with('/') || root.starts_with('\\')).then(|| root.to_string())
 }
 
 impl Adapter for Gemini {
@@ -277,6 +277,23 @@ impl Adapter for Gemini {
             .unwrap_or_default();
         let title = title_from_messages(&messages);
 
+        let is_sub = is_subagent_chat(path);
+        let parent_id = if is_sub {
+            path.parent().and_then(|p| {
+                let stem = p.file_name()?;
+                let p_dir = chats_dir(path)?;
+                let cand_json = p_dir.join(format!("{}.json", stem.to_string_lossy()));
+                let cand_jsonl = p_dir.join(format!("{}.jsonl", stem.to_string_lossy()));
+                if cand_json.is_file() {
+                    Some(short_id(&cand_json.to_string_lossy()))
+                } else {
+                    Some(short_id(&cand_jsonl.to_string_lossy()))
+                }
+            })
+        } else {
+            None
+        };
+
         Ok(Session {
             id: short_id(&path.to_string_lossy()),
             tool: self.name(),
@@ -285,7 +302,8 @@ impl Adapter for Gemini {
             started,
             ended,
             title,
-            subagent: is_subagent_chat(path),
+            subagent: is_sub,
+            parent_id,
             messages,
             // Gemini CLI chat logs do not record structured file edits, so
             // there is nothing to link to the codebase here.

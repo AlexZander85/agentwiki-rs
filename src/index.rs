@@ -304,6 +304,7 @@ pub fn ensure_snippets_table(conn: &Connection) -> Result<()> {
     let _ = conn.execute("ALTER TABLE snippets ADD COLUMN tool TEXT", []);
     let _ = conn.execute("ALTER TABLE snippets ADD COLUMN role TEXT", []);
     let _ = conn.execute("ALTER TABLE snippets ADD COLUMN message_ts TEXT", []);
+    let _ = conn.execute("ALTER TABLE files ADD COLUMN parent_id TEXT", []);
     let _ = conn.execute(
         "UPDATE snippets SET tool = (
             SELECT tool FROM sessions WHERE sessions.session_id = snippets.session_id
@@ -554,6 +555,7 @@ fn create_cache_schema_with_tokenizer(conn: &Connection, tokenizer: &str) -> Res
             ended      TEXT,
             msg_count  INTEGER NOT NULL DEFAULT 0,
             kind       TEXT NOT NULL DEFAULT 'main',
+            parent_id  TEXT,
             -- Set when the tool deleted the original session file but we kept
             -- the indexed copy (archive mode). NULL for live sessions.
             archived_at TEXT
@@ -1223,8 +1225,8 @@ fn index_one(
     )?;
     tx.execute(
         "INSERT OR REPLACE INTO files
-         (path, mtime, size, session_id, tool, project, title, started, ended, msg_count, kind)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+         (path, mtime, size, session_id, tool, project, title, started, ended, msg_count, kind, parent_id)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
         params![
             key,
             mtime,
@@ -1237,6 +1239,7 @@ fn index_one(
             session.ended.map(|t| t.to_rfc3339()),
             session.messages.len() as i64,
             if session.subagent { "sub" } else { "main" },
+            session.parent_id.as_deref(),
         ],
     )?;
     fold_moved_copy(tx, session, key)?;
@@ -1842,6 +1845,8 @@ pub struct SessionRow {
     /// swapdex switch timeline exists on the machine. Null otherwise - a
     /// missing badge, never a guess.
     pub account: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
 }
 
 /// Tags are stored comma-joined but the JSON contract is an array (matching the
@@ -1960,7 +1965,7 @@ pub fn recent_range(
     until: Option<&str>,
 ) -> Result<Vec<SessionRow>> {
     let mut sql = format!(
-        "SELECT session_id, tool, path, project, title, started, msg_count, kind, {PREVIEW_SQL}, {SUMMARY_SQL}, {TAGS_SQL}, (archived_at IS NOT NULL), COALESCE(ended, started)
+        "SELECT session_id, tool, path, project, title, started, msg_count, kind, {PREVIEW_SQL}, {SUMMARY_SQL}, {TAGS_SQL}, (archived_at IS NOT NULL), COALESCE(ended, started), parent_id
          FROM files f WHERE 1=1",
     );
     let mut args: Vec<String> = Vec::new();
@@ -2021,6 +2026,7 @@ pub fn recent_range(
             summary: r.get(9)?,
             tags: r.get(10)?,
             archived: r.get(11)?,
+            parent_id: r.get(13)?,
             account: None,
         })
     })?;
@@ -2056,6 +2062,7 @@ pub fn project_brief(conn: &Connection, project: &str, limit: usize) -> Result<V
             summary: r.get(9)?,
             tags: r.get(10)?,
             archived: r.get(11)?,
+            parent_id: None,
             account: None,
         })
     })?;
@@ -2306,6 +2313,7 @@ fn search_fts_terms(
                     tags: None,
                     archived: r.get(11)?,
                     account: None,
+                    parent_id: None,
                 },
                 role: r.get(8)?,
                 snippet: r.get(9)?,
@@ -2371,6 +2379,7 @@ pub fn search_sessions_multi_terms(
             summary: None,
             tags: None,
             archived: r.get(8)?,
+            parent_id: None,
             account: None,
         })
     })?;
@@ -2483,6 +2492,7 @@ fn search_like_terms(
                     tags: None,
                     archived: r.get(10)?,
                     account: None,
+                    parent_id: None,
                 },
                 role: r.get(8)?,
                 snippet: snippet_around(&text, terms),
@@ -2575,7 +2585,7 @@ fn escape_like(s: &str) -> String {
 
 /// The SELECT column list every id-resolution query shares, in the order
 /// [`map_resolve_row`] reads.
-const RESOLVE_COLS: &str = "session_id, tool, path, project, title, started, msg_count, kind";
+const RESOLVE_COLS: &str = "session_id, tool, path, project, title, started, msg_count, kind, parent_id";
 
 /// Map a resolve-query row to a [`SessionRow`]. Callers must SELECT
 /// [`RESOLVE_COLS`] followed by `{SUMMARY_SQL}, {TAGS_SQL}, (archived_at IS NOT NULL)`.
@@ -2590,10 +2600,11 @@ fn map_resolve_row(r: &rusqlite::Row) -> rusqlite::Result<SessionRow> {
         started: r.get(5)?,
         msg_count: r.get(6)?,
         kind: r.get(7)?,
+        parent_id: r.get(8)?,
         preview: None,
-        summary: r.get(8)?,
-        tags: r.get(9)?,
-        archived: r.get(10)?,
+        summary: r.get(9)?,
+        tags: r.get(10)?,
+        archived: r.get(11)?,
         account: None,
     })
 }
@@ -2721,6 +2732,7 @@ pub fn live_row(tool: String, path: PathBuf) -> SessionRow {
         tags: None,
         archived: false,
         account: None,
+        parent_id: None,
     }
 }
 
@@ -2771,6 +2783,7 @@ pub fn unsummarized(
             tags: r.get(10)?,
             archived: r.get(11)?,
             account: None,
+            parent_id: None,
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
@@ -3285,6 +3298,7 @@ pub fn sessions_for_file(
                 tags: r.get(9)?,
                 archived: r.get(11)?,
                 account: None,
+                parent_id: None,
             },
             r.get::<_, String>(10)?,
         ))
@@ -3418,6 +3432,7 @@ pub fn session_from_index(conn: &Connection, row: &SessionRow) -> Result<crate::
         ended: started,
         title: row.title.clone(),
         subagent: row.kind == "sub",
+        parent_id: row.parent_id.clone(),
         messages,
         touched: files_for(conn, &row.session_id)?,
         edits: Vec::new(),
@@ -3572,8 +3587,38 @@ fn map_row(r: &rusqlite::Row) -> rusqlite::Result<SessionRow> {
         summary: r.get(9)?,
         tags: r.get(10)?,
         archived: r.get(11)?,
+        parent_id: r.get(12).ok(),
         account: None,
     })
+}
+
+/// Return all indexed subagent sessions for a given parent session id.
+pub fn subagents_for_parent(conn: &Connection, parent_id: &str) -> Result<Vec<SessionRow>> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT session_id, tool, path, project, title, started, msg_count, kind,          {PREVIEW_SQL}, {SUMMARY_SQL}, {TAGS_SQL}, (archived_at IS NOT NULL), COALESCE(ended, started), parent_id          FROM files f          WHERE f.parent_id = ?1          ORDER BY started ASC, session_id ASC"
+    ))?;
+    let rows = stmt.query_map(params![parent_id], |r| {
+        Ok(SessionRow {
+            last_active: r.get(12)?,
+            session_id: r.get(0)?,
+            tool: r.get(1)?,
+            path: r.get(2)?,
+            project: r.get(3)?,
+            title: r.get(4)?,
+            started: r.get(5)?,
+            msg_count: r.get(6)?,
+            kind: r.get(7)?,
+            preview: r.get(8)?,
+            summary: r.get(9)?,
+            tags: r.get(10)?,
+            archived: r.get(11)?,
+            parent_id: r.get(13)?,
+            account: None,
+        })
+    })?;
+    let mut out = rows.collect::<rusqlite::Result<Vec<_>>>()?;
+    crate::account_link::annotate(out.iter_mut());
+    Ok(out)
 }
 
 // --- session engineering: management views ---
@@ -3679,7 +3724,7 @@ mod native_id_tests {
                  tool TEXT NOT NULL, project TEXT NOT NULL DEFAULT '',
                  title TEXT NOT NULL DEFAULT '', started TEXT, ended TEXT,
                  msg_count INTEGER NOT NULL DEFAULT 0,
-                 kind TEXT NOT NULL DEFAULT 'main', archived_at TEXT);
+                 kind TEXT NOT NULL DEFAULT 'main', parent_id TEXT, archived_at TEXT);
              CREATE TABLE summaries(session_id TEXT PRIMARY KEY, summary TEXT NOT NULL, created TEXT NOT NULL);
              CREATE TABLE tags(session_id TEXT NOT NULL, tag TEXT NOT NULL, PRIMARY KEY(session_id, tag));",
         )
@@ -3809,6 +3854,7 @@ mod native_id_tests {
             tags: None,
             archived: false,
             account: None,
+            parent_id: None,
         };
         let v = serde_json::to_value(&row).unwrap();
         assert_eq!(v["id"], "abc123def456");
@@ -3900,6 +3946,7 @@ mod edits_tests {
             ended: None,
             title: "t".into(),
             subagent: false,
+            parent_id: None,
             messages: vec![],
             touched: vec!["/proj/src/auth.rs".into()],
             edits: vec![EditEvent {
@@ -4037,6 +4084,7 @@ mod edits_tests {
             ended: None,
             title: "title with AKIAIOSFODNN7EXAMPLE in it".into(),
             subagent: false,
+            parent_id: None,
             messages: vec![Message {
                 role: Role::User,
                 text: "my key is sk-abcdef012345678901234567890123 ok".into(),
@@ -4126,6 +4174,7 @@ mod edits_tests {
                 ended: None,
                 title: format!("{sid} title"),
                 subagent: false,
+                parent_id: None,
                 messages: vec![],
                 touched: vec!["/proj/src/a.rs".into()],
                 edits: vec![EditEvent {
@@ -4273,6 +4322,7 @@ mod embedder_hook_tests {
                 ended: None,
                 title: "a restored session".into(),
                 subagent: false,
+                parent_id: None,
                 messages: vec![Message {
                     role: Role::User,
                     text: "make the tests green".into(),
@@ -4403,7 +4453,11 @@ mod embedder_hook_tests {
         let home = tempfile::tempdir().unwrap();
         let path = home
             .path()
-            .join("sessions/2026/01/01/rollout-2026-01-01T10-00-00-abc.jsonl");
+            .join("sessions")
+            .join("2026")
+            .join("01")
+            .join("01")
+            .join("rollout-2026-01-01T10-00-00-abc.jsonl");
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(
             &path,
@@ -4561,6 +4615,7 @@ mod tool_output_tests {
             ended: None,
             title: "tool output test".into(),
             subagent: false,
+            parent_id: None,
             messages: vec![Message {
                 role: Role::Tool,
                 text: "→ Bash(cargo test) ⇒ ok · 2 lines".into(),

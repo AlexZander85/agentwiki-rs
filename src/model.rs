@@ -150,6 +150,9 @@ pub struct Session {
     pub title: String,
     /// True for subagent transcripts spawned inside a parent session.
     pub subagent: bool,
+    /// Parent session ID if this is a subagent session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
     pub messages: Vec<Message>,
     /// Files the session edited or created, extracted from its tool calls
     /// (Claude's Edit/Write, Codex's apply_patch). This is the link between a

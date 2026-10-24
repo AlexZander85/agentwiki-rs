@@ -36,10 +36,11 @@ pub fn claude_store_root(
 }
 
 pub fn claude_project_folder(abs_path: &str) -> String {
-    abs_path
+    let clean = abs_path.strip_prefix(r"\\?\").unwrap_or(abs_path);
+    clean
         .chars()
         .map(|c| match c {
-            '/' | '.' | '_' => '-',
+            '/' | '\\' | ':' | '.' | '_' => '-',
             other => other,
         })
         .collect()

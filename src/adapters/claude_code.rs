@@ -285,7 +285,17 @@ impl Adapter for ClaudeCode {
         } else {
             base_title
         };
-        let subagent = path.to_string_lossy().contains("/subagents/");
+        let parent_id = path.parent().and_then(|p| {
+            if p.file_name().is_some_and(|name| name == "subagents") {
+                p.parent().map(|parent_dir| {
+                    let parent_jsonl = parent_dir.with_extension("jsonl");
+                    short_id(&parent_jsonl.to_string_lossy())
+                })
+            } else {
+                None
+            }
+        });
+        let subagent = parent_id.is_some() || path.components().any(|c| c.as_os_str() == "subagents");
 
         Ok(Session {
             id: short_id(&path.to_string_lossy()),
@@ -296,6 +306,7 @@ impl Adapter for ClaudeCode {
             ended,
             title,
             subagent,
+            parent_id,
             messages,
             touched: dedup_paths(touched),
             edits,

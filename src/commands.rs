@@ -2235,6 +2235,7 @@ mod tests {
             ended: None,
             title: format!("rotate {secret}"),
             subagent: false,
+            parent_id: None,
             messages: vec![
                 Message {
                     role: Role::User,
@@ -2321,6 +2322,7 @@ mod tests {
             ended: None,
             title: "fix the parser".into(),
             subagent: false,
+            parent_id: None,
             messages: vec![
                 Message {
                     role: Role::User,

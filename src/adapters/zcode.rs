@@ -353,6 +353,7 @@ impl Adapter for ZCode {
             ended,
             title: final_title,
             subagent,
+            parent_id: parent_id.clone(),
             messages,
             touched: dedup_paths(touched),
             edits,

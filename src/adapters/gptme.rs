@@ -162,6 +162,7 @@ impl Adapter for Gptme {
             ended,
             title,
             subagent: false,
+            parent_id: None,
             messages,
             touched: Vec::new(),
             edits: Vec::new(),

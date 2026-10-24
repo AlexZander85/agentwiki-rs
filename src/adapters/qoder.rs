@@ -282,6 +282,7 @@ impl Adapter for Qoder {
             ended,
             title: final_title,
             subagent: false,
+            parent_id: None,
             messages,
             touched: dedup_paths(touched),
             edits,

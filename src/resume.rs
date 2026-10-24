@@ -36,8 +36,8 @@ pub fn for_session(tool: &str, path: &Path, project: &str) -> Option<ResumeInfo>
     let (cwd, verified_cwd) = safe_cwd(tool, path, project);
     match tool {
         "claude-code" => {
-            let p = path.to_string_lossy();
-            if p.contains("/subagents/") {
+            let is_sub = path.components().any(|c| c.as_os_str() == "subagents");
+            if is_sub {
                 // Subagent transcripts cannot be resumed directly, but the
                 // parent session id is the directory just above "subagents":
                 // <project>/<parent-uuid>/subagents/agent-*.jsonl
@@ -96,7 +96,8 @@ pub fn for_session(tool: &str, path: &Path, project: &str) -> Option<ResumeInfo>
 /// actually lives in (the folder name encodes the cwd), which a planted file in
 /// some other folder cannot fake.
 fn safe_cwd(tool: &str, path: &Path, project: &str) -> (Option<PathBuf>, bool) {
-    if project.is_empty() || !project.starts_with('/') {
+    let is_abs = std::path::Path::new(project).is_absolute() || project.starts_with('/') || project.starts_with('\\');
+    if project.is_empty() || !is_abs {
         // No directory claim; resuming in the user's own shell cwd is fine.
         return (None, true);
     }
