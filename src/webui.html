@@ -1696,7 +1696,7 @@
         <span>📌</span> <span id="tab-snippets-label">Snippets</span> <span id="snippets-badge" class="snippets-badge" style="display:none">0</span>
       </button>
     </div>
-    <div class="controls">
+    <div class="controls" id="session-controls">
       <div class="filter-row">
         <select id="tool" aria-label="Filter by tool">
           <option value="">all tools</option>
@@ -1745,7 +1745,38 @@
     </div>
     <nav id="list"></nav>
     <div id="snippets-container" class="snippets-container" style="display:none">
-      <div class="snippets-controls">
+      <div class="controls" id="snippet-controls">
+        <div class="filter-row">
+          <select id="snippet-lang-select" aria-label="Filter by language">
+            <option value="">all languages</option>
+          </select>
+          <select id="snippet-sort-mode" aria-label="Sort snippets by">
+            <option value="created" selected>📅 created date</option>
+            <option value="relevance">🎯 relevance</option>
+            <option value="title">🔤 title A-Z</option>
+            <option value="length">📏 length</option>
+          </select>
+        </div>
+        <div class="filter-row" style="margin-top: 6px;">
+          <select id="snippet-date-mode" aria-label="Filter by date">
+            <option value="all">all dates</option>
+            <option value="today">today</option>
+            <option value="yesterday">yesterday</option>
+            <option value="single">single day&hellip;</option>
+            <option value="range">date range&hellip;</option>
+          </select>
+        </div>
+        <div class="date-row" id="snippet-date-custom-row" style="margin-top: 6px; display: none;">
+          <div id="snippet-date-single-wrap" class="date-input-wrap">
+            <input type="date" id="snippet-date-single" class="date-input" title="Choose day">
+          </div>
+          <div id="snippet-date-range-wrap" class="date-input-wrap">
+            <input type="date" id="snippet-date-from" class="date-input" title="From date">
+            <span style="font-size:11px;color:var(--ink-3)">&ndash;</span>
+            <input type="date" id="snippet-date-to" class="date-input" title="To date">
+          </div>
+          <button id="snippet-date-clear" class="date-clear-btn" title="Reset date filter">&times;</button>
+        </div>
         <div class="searchwrap">
           <svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="5"/><path d="m11 11 3.5 3.5"/></svg>
           <input type="search" id="snippet-q" placeholder="Search pinned snippets..." autocomplete="off">
@@ -1769,6 +1800,7 @@
             <svg class="chev" viewBox="0 0 10 10" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4l3 3 3-3"/></svg>
           </button>
           <div class="langmenu" id="langmenu" role="listbox" hidden>
+            <button role="option" data-lang="ru">Русский</button>
             <button role="option" data-lang="en">English</button>
             <button role="option" data-lang="ko">한국어</button>
             <button role="option" data-lang="ja">日本語</button>
@@ -1816,6 +1848,67 @@ let currentTag = null;
 
 /* ---------- i18n ---------- */
 const I18N = {
+  ru: {
+    loading: "Загрузка индекса…",
+    searchPh: "Поиск по сессиям",
+    allTools: "все инструменты",
+    allRoles: "все роли сообщений",
+    conversationRoles: "пользователь и ассистент",
+    userRole: "сообщения пользователя",
+    assistantRole: "ответы ассистента",
+    toolRole: "вывод инструментов",
+    groups: { today: "Сегодня", yesterday: "Вчера", week: "На этой неделе", month: "В этом месяце", earlier: "Ранее" },
+    msgs: (n) => `${n} сообщ.`,
+    subagent: "подагент",
+    untitled: "(без названия)",
+    noMatches: "Ничего не найдено.",
+    emptyIndex: "Индекс пуст — выполните sessionwiki list в терминале",
+    phTitle: "Выберите сессию слева",
+    phP1: "Все ваши диалоги с ИИ-агентами в одном месте. Поиск по всем инструментам сразу.",
+    phP2: "Выполните `sessionwiki list` или `search` в терминале для обновления индекса, затем обновите эту страницу.",
+    messages: (n) => `Сообщений: ${n}`,
+    resumeLabel: "продолжить в терминале: ",
+    copied: "скопировано",
+    clickToCopy: "Нажмите для копирования",
+    outline: (n) => `План · ${n} запросов`,
+    seeAlso: "Связанные сессии", filtering: "фильтрация", filterByTag: "фильтр по тегу",
+    recent: "Недавние", recentTitle: "Недавно просмотренные сессии", recentOpened: "Недавно открытые",
+    clearRecent: "Очистить историю", backToChat: "← Назад к чату", noRecent: "Нет недавно просмотренных сессий.",
+    filesLabel: "Файлы", tracedBy: (f) => `Сессии, изменявшие ${f}`,
+    fileHistory: (f) => `История изменений ${f}`,
+    moreEdits: (n) => `+ещё ${n}`, loadFailed: "Не удалось загрузить",
+    hint: "режим чтения · обновление: sessionwiki list",
+    themeDark: "Тёмная", themeLight: "Светлая",
+    stats: (s, t, b) => `Сессий: ${s} · Инструментов: ${t} · ${b}`,
+    exportMd: "Экспортировать сессию в Markdown (.md)", exportMdBtn: "Экспорт .md", exported: "Сохранено!",
+    sortRelevance: "🎯 по релевантности", sortCreated: "📅 по дате создания", sortLastActive: "🕒 по последнему сообщению", sortMsgs: "💬 по числу сообщений",
+    sync: "Синхронизация", syncing: "Синхронизация...", autoSync: "Авто-синхронизация (10м)", synced: "синхронизировано", lastSynced: "Синхронизировано",
+    ctxCopyMd: "Копировать как Markdown", ctxCopyText: "Копировать как текст", ctxSearchChat: "Искать в чате", ctxSearchGoogle: "Искать в Google",
+    ctxPinSnippet: "📌 Сохранить выделение в сниппеты",
+    copiedMd: "✓ Скопировано как Markdown", copiedText: "✓ Скопировано как текст",
+    allDates: "все даты", today: "сегодня", yesterday: "вчера", singleDay: "один день…", dateRange: "диапазон дат…",
+    lastActivePrefix: "посл.",
+    searchInChat: "Поиск в чате...",
+    copyCodeBtn: "📋 Копировать", copiedCode: "✓ Скопировано", copyCode: "Копировать код",
+    ctxFindSessions: "Найти все сессии", ctxCopyPath: "Копировать путь к файлу", copiedPath: "✓ Путь скопирован",
+    fileFilterChip: (f) => `файл: ${f}`, filterSidebarBtn: "Фильтровать список", filterSidebarTip: "Показать все сессии, изменявшие этот файл",
+    favlabel: "Избранное", favAdded: "★ Добавлено в избранное", favRemoved: "☆ Удалено из избранного",
+    addToFav: "Добавить в избранное", remFromFav: "Удалить из избранного",
+    deleteFromIndex: "Удалить из индекса", confirmForget: (t) => `Безвозвратно удалить "${t}" из индекса поиска?`,
+    deletedFromIndex: "✓ Сессия удалена из индекса",
+    aiBriefBtn: "AI Brief", aiBriefTip: "Скопировать краткий Markdown-бриф для Claude / Cursor / агентов",
+    copiedBrief: (t) => `✓ AI Brief скопирован (~${t} токенов)`, filterFavoritesChip: (n) => `⭐ Избранное (${n})`,
+    pastedContent: "Вставленный фрагмент", copyPasted: "Копировать", copiedPasted: "Скопировано",
+    snippetsTab: "Сниппеты", sessionsTab: "Сессии",
+    searchSnippets: "Поиск по сохранённым сниппетам...",
+    pinSnippet: "📌 Сохранить в сниппеты / базу знаний", unpinSnippet: "Удалить из сниппетов",
+    pinnedSnippet: "В сниппетах", pinSnippetBtn: "Сниппет",
+    snippetPinnedToast: "📌 Сниппет сохранён в базу знаний",
+    snippetUnpinnedToast: "Сниппет удалён из базы знаний",
+    noSnippets: "Закладок пока нет.",
+    noSnippetsSub: "Нажмите 📌 Сниппет на сообщении ассистента или блоке кода, либо выделите текст мышью и нажмите правую кнопку мыши.",
+    allLangs: "Все",
+  },
   en: {
     loading: "loading index…",
     searchPh: "Search sessions",
@@ -1852,6 +1945,7 @@ const I18N = {
     sortRelevance: "🎯 relevance", sortCreated: "📅 created date", sortLastActive: "🕒 last message", sortMsgs: "💬 message count",
     sync: "Sync", syncing: "Syncing...", autoSync: "Auto-sync (10m)", synced: "synced", lastSynced: "Last synced",
     ctxCopyMd: "Copy as Markdown", ctxCopyText: "Copy as plain text", ctxSearchChat: "Search in chat", ctxSearchGoogle: "Search in Google",
+    ctxPinSnippet: "📌 Save selection to Snippets",
     copiedMd: "✓ Copied as Markdown", copiedText: "✓ Copied as text",
     allDates: "all dates", today: "today", yesterday: "yesterday", singleDay: "single day…", dateRange: "date range…",
     lastActivePrefix: "last",
@@ -1865,21 +1959,21 @@ const I18N = {
     deletedFromIndex: "✓ Session deleted from index",
     aiBriefBtn: "AI Brief", aiBriefTip: "Copy condensed markdown briefing for Claude / Cursor / agents",
     copiedBrief: (t) => `✓ Copied AI Brief (~${t} tokens)`, filterFavoritesChip: (n) => `⭐ Favorites (${n})`,
-    pastedContent: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Вставленный фрагмент" : "Pasted content",
-    copyPasted: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Копировать" : "Copy",
-    copiedPasted: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Скопировано" : "Copied",
-    snippetsTab: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Сниппеты" : "Snippets",
-    sessionsTab: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Сессии" : "Sessions",
-    searchSnippets: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Поиск по сниппетам..." : "Search pinned snippets...",
-    pinSnippet: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "📌 Сохранить в сниппеты / базу знаний" : "Pin snippet to Knowledge Base",
-    unpinSnippet: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Удалить из сниппетов" : "Unpin snippet",
-    pinnedSnippet: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "В сниппетах" : "Pinned",
-    pinSnippetBtn: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Сниппет" : "Pin",
-    snippetPinnedToast: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "📌 Сниппет сохранён в базу знаний" : "📌 Snippet saved to Knowledge Base",
-    snippetUnpinnedToast: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Сниппет удалён" : "Snippet removed from Knowledge Base",
-    noSnippets: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Закладок пока нет" : "No pinned snippets yet.",
-    noSnippetsSub: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Нажмите 📌 Сниппет на сообщении ассистента или блоке кода, чтобы сохранить ключевое решение сюда." : "Click 📌 Pin on assistant messages or code blocks to save key solutions here.",
-    allLangs: (typeof navigator !== "undefined" && navigator.language?.startsWith("ru")) ? "Все" : "All",
+    pastedContent: "Pasted content",
+    copyPasted: "Copy",
+    copiedPasted: "Copied",
+    snippetsTab: "Snippets",
+    sessionsTab: "Sessions",
+    searchSnippets: "Search pinned snippets...",
+    pinSnippet: "Pin snippet to Knowledge Base",
+    unpinSnippet: "Unpin snippet",
+    pinnedSnippet: "Pinned",
+    pinSnippetBtn: "Pin",
+    snippetPinnedToast: "📌 Snippet saved to Knowledge Base",
+    snippetUnpinnedToast: "Snippet removed from Knowledge Base",
+    noSnippets: "No pinned snippets yet.",
+    noSnippetsSub: "Click 📌 Pin on assistant messages or code blocks to save key solutions here.",
+    allLangs: "All",
   },
   ko: {
     loading: "인덱스 불러오는 중…",
@@ -1917,6 +2011,7 @@ const I18N = {
     sortRelevance: "🎯 관련도순", sortCreated: "📅 생성일순", sortLastActive: "🕒 최근 메시지순", sortMsgs: "💬 메시지 수순",
     sync: "동기화", syncing: "동기화 중...", autoSync: "자동 동기화 (10분)", synced: "동기화됨", lastSynced: "마지막 동기화",
     ctxCopyMd: "Markdown으로 복사", ctxCopyText: "일반 텍스트로 복사", ctxSearchChat: "이 대화에서 검색", ctxSearchGoogle: "Google에서 검색",
+    ctxPinSnippet: "📌 선택 항목을 스니펫에 저장",
     copiedMd: "✓ Markdown으로 복사됨", copiedText: "✓ 텍스트로 복사됨",
     allDates: "모든 날짜", today: "오늘", yesterday: "어제", singleDay: "특정 날짜…", dateRange: "날짜 범위…",
     lastActivePrefix: "최근",
@@ -1977,6 +2072,7 @@ const I18N = {
     sortRelevance: "🎯 関連度順", sortCreated: "📅 作成日時順", sortLastActive: "🕒 最終メッセージ順", sortMsgs: "💬 メッセージ数順",
     sync: "同期", syncing: "同期中...", autoSync: "自動同期 (10分)", synced: "同期済み", lastSynced: "最終同期",
     ctxCopyMd: "Markdownとしてコピー", ctxCopyText: "テキストとしてコピー", ctxSearchChat: "このチャット内を検索", ctxSearchGoogle: "Google で検索",
+    ctxPinSnippet: "📌 選択範囲をスニペットに保存",
     copiedMd: "✓ Markdownとしてコピーしました", copiedText: "✓ テキストとしてコピーしました",
     allDates: "すべての日付", today: "今日", yesterday: "昨日", singleDay: "指定日…", dateRange: "期間指定…",
     lastActivePrefix: "最終",
@@ -2037,6 +2133,7 @@ const I18N = {
     sortRelevance: "🎯 相关度", sortCreated: "📅 创建时间", sortLastActive: "🕒 最后消息", sortMsgs: "💬 消息数量",
     sync: "同步", syncing: "同步中...", autoSync: "自动同步 (10分钟)", synced: "已同步", lastSynced: "上次同步",
     ctxCopyMd: "复制为 Markdown", ctxCopyText: "复制为纯文本", ctxSearchChat: "在当前对话中搜索", ctxSearchGoogle: "在 Google 中搜索",
+    ctxPinSnippet: "📌 将选中文本保存为代码片段",
     copiedMd: "✓ 已复制为 Markdown", copiedText: "✓ 已复制为文本",
     allDates: "所有日期", today: "今天", yesterday: "昨天", singleDay: "指定日期…", dateRange: "日期范围…",
     lastActivePrefix: "最后",
@@ -2062,12 +2159,18 @@ const I18N = {
     allLangs: "全部",
   },
 };
-const lang = localStorage.getItem("sdx-lang")
-  || ((navigator.language || "en").slice(0, 2) in I18N ? (navigator.language || "en").slice(0, 2) : "en");
-const L = I18N[lang] || I18N.en;
+let savedLang = localStorage.getItem("sdx-lang");
+const navLang = (typeof navigator !== "undefined" && navigator.language ? navigator.language : "en").toLowerCase();
+if ((!savedLang || savedLang === "en") && navLang.startsWith("ru") && !localStorage.getItem("sdx-lang-explicit")) {
+  savedLang = "ru";
+}
+const lang = (savedLang && savedLang in I18N)
+  ? savedLang
+  : (navLang.slice(0, 2) in I18N ? navLang.slice(0, 2) : "en");
+const L = I18N[lang] || I18N.ru || I18N.en;
 document.documentElement.lang = lang;
 
-const LANG_NAMES = { en: "English", ko: "한국어", ja: "日本語", zh: "中文" };
+const LANG_NAMES = { ru: "Русский", en: "English", ko: "한국어", ja: "日本語", zh: "中文" };
 
 let availableTagsList = [];
 
@@ -2326,6 +2429,23 @@ function applyStaticStrings() {
   if ($("tab-sessions-label")) $("tab-sessions-label").textContent = L.sessionsTab || "Sessions";
   if ($("tab-snippets-label")) $("tab-snippets-label").textContent = L.snippetsTab || "Snippets";
   if ($("snippet-q")) $("snippet-q").placeholder = L.searchSnippets || "Search pinned snippets...";
+  if ($("snippet-date-mode")) {
+    $("snippet-date-mode").options[0].textContent = L.allDates || "all dates";
+    $("snippet-date-mode").options[1].textContent = L.today || "today";
+    $("snippet-date-mode").options[2].textContent = L.yesterday || "yesterday";
+    $("snippet-date-mode").options[3].textContent = L.singleDay || "single day…";
+    $("snippet-date-mode").options[4].textContent = L.dateRange || "date range…";
+  }
+  if ($("snippet-sort-mode")) {
+    $("snippet-sort-mode").options[0].textContent = L.sortCreated || "📅 created date";
+    $("snippet-sort-mode").options[1].textContent = L.sortRelevance || "🎯 relevance";
+    $("snippet-sort-mode").options[2].textContent = L.sortTitle || "🔤 title A-Z";
+    $("snippet-sort-mode").options[3].textContent = L.sortLength || "📏 length";
+  }
+  if ($("snippet-lang-select") && $("snippet-lang-select").options.length > 0) {
+    $("snippet-lang-select").options[0].textContent = L.allLangsSelect || "all languages";
+  }
+  if ($("ctx-pin-snippet-label")) $("ctx-pin-snippet-label").textContent = L.ctxPinSnippet || "Save selection to Snippets";
   for (const b of $("langmenu").children) {
     b.setAttribute("aria-selected", b.dataset.lang === lang ? "true" : "false");
   }
@@ -2352,6 +2472,7 @@ $("langbtn").onclick = (e) => {
 for (const b of $("langmenu").children) {
   b.onclick = () => {
     localStorage.setItem("sdx-lang", b.dataset.lang);
+    localStorage.setItem("sdx-lang-explicit", "1");
     location.reload();
   };
 }
@@ -3177,6 +3298,16 @@ function renderCurrentSession(keepScroll) {
       const row = el("div", "toolrow");
       row.dataset.msgIdx = msgIdx;
       row.id = "msg-" + msgIdx;
+      const isPinned = pinnedSet.has(Number(msgIdx));
+      const pinBtn = el("button", "msg-pin-btn tool-pin-btn" + (isPinned ? " pinned" : ""));
+      pinBtn.type = "button";
+      pinBtn.title = isPinned ? (L.unpinSnippet || "Unpin from Snippets") : (L.pinSnippet || "📌 Pin snippet to Knowledge Base");
+      pinBtn.innerHTML = isPinned ? "📌 <span>" + (L.pinnedSnippet || "Pinned") + "</span>" : "📌 <span>" + (L.pinSnippetBtn || "Pin") + "</span>";
+      pinBtn.onclick = async (e) => {
+        e.stopPropagation();
+        await togglePinMessage(s, msgIdx, m.text, pinBtn, pinnedSet);
+      };
+      row.appendChild(pinBtn);
       const sum = el("summary", "", m.text.split("\n")[0].slice(0, 140));
       const summary = m.tool?.kind === "summary" ? m.tool.value : null;
       const compact = m.text.startsWith("→ ") && m.text.includes(" ⇒ ") && !m.text.includes("\n");
@@ -3205,18 +3336,16 @@ function renderCurrentSession(keepScroll) {
     if (m.ts) {
       whoEl.appendChild(el("span", "msg-time", " · " + fmtDateTime(m.ts)));
     }
-    if (m.role === "assistant") {
-      const isPinned = pinnedSet.has(Number(msgIdx));
-      const pinBtn = el("button", "msg-pin-btn" + (isPinned ? " pinned" : ""));
-      pinBtn.type = "button";
-      pinBtn.title = isPinned ? (L.unpinSnippet || "Unpin from Snippets") : (L.pinSnippet || "📌 Pin snippet to Knowledge Base");
-      pinBtn.innerHTML = isPinned ? "📌 <span>" + (L.pinnedSnippet || "Pinned") + "</span>" : "📌 <span>" + (L.pinSnippetBtn || "Pin") + "</span>";
-      pinBtn.onclick = async (e) => {
-        e.stopPropagation();
-        await togglePinMessage(s, msgIdx, m.text, pinBtn, pinnedSet);
-      };
-      whoEl.appendChild(pinBtn);
-    }
+    const isPinned = pinnedSet.has(Number(msgIdx));
+    const pinBtn = el("button", "msg-pin-btn" + (isPinned ? " pinned" : ""));
+    pinBtn.type = "button";
+    pinBtn.title = isPinned ? (L.unpinSnippet || "Unpin from Snippets") : (L.pinSnippet || "📌 Pin snippet to Knowledge Base");
+    pinBtn.innerHTML = isPinned ? "📌 <span>" + (L.pinnedSnippet || "Pinned") + "</span>" : "📌 <span>" + (L.pinSnippetBtn || "Pin") + "</span>";
+    pinBtn.onclick = async (e) => {
+      e.stopPropagation();
+      await togglePinMessage(s, msgIdx, m.text, pinBtn, pinnedSet);
+    };
+    whoEl.appendChild(pinBtn);
     content.appendChild(whoEl);
     const body = el("div", "body");
 
@@ -4112,6 +4241,7 @@ function setupContextMenu() {
   let activeSelectionMd = "";
   let activeFileTarget = null;
   let activeSessionTarget = null;
+  let activeSnippetTarget = null;
 
   function showMenuAt(clientX, clientY) {
     menu.style.display = "block";
@@ -4140,6 +4270,7 @@ function setupContextMenu() {
       activeSessionTarget = { id: sId, title, element: sessionItem };
       activeFileTarget = null;
       activeSelectionText = "";
+      activeSnippetTarget = null;
 
       if ($("ctx-find-file")) $("ctx-find-file").style.display = "none";
       if ($("ctx-copy-path")) $("ctx-copy-path").style.display = "none";
@@ -4147,6 +4278,7 @@ function setupContextMenu() {
       if ($("ctx-copy-text")) $("ctx-copy-text").style.display = "none";
       if ($("ctx-search-chat")) $("ctx-search-chat").style.display = "none";
       if ($("ctx-search-google")) $("ctx-search-google").style.display = "none";
+      if ($("ctx-pin-snippet")) $("ctx-pin-snippet").style.display = "none";
       if ($("ctx-divider-top")) $("ctx-divider-top").style.display = "none";
       if ($("ctx-divider-bot")) $("ctx-divider-bot").style.display = "none";
       if ($("ctx-divider-session")) $("ctx-divider-session").style.display = "none";
@@ -4188,6 +4320,7 @@ function setupContextMenu() {
       activeFileTarget = chip.title || chip.textContent.trim();
       activeSelectionText = activeFileTarget;
       activeSelectionMd = activeFileTarget;
+      activeSnippetTarget = null;
 
       if ($("ctx-find-file")) $("ctx-find-file").style.display = "flex";
       if ($("ctx-copy-path")) $("ctx-copy-path").style.display = "flex";
@@ -4195,6 +4328,7 @@ function setupContextMenu() {
       if ($("ctx-copy-md")) $("ctx-copy-md").style.display = selectedText ? "flex" : "none";
       if ($("ctx-copy-text")) $("ctx-copy-text").style.display = selectedText ? "flex" : "none";
       if ($("ctx-search-chat")) $("ctx-search-chat").style.display = "none";
+      if ($("ctx-pin-snippet")) $("ctx-pin-snippet").style.display = "none";
       if ($("ctx-divider-top")) $("ctx-divider-top").style.display = selectedText ? "block" : "none";
       if ($("ctx-divider-bot")) $("ctx-divider-bot").style.display = "block";
 
@@ -4210,13 +4344,23 @@ function setupContextMenu() {
       const looksLikeFile = !selectedText.includes("\n") && selectedText.length < 250 && /[\.\/\\]/.test(selectedText);
       activeFileTarget = looksLikeFile ? selectedText : null;
 
+      const msgRow = e.target.closest("[data-msg-idx]") ||
+                     sel?.anchorNode?.parentElement?.closest("[data-msg-idx]");
+      const msgIdx = msgRow ? parseInt(msgRow.dataset.msgIdx, 10) || 0 : 0;
+      activeSnippetTarget = {
+        sessionId: currentSession ? currentSession.id : null,
+        messageIdx: msgIdx,
+        text: selectedText
+      };
+
       if ($("ctx-find-file")) $("ctx-find-file").style.display = activeFileTarget ? "flex" : "none";
       if ($("ctx-copy-path")) $("ctx-copy-path").style.display = activeFileTarget ? "flex" : "none";
       if ($("ctx-copy-md")) $("ctx-copy-md").style.display = "flex";
       if ($("ctx-copy-text")) $("ctx-copy-text").style.display = "flex";
       if ($("ctx-search-chat")) $("ctx-search-chat").style.display = "flex";
       if ($("ctx-search-google")) $("ctx-search-google").style.display = "flex";
-      if ($("ctx-divider-top")) $("ctx-divider-top").style.display = activeFileTarget ? "block" : "none";
+      if ($("ctx-pin-snippet")) $("ctx-pin-snippet").style.display = currentSession ? "flex" : "none";
+      if ($("ctx-divider-top")) $("ctx-divider-top").style.display = (activeFileTarget || currentSession) ? "block" : "none";
       if ($("ctx-divider-bot")) $("ctx-divider-bot").style.display = "block";
 
       showMenuAt(e.clientX, e.clientY);
@@ -4366,6 +4510,41 @@ function setupContextMenu() {
     hideContextMenu();
   });
 
+  // Save selection to snippets context click
+  $("ctx-pin-snippet")?.addEventListener("click", async () => {
+    if (activeSnippetTarget && activeSnippetTarget.sessionId && activeSnippetTarget.text) {
+      const text = activeSnippetTarget.text;
+      const sId = activeSnippetTarget.sessionId;
+      const msgIdx = activeSnippetTarget.messageIdx;
+      const fenceMatch = text.match(/```([a-zA-Z0-9_\-#+]+)/);
+      const detectedLang = fenceMatch ? fenceMatch[1].toLowerCase() : (text.includes("SELECT ") || text.includes("FROM ") ? "sql" : (text.startsWith("{") || text.startsWith("[") ? "json" : (text.includes("function") || text.includes("const ") || text.includes("let ") ? "js" : "text")));
+      const lines = text.trim().split("\n");
+      const firstLine = lines[0].replace(/^[#*\s`>-]+/, "").trim();
+      const title = firstLine ? firstLine.slice(0, 60) : (currentSession?.title || "Snippet");
+
+      try {
+        const res = await jpost("/api/snippet/save", {
+          session_id: sId,
+          message_idx: msgIdx,
+          title: title,
+          lang: detectedLang,
+          content: text,
+          tags: detectedLang !== "text" && detectedLang !== "markdown" ? detectedLang : null,
+        });
+        if (res && res.ok) {
+          showToast(L.snippetPinnedToast || "📌 Snippet saved to Knowledge Base");
+          refreshSnippetsBadge();
+          if (currentSidebarMode === "snippets") loadSnippets();
+        } else {
+          showToast("Failed to save snippet");
+        }
+      } catch (err) {
+        showToast("Failed to save snippet");
+      }
+    }
+    hideContextMenu();
+  });
+
   // Search in chat click
   $("ctx-search-chat")?.addEventListener("click", () => {
     const selText = activeSelectionText || (window.getSelection()?.toString().trim() || "");
@@ -4450,7 +4629,7 @@ function switchSidebarMode(mode) {
   currentSidebarMode = mode;
   const tabSessions = $("tab-sessions");
   const tabSnippets = $("tab-snippets");
-  const controls = document.querySelector("#sidebar .controls");
+  const sessionControls = $("session-controls") || document.querySelector("#sidebar > .controls");
   const list = $("list");
   const snippetsContainer = $("snippets-container");
   const sidefootHint = $("hint");
@@ -4459,7 +4638,7 @@ function switchSidebarMode(mode) {
   if (mode === "snippets") {
     tabSessions?.classList.remove("active");
     tabSnippets?.classList.add("active");
-    if (controls) controls.style.display = "none";
+    if (sessionControls) sessionControls.style.display = "none";
     if (list) list.style.display = "none";
     if (snippetsContainer) snippetsContainer.style.display = "flex";
     if (sidefootHint) sidefootHint.style.display = "none";
@@ -4468,7 +4647,7 @@ function switchSidebarMode(mode) {
   } else {
     tabSessions?.classList.add("active");
     tabSnippets?.classList.remove("active");
-    if (controls) controls.style.display = "";
+    if (sessionControls) sessionControls.style.display = "";
     if (list) list.style.display = "";
     if (snippetsContainer) snippetsContainer.style.display = "none";
     if (sidefootHint) sidefootHint.style.display = "";
@@ -4491,31 +4670,118 @@ async function refreshSnippetsBadge() {
   } catch (e) {}
 }
 
+function getSnippetDateBounds() {
+  const mode = $("snippet-date-mode")?.value || "all";
+  let since = null;
+  let until = null;
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const toYMD = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+  if (mode === "today") {
+    since = toYMD(now);
+    until = toYMD(now);
+  } else if (mode === "yesterday") {
+    const y = new Date(now.getTime() - 86400000);
+    since = toYMD(y);
+    until = toYMD(y);
+  } else if (mode === "single") {
+    const val = $("snippet-date-single")?.value;
+    if (val) {
+      since = val;
+      until = val;
+    }
+  } else if (mode === "range") {
+    since = $("snippet-date-from")?.value || null;
+    until = $("snippet-date-to")?.value || null;
+  }
+  return { since, until, mode };
+}
+
+function updateSnippetDateUI() {
+  const mode = $("snippet-date-mode")?.value || "all";
+  const singleWrap = $("snippet-date-single-wrap");
+  const rangeWrap = $("snippet-date-range-wrap");
+  const clearBtn = $("snippet-date-clear");
+  const customRow = $("snippet-date-custom-row");
+
+  const isCustom = (mode === "single" || mode === "range");
+  if (customRow) customRow.style.display = isCustom ? "flex" : "none";
+  singleWrap?.classList.toggle("active", mode === "single");
+  rangeWrap?.classList.toggle("active", mode === "range");
+  clearBtn?.classList.toggle("active", mode !== "all");
+}
+
 async function loadSnippets(query, lang) {
   const list = $("snippets-list");
   if (!list) return;
   list.innerHTML = `<div class="file-hist-empty">${L.loading || "Loading snippets..."}</div>`;
   try {
-    let url = "/api/snippets?limit=150";
+    let url = "/api/snippets?limit=300";
     if (query) url += "&q=" + encodeURIComponent(query);
     if (lang) url += "&lang=" + encodeURIComponent(lang);
     const snips = await jget(url);
-    if (!snips || !snips.length) {
-      const isFiltered = !!(query || lang);
-      list.innerHTML = `
-        <div class="empty-snippets">
-          <div style="font-size: 28px; margin-bottom: 8px;">📌</div>
-          <div style="font-weight: 600; color: var(--ink); margin-bottom: 4px;">${isFiltered ? (L.noMatches || "No matches.") : (L.noSnippets || "No pinned snippets yet.")}</div>
-          <div style="font-size: 11.5px; color: var(--ink-2); line-height: 1.4;">${isFiltered ? "" : (L.noSnippetsSub || "Click 📌 Pin on assistant messages or code blocks to save key solutions here.")}</div>
-        </div>
-      `;
+    if (!snips) {
+      list.innerHTML = `<div class="file-hist-empty">${L.loadFailed || "Failed to load snippets"}</div>`;
       return;
     }
 
     renderSnippetLangChips(snips);
 
+    const { since, until } = getSnippetDateBounds();
+    let filtered = Array.isArray(snips) ? [...snips] : [];
+    if (since || until) {
+      filtered = filtered.filter((s) => {
+        if (!s.created_at) return true;
+        const day = s.created_at.slice(0, 10);
+        if (since && day < since) return false;
+        if (until && day > until) return false;
+        return true;
+      });
+    }
+
+    const sortMode = $("snippet-sort-mode")?.value || "created";
+    if (sortMode === "title") {
+      filtered.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+    } else if (sortMode === "length") {
+      filtered.sort((a, b) => (b.content?.length || 0) - (a.content?.length || 0));
+    } else if (sortMode === "relevance" && query) {
+      const qLower = query.toLowerCase();
+      const score = (s) => {
+        let sc = 0;
+        const t = (s.title || "").toLowerCase();
+        const c = (s.content || "").toLowerCase();
+        if (t === qLower) sc += 100;
+        else if (t.startsWith(qLower)) sc += 50;
+        else if (t.includes(qLower)) sc += 20;
+        if (c.includes(qLower)) sc += 10;
+        return sc;
+      };
+      filtered.sort((a, b) => score(b) - score(a));
+    } else {
+      filtered.sort((a, b) => {
+        if (b.created_at && a.created_at) {
+          const cmp = b.created_at.localeCompare(a.created_at);
+          if (cmp !== 0) return cmp;
+        }
+        return (b.id || 0) - (a.id || 0);
+      });
+    }
+
+    if (!filtered.length) {
+      const isFiltered = !!(query || lang || since || until);
+      list.innerHTML = `
+        <div class="empty-snippets">
+          <div style="font-size: 28px; margin-bottom: 8px;">📌</div>
+          <div style="font-weight: 600; color: var(--ink); margin-bottom: 4px;">${isFiltered ? (L.noMatches || "No matches.") : (L.noSnippets || "No pinned snippets yet.")}</div>
+          <div style="font-size: 11.5px; color: var(--ink-2); line-height: 1.4;">${isFiltered ? "" : (L.noSnippetsSub || "Click 📌 Pin on messages or code blocks to save key solutions here.")}</div>
+        </div>
+      `;
+      return;
+    }
+
     list.replaceChildren();
-    for (const snip of snips) {
+    for (const snip of filtered) {
       const card = el("div", "snippet-card");
       card.onclick = () => jumpToSnippet(snip.session_id, snip.message_idx);
 
@@ -4585,11 +4851,27 @@ async function loadSnippets(query, lang) {
 
 function renderSnippetLangChips(allSnippets) {
   const container = $("snippet-lang-chips");
-  if (!container) return;
+  const select = $("snippet-lang-select");
   const langs = new Set();
   allSnippets.forEach((s) => {
     if (s.lang) langs.add(s.lang.toLowerCase());
   });
+
+  if (select) {
+    const currentVal = snippetsSelectedLang || select.value;
+    select.replaceChildren();
+    const optAll = el("option", "", L.allLangsSelect || "all languages");
+    optAll.value = "";
+    select.appendChild(optAll);
+    Array.from(langs).sort().forEach((l) => {
+      const opt = el("option", "", l);
+      opt.value = l;
+      if (l === currentVal) opt.selected = true;
+      select.appendChild(opt);
+    });
+  }
+
+  if (!container) return;
   if (langs.size === 0) {
     container.style.display = "none";
     return;
@@ -4601,6 +4883,7 @@ function renderSnippetLangChips(allSnippets) {
   allChip.type = "button";
   allChip.onclick = () => {
     snippetsSelectedLang = "";
+    if (select) select.value = "";
     loadSnippets($("snippet-q")?.value || "", "");
   };
   container.appendChild(allChip);
@@ -4610,6 +4893,7 @@ function renderSnippetLangChips(allSnippets) {
     chip.type = "button";
     chip.onclick = () => {
       snippetsSelectedLang = (snippetsSelectedLang === l ? "" : l);
+      if (select) select.value = snippetsSelectedLang;
       loadSnippets($("snippet-q")?.value || "", snippetsSelectedLang);
     };
     container.appendChild(chip);
@@ -4692,6 +4976,37 @@ function setupSnippetsControls() {
     });
   }
 
+  $("snippet-sort-mode")?.addEventListener("change", () => {
+    loadSnippets($("snippet-q")?.value.trim() || "", snippetsSelectedLang);
+  });
+
+  $("snippet-lang-select")?.addEventListener("change", (e) => {
+    snippetsSelectedLang = e.target.value;
+    loadSnippets($("snippet-q")?.value.trim() || "", snippetsSelectedLang);
+  });
+
+  $("snippet-date-mode")?.addEventListener("change", () => {
+    updateSnippetDateUI();
+    loadSnippets($("snippet-q")?.value.trim() || "", snippetsSelectedLang);
+  });
+  $("snippet-date-single")?.addEventListener("change", () => {
+    loadSnippets($("snippet-q")?.value.trim() || "", snippetsSelectedLang);
+  });
+  $("snippet-date-from")?.addEventListener("change", () => {
+    loadSnippets($("snippet-q")?.value.trim() || "", snippetsSelectedLang);
+  });
+  $("snippet-date-to")?.addEventListener("change", () => {
+    loadSnippets($("snippet-q")?.value.trim() || "", snippetsSelectedLang);
+  });
+  $("snippet-date-clear")?.addEventListener("click", () => {
+    if ($("snippet-date-mode")) $("snippet-date-mode").value = "all";
+    if ($("snippet-date-single")) $("snippet-date-single").value = "";
+    if ($("snippet-date-from")) $("snippet-date-from").value = "";
+    if ($("snippet-date-to")) $("snippet-date-to").value = "";
+    updateSnippetDateUI();
+    loadSnippets($("snippet-q")?.value.trim() || "", snippetsSelectedLang);
+  });
+
   refreshSnippetsBadge();
 }
 
@@ -4735,6 +5050,10 @@ function setupSnippetsControls() {
     <span class="menu-label" id="ctx-copy-path-label">Copy file path</span>
   </div>
   <div class="menu-separator" id="ctx-divider-top" style="display: none;"></div>
+  <div class="menu-item" id="ctx-pin-snippet" style="display: none;">
+    <span class="menu-icon">📌</span>
+    <span class="menu-label" id="ctx-pin-snippet-label">Save selection to Snippets</span>
+  </div>
   <div class="menu-item" id="ctx-copy-md">
     <span class="menu-icon">📋</span>
     <span class="menu-label" id="ctx-copy-md-label">Copy as Markdown</span>
