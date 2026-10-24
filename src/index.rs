@@ -724,6 +724,8 @@ pub fn open_readonly() -> Result<Connection> {
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
     )?;
     conn.busy_timeout(std::time::Duration::from_millis(5000))?;
+    let _ = conn.pragma_update(None, "mmap_size", 268435456i64);
+    let _ = conn.pragma_update(None, "cache_size", -32000i64);
     Ok(conn)
 }
 
@@ -732,6 +734,9 @@ pub fn open() -> Result<Connection> {
     conn.pragma_update(None, "journal_mode", "WAL")?;
     conn.pragma_update(None, "synchronous", "NORMAL")?;
     conn.busy_timeout(std::time::Duration::from_millis(5000))?;
+    let _ = conn.pragma_update(None, "mmap_size", 268435456i64);
+    let _ = conn.pragma_update(None, "cache_size", -32000i64);
+    let _ = conn.pragma_update(None, "temp_store", "MEMORY");
     create_meta_schema(&conn)?;
     if cache_schema_needs_work(&conn)? {
         conn.execute_batch("BEGIN IMMEDIATE")?;
