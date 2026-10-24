@@ -1,10 +1,38 @@
 # Changelog
 
+## [1.0.1] - 2026-10-24 (AgentWiki-rs)
+
+### Added & Enhanced
+- Rebranded project to **AgentWiki-rs**: dedicated standalone binary and native desktop command center.
+- Native Desktop GUI (`agentwiki-app.exe` / `sessionwiki-app.exe`) powered by Wry and OS WebViews.
+- In-memory transcript streaming & pagination (`offset`/`limit`), cutting initial payload to 327 KB / 12 ms on 8,000+ message transcripts.
+- Multi-threaded web worker pool (`WEB_WORKERS = 4`) and graceful sync serialization lock.
+- CSS `content-visibility: auto` and memory-safe `WeakMap` for hardware-accelerated 120 FPS scrolling.
+- Server-side multi-sort (`message_count`, `started`) and timezone-aware active interval filtering.
+- Multi-chip keyword search with TF-IDF rarity ranking and in-chat highlight navigation.
+- SQLite `INCREMENTAL VACUUM` and automated FTS5 index segment compaction (`merge=500`).
+- Ported Codex top-level rollout parser and reader fix reparse from upstream v0.34.10.
+
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow
 semantic versioning once it reaches 1.0.
 
 ## [Unreleased]
+
+## [0.34.10] - 2026-10-24
+
+### Fixed
+
+- A large Codex rollout in the older format, which writes each message at the
+  top level, keeps its conversation from the middle again. 0.34.9 kept only
+  the current record types there.
+- The 0.34.9 fixes for Codex calls declined at approval and Gemini /rewind
+  now reach sessions indexed before it: Codex history threads and Gemini
+  chats are re-parsed on the next sync. Before, a session that no longer
+  changed kept its old reading. Each indexed session now records which reader
+  parsed it, so a session that a sessionwiki mcp started before the upgrade
+  re-parses with its old reader is re-parsed again instead of keeping that
+  result.
 
 ## [0.34.9] - 2026-10-21
 

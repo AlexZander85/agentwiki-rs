@@ -1,6 +1,6 @@
-# SessionWiki: Agent Long-Term Memory Guide
+# AgentWiki: Agent Long-Term Memory Guide
 
-SessionWiki is your collective, cross-tool long-term memory. It indexes every AI coding session on this machine across **Claude Code, Codex, Gemini CLI, Antigravity, OpenCode, Qoder, Cline, Kilo Code, and Aider**.
+AgentWiki is your collective, cross-tool long-term memory. It indexes every AI coding session on this machine across **Claude Code, Codex, Gemini CLI, Antigravity, OpenCode, Qoder, Cline, Kilo Code, and Aider**.
 
 It is 100% local, offline, read-only, and fast (SQLite + FTS5).
 
@@ -9,15 +9,15 @@ It is 100% local, offline, read-only, and fast (SQLite + FTS5).
 ## 1. Connection Modes
 
 ### Mode A: Model Context Protocol (MCP) — Recommended
-Connect SessionWiki to **Cursor, Claude Desktop, Windsurf, or Antigravity**.
+Connect AgentWiki to **Cursor, Claude Desktop, Windsurf, or Antigravity**.
 
 Add to `~/.cursor/mcp.json` (or your agent's MCP config):
 
 ```json
 {
   "mcpServers": {
-    "sessionwiki": {
-      "command": "D:\\tools\\sessionwiki\\sessionwiki.exe",
+    "agentwiki": {
+      "command": "D:\\tools\\agentwiki\\agentwiki.exe",
       "args": ["mcp"]
     }
   }
@@ -26,20 +26,20 @@ Add to `~/.cursor/mcp.json` (or your agent's MCP config):
 
 Or via Claude Code CLI:
 ```bash
-claude mcp add sessionwiki -- D:\tools\sessionwiki\sessionwiki.exe mcp
+claude mcp add agentwiki -- D:\tools\agentwiki\agentwiki.exe mcp
 ```
 
 ### Mode B: Direct CLI Execution (Terminal Agents & Scripts)
 If MCP is not active, agents can invoke the CLI with `--json`:
 ```bash
-sessionwiki <command> --json
+agentwiki <command> --json
 ```
 
 ---
 
 ## 2. MCP Tools Reference
 
-SessionWiki exposes 10 read-only tools to connected agents:
+AgentWiki exposes 10 read-only tools to connected agents:
 
 ### 🌟 1. `recall_solution` (High-Level Problem Solving)
 Synthesizes a solution from past sessions in a single call.
@@ -137,19 +137,19 @@ Lists the most recent sessions across all tools ("who is around").
 
 ## 3. CLI Commands Reference (for Shell Agents)
 
-When operating from bash or PowerShell, invoke `sessionwiki` directly:
+When operating from bash or PowerShell, invoke `agentwiki` directly:
 
 | Command | Usage | Description |
 |---|---|---|
-| `favorites` | `sessionwiki favorites [--project <p>] [--json]` | List starred ⭐ verified solutions |
-| `snippets` | `sessionwiki snippets [--query <q>] [--lang <l>] [--json]` | Query pinned 📌 snippets in Knowledge Base |
-| `recall` | `sessionwiki recall "<query>" [-n 5] [--json]` | Search and brief top matching session |
-| `search` | `sessionwiki search "<query>" [--role user,assistant] [--json]` | Full-text search across conversations |
-| `trace` | `sessionwiki trace <path>` | Find sessions that modified a file |
-| `brief` | `sessionwiki brief <id> [--max-chars 4000]` | Output head+tail markdown briefing |
-| `show` | `sessionwiki show <id> [--outline \| --window \| --json]` | View session transcript or digest |
-| `list` | `sessionwiki list [-n 20] [--project <p>] [--json]` | List timeline of recent sessions |
-| `sync` | `sessionwiki sync` | Manually trigger incremental store freshen |
+| `favorites` | `agentwiki favorites [--project <p>] [--json]` | List starred ⭐ verified solutions |
+| `snippets` | `agentwiki snippets [--query <q>] [--lang <l>] [--json]` | Query pinned 📌 snippets in Knowledge Base |
+| `recall` | `agentwiki recall "<query>" [-n 5] [--json]` | Search and brief top matching session |
+| `search` | `agentwiki search "<query>" [--role user,assistant] [--json]` | Full-text search across conversations |
+| `trace` | `agentwiki trace <path>` | Find sessions that modified a file |
+| `brief` | `agentwiki brief <id> [--max-chars 4000]` | Output head+tail markdown briefing |
+| `show` | `agentwiki show <id> [--outline \| --window \| --json]` | View session transcript or digest |
+| `list` | `agentwiki list [-n 20] [--project <p>] [--json]` | List timeline of recent sessions |
+| `sync` | `agentwiki sync` | Manually trigger incremental store freshen |
 
 *Tip:* Every query command accepts `--no-sync` for instant responses querying only the already-built index.
 

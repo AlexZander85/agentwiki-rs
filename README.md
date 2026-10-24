@@ -15,6 +15,9 @@
 
 </div>
 
+> [!NOTE]
+> **Lineage & Mission**: **AgentWiki-rs** is an enhanced standalone fork based on the excellent work of [youdie006/sessionwiki](https://github.com/youdie006/sessionwiki). While the upstream project focuses strictly on a CLI and web browser viewer, **AgentWiki-rs** evolves the codebase into a single self-contained desktop application with a native OS GUI (`wry`/WebView2), deep GUI usability refinements, long-term agent memory via MCP, server-side sorting, lazy streaming pagination, and major performance optimizations.
+
 ---
 
 ## ⚡ What is AgentWiki-rs?
