@@ -1843,11 +1843,11 @@
             <svg class="chev" viewBox="0 0 10 10" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4l3 3 3-3"/></svg>
           </button>
           <div class="langmenu" id="langmenu" role="listbox" hidden>
-            <button role="option" data-lang="ru">Русский</button>
             <button role="option" data-lang="en">English</button>
             <button role="option" data-lang="ko">한국어</button>
             <button role="option" data-lang="ja">日本語</button>
             <button role="option" data-lang="zh">中文</button>
+            <button role="option" data-lang="ru">Русский</button>
           </div>
         </div>
         <button class="favbtn" id="favbtn" title="View favorite sessions">
@@ -2210,10 +2210,10 @@ if ((!savedLang || savedLang === "en") && navLang.startsWith("ru") && !localStor
 const lang = (savedLang && savedLang in I18N)
   ? savedLang
   : (navLang.slice(0, 2) in I18N ? navLang.slice(0, 2) : "en");
-const L = I18N[lang] || I18N.ru || I18N.en;
+const L = I18N[lang] || I18N.en;
 document.documentElement.lang = lang;
 
-const LANG_NAMES = { ru: "Русский", en: "English", ko: "한국어", ja: "日本語", zh: "中文" };
+const LANG_NAMES = { en: "English", ko: "한국어", ja: "日本語", zh: "中文", ru: "Русский" };
 
 let availableTagsList = [];
 
