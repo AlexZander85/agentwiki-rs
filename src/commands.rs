@@ -1994,43 +1994,68 @@ pub fn vacuum() -> Result<()> {
     let path = index::db_path()?;
     let wal_path = path.with_file_name("index.db-wal");
 
-    let before_db = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+    let before_db = std::fs::metadata(&path)
+        .with_context(|| format!("stat database file {}", path.display()))?
+        .len();
     let before_wal = std::fs::metadata(&wal_path).map(|m| m.len()).unwrap_or(0);
     let before = before_db + before_wal;
 
-    eprintln!("Optimizing FTS5 search index...");
-    let _ = conn.execute_batch("INSERT INTO msgs(msgs) VALUES('optimize');");
+    let required_space = before.saturating_mul(2);
+    let free_space = if let Ok(val) = std::env::var("SESSIONWIKI_SIMULATE_FREE_SPACE") {
+        val.parse::<u64>().unwrap_or(0)
+    } else {
+        crate::util::available_space(&path)?
+    };
 
-    eprintln!("Defragmenting database and reclaiming free pages...");
-    conn.execute_batch("VACUUM;")?;
-
-    eprintln!("Flushing and truncating WAL log...");
-    let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
-
-    #[cfg(windows)]
-    {
-        let _ = std::process::Command::new("compact")
-            .args(["/c", "/exe:xpress8k", &path.to_string_lossy()])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status();
+    if free_space < required_space {
+        bail!(
+            "insufficient disk space for vacuum: need at least {} (2x database size), but only {} available on volume",
+            human_size(required_space),
+            human_size(free_space),
+        );
     }
 
-    let after_db = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+    eprintln!("Optimizing FTS5 search index...");
+    conn.execute_batch("INSERT INTO msgs(msgs) VALUES('optimize');")
+        .context("optimize FTS5 search index")?;
+
+    eprintln!("Defragmenting database and reclaiming free pages...");
+    conn.execute_batch("VACUUM;")
+        .context("vacuum database")?;
+
+    eprintln!("Flushing and truncating WAL log...");
+    let (busy, log, checkpointed): (i32, i32, i32) = conn
+        .query_row("PRAGMA wal_checkpoint(TRUNCATE);", [], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+        })
+        .context("wal_checkpoint(TRUNCATE)")?;
+
+    if busy != 0 {
+        eprintln!(
+            "warning: WAL checkpoint was blocked by an active reader (busy: {busy}, log: {log}, checkpointed: {checkpointed})"
+        );
+    }
+
+    let after_db = std::fs::metadata(&path)
+        .with_context(|| format!("stat database file {}", path.display()))?
+        .len();
     let after_wal = std::fs::metadata(&wal_path).map(|m| m.len()).unwrap_or(0);
     let after = after_db + after_wal;
 
-    let saved = before.saturating_sub(after);
-    println!(
-        "Vacuum complete: {} -> {} ({})",
-        human_size(before),
-        human_size(after),
-        if saved > 0 {
-            format!("reclaimed {}", human_size(saved))
-        } else {
-            "already compacted".to_string()
-        }
-    );
+    if after < before {
+        let saved = before - after;
+        println!(
+            "Vacuum complete: {} -> {} (reclaimed {})",
+            human_size(before),
+            human_size(after),
+            human_size(saved),
+        );
+    } else {
+        println!(
+            "Database is already compact ({}).",
+            human_size(after),
+        );
+    }
     Ok(())
 }
 
