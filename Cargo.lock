@@ -9,30 +9,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
-name = "agentwiki"
-version = "1.0.1"
-dependencies = [
- "anyhow",
- "chrono",
- "clap",
- "dirs",
- "flate2",
- "libc",
- "rusqlite",
- "ruzstd",
- "serde",
- "serde_json",
- "sha2 0.11.0",
- "tao",
- "tempfile",
- "tiny_http",
- "unicode-normalization",
- "walkdir",
- "winres",
- "wry",
-]
-
-[[package]]
 name = "android_system_properties"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2844,6 +2820,30 @@ dependencies = [
  "thiserror 2.0.20",
  "windows",
  "windows-core",
+]
+
+[[package]]
+name = "wikiagents"
+version = "1.0.1"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "dirs",
+ "flate2",
+ "libc",
+ "rusqlite",
+ "ruzstd",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tao",
+ "tempfile",
+ "tiny_http",
+ "unicode-normalization",
+ "walkdir",
+ "winres",
+ "wry",
 ]
 
 [[package]]

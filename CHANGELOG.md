@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.1] - 2026-10-24 (AgentWiki-rs)
+## [1.0.1] - 2026-10-24 (WikiAgents)
 
 ### Added & Enhanced
 - **Instant Transcript Streaming & Pagination**: `/api/session/<id>?offset=&limit=300` streams transcripts in lazy chunks, slashing payload from 21 MB to 327 KB and opening time from 240 ms to 12 ms on 8,000+ message sessions.
@@ -34,13 +34,13 @@
 - **Codex Legacy Rollouts**: Ported parser fix from upstream v0.34.10 preserving top-level `type: "message"` records from older rollouts.
 - **Reader Tracking & Auto-Reparse**: Added `reader` column to `files` table and automatic re-parsing of sessions indexed before parser fixes.
 
-## [1.0.0] - 2026-10-24 (AgentWiki-rs)
+## [1.0.0] - 2026-10-24 (WikiAgents)
 
 > Enhanced standalone fork based on upstream **youdie006/sessionwiki v0.34.9**, combining all core Pull Requests (#83, #84, #85, #86, #87, #88, #89) with a full markdown-it rendering engine, native desktop GUI, and durable agent memory.
 
 ### 1. GUI & Desktop Experience
 
-1. **Autonomous Native Desktop Application (`agentwiki-app.exe` / `sessionwiki-app.exe`)**:
+1. **Autonomous Native Desktop Application (`wikiagents-app.exe` / `sessionwiki-app.exe`)**:
    - Standalone native desktop application built with 100% Rust, Wry, and Tao (using system WebView2 on Windows, WebKit on macOS/Linux), completely eliminating Electron and Node.js runtimes.
    - Compiled with `#![windows_subsystem = "windows"]` on Windows — double-clicking launches a clean native desktop window without popping up a console terminal.
    - Automatically checks for a running server and transparently starts the embedded web engine in a background thread within the same process.
@@ -146,7 +146,7 @@
 33. **In-Memory Temporary Storage (`PRAGMA temp_store = MEMORY`)**:
     - Diverts SQLite temp tables, sort buffers, and aggregations directly to RAM.
 34. **LTO Binary Shrink by ~25%**:
-    - Built with `opt-level = "s"`, `codegen-units = 1`, LTO (`lto = true`), and `strip = true`, reducing binary size (GUI `agentwiki-app.exe` to ~3.53 MB, CLI `agentwiki.exe` to ~4.71 MB) with no runtime speed penalty.
+    - Built with `opt-level = "s"`, `codegen-units = 1`, LTO (`lto = true`), and `strip = true`, reducing binary size (GUI `wikiagents-app.exe` to ~3.53 MB, CLI `wikiagents.exe` to ~4.71 MB) with no runtime speed penalty.
 35. **Strict HTTP Cache Control**:
     - Serves web assets with `Cache-Control: no-cache, no-store, must-revalidate` to prevent stale WebView2 caching upon binary upgrades.
 
@@ -154,7 +154,7 @@
 
 ### 4. SQL Engine & Storage Reliability
 
-36. **`agentwiki vacuum` Command for FTS5 & Disk Reclaim**:
+36. **`wikiagents vacuum` Command for FTS5 & Disk Reclaim**:
     - Reclaims fragmented SQLite pages and disk space (reclaiming 30–50+ MB on 4,000+ session databases).
 37. **Free-Space Preflight Safety Check**:
     - Validates available filesystem space before executing vacuum to prevent database corruption during low disk space.
@@ -183,7 +183,7 @@
     - Snippet context menu: rename (including inline pencil `✏️` button), copy Markdown, export as `.md`, and delete.
     - One-click jump to original session with smooth scroll and target turn highlight pulse.
 46. **Durable Agent Memory Tool via MCP (`propose_memory` / `save_memory`)**:
-    - Enables Claude Code, Codex, Cursor, and Antigravity to persist architectural decisions, bug causes, and project conventions directly into AgentWiki.
+    - Enables Claude Code, Codex, Cursor, and Antigravity to persist architectural decisions, bug causes, and project conventions directly into WikiAgents.
 47. **Synthesized Solution Retrieval for MCP Agents**:
     - `recall_solution`: high-level problem-solving tool prioritizing bookmarked (⭐) sessions.
     - `get_session_summary`: lightweight metadata and files retrieval without streaming large transcripts.
@@ -202,7 +202,7 @@
     - Top modified files ranking (Top Touched Files).
 51. **Starred Sessions (⭐ Favorites)**:
     - Bookmark crucial sessions with a gold star in the header or context menu.
-    - Sidebar filter `⭐ Favorites (N)`, CLI command `agentwiki favorites`, and MCP integration.
+    - Sidebar filter `⭐ Favorites (N)`, CLI command `wikiagents favorites`, and MCP integration.
 52. **AI Brief Generator (`AI Brief`)**:
     - Generates concise Markdown briefs (~1,500 tokens) to transfer session context to other agents in one click.
 53. **Export Sessions to Clean Markdown (.md)**:
@@ -211,7 +211,7 @@
     - Adds keyword chips to search sessions matching multiple disparate terms across the project.
 55. **Reverse File Provenance Tracing**:
     - Search sessions that touched a specific file via context menu or `file:path/to/file` syntax.
-56. **Rebranded to AgentWiki-rs**:
+56. **Rebranded to WikiAgents**:
     - Evolves from a simple transcript reader into an autonomous desktop command center and long-term memory engine for AI coding agents.
 
 All notable changes to this project are documented here. The format follows

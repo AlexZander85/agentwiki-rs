@@ -1,10 +1,10 @@
 [package]
-name = "agentwiki"
+name = "wikiagents"
 version = "1.0.1"
 edition = "2021"
 description = "Find, search, and read every AI coding session you've ever had - across Claude Code, Codex, Antigravity, OpenCode, Qoder, Cline, and more."
 license = "MIT"
-repository = "https://github.com/AlexZander85/agentwiki-rs"
+repository = "https://github.com/AlexZander85/wikiagents"
 keywords = ["claude-code", "codex", "gemini-cli", "sessions", "search"]
 categories = ["command-line-utilities"]
 exclude = [
@@ -41,6 +41,15 @@ tao = { version = "0.37", optional = true }
 [features]
 default = ["gui"]
 gui = ["dep:wry", "dep:tao"]
+
+[[bin]]
+name = "wikiagents"
+path = "src/main.rs"
+
+[[bin]]
+name = "wikiagents-app"
+path = "src/bin/app.rs"
+required-features = ["gui"]
 
 [[bin]]
 name = "agentwiki"

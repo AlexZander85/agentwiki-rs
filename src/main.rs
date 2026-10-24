@@ -4,7 +4,7 @@ use sessionwiki::{commands, doctor, model::Role, web};
 /// Find, search, and read every AI coding session on your machine - across
 /// Claude Code, Codex, Gemini CLI, OpenCode, Cline, and more. 100% local.
 #[derive(Parser)]
-#[command(name = "sessionwiki", version, about, max_term_width = 100)]
+#[command(name = "wikiagents", version, about, max_term_width = 100)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -373,7 +373,7 @@ enum Command {
         #[command(subcommand)]
         cmd: HookCmd,
     },
-    /// Run as an MCP server over stdio (register: claude mcp add sessionwiki -- sessionwiki mcp)
+    /// Run as an MCP server over stdio (register: claude mcp add wikiagents -- wikiagents mcp)
     Mcp,
 }
 
@@ -491,7 +491,7 @@ fn main() {
         #[cfg(feature = "gui")]
         Command::App { port } => {
             if let Err(e) = sessionwiki::app::run(port) {
-                eprintln!("sessionwiki app error: {e}");
+                eprintln!("wikiagents app error: {e}");
             }
             Ok(())
         }

@@ -1,12 +1,12 @@
 <div align="center">
 
-# AgentWiki-rs 🧠⚡
+# WikiAgents 🧠⚡
 
 **The Universal Local Memory & Desktop Command Center for AI Coding Agents.**  
 *Single self-contained ~3.8 MB binary written in 100% Rust. Zero dependencies. Zero cloud. Zero Electron.*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/AlexZander85/AgentWiki-rs)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/AlexZander85/WikiAgents)
 [![Binary Size](https://img.shields.io/badge/Binary%20Size-~3.8%20MB-brightgreen.svg)]()
 [![Language](https://img.shields.io/badge/Language-100%25%20Rust-orange.svg)]()
 [![Privacy](https://img.shields.io/badge/Privacy-100%25%20Local%20%26%20Offline-success.svg)]()
@@ -16,15 +16,15 @@
 </div>
 
 > [!NOTE]
-> **Lineage & Mission**: **AgentWiki-rs** is an enhanced standalone fork based on the excellent work of [youdie006/sessionwiki](https://github.com/youdie006/sessionwiki). While the upstream project focuses strictly on a CLI and web browser viewer, **AgentWiki-rs** evolves the codebase into a single self-contained desktop application with a native OS GUI (`wry`/WebView2), deep GUI usability refinements, long-term agent memory via MCP, server-side sorting, lazy streaming pagination, and major performance optimizations.
+> **Lineage & Mission**: **WikiAgents** is an enhanced standalone fork based on the excellent work of [youdie006/sessionwiki](https://github.com/youdie006/sessionwiki). While the upstream project focuses strictly on a CLI and web browser viewer, **WikiAgents** evolves the codebase into a single self-contained desktop application with a native OS GUI (`wry`/WebView2), deep GUI usability refinements, long-term agent memory via MCP, server-side sorting, lazy streaming pagination, and major performance optimizations.
 
 ---
 
-## ⚡ What is AgentWiki-rs?
+## ⚡ What is WikiAgents?
 
 Every day, coding agents like **Claude Code, Codex, Antigravity, OpenCode, Qoder, ZCode, Cline, and DeepSeek** generate thousands of lines of code, architectural decisions, and bug investigations. By default, each tool stores its history in disparate, siloed formats across hidden directories. When tools prune history or when you switch agents, valuable context and solutions vanish.
 
-**AgentWiki-rs** unifies all your AI coding sessions into a single, blazing-fast, durable local database. It is delivered as a **single, dependency-free binary** containing:
+**WikiAgents** unifies all your AI coding sessions into a single, blazing-fast, durable local database. It is delivered as a **single, dependency-free binary** containing:
 1. **A Native Desktop GUI** (powered by native OS WebViews &mdash; no heavy Electron or Chromium bundled).
 2. **One-Click & Scheduled Background Sync** (manual `🔄 Sync` button with spinner + background auto-sync every 10 minutes).
 3. **⭐ Favorites & Starred Sessions** (star crucial tasks, filter instantly with `⭐ Favorites (N)`, query via CLI & MCP).
@@ -41,7 +41,7 @@ Every day, coding agents like **Claude Code, Codex, Antigravity, OpenCode, Qoder
 ### 🚀 100% Rust & Single Tiny Executable (~3.8 MB)
 - **Zero runtime dependencies**: No Node.js, no Python, no Electron.
 - **Instant startup** (< 20ms) and minimal RAM usage (< 35 MB).
-- Compile once, run anywhere: Windows (`agentwiki-app.exe`), macOS, and Linux.
+- Compile once, run anywhere: Windows (`wikiagents-app.exe`), macOS, and Linux.
 
 ### 🔄 One-Click Sync & Background Scheduled Auto-Sync
 - **Manual Sync (`🔄 Sync`)**: Real-time button right above the session list with animated spinner and `Last synced HH:MM` timestamp.
@@ -51,7 +51,7 @@ Every day, coding agents like **Claude Code, Codex, Antigravity, OpenCode, Qoder
 ### ⭐ Starred Sessions & Favorites Management
 - **One-Click Star / Unstar (`⭐`)**: Bookmark important debugging sessions, complex refactors, and architectural discussions.
 - **Instant Filter Chip**: Dedicated `⭐ Favorites (N)` quick-filter chip in the sidebar to isolate starred work with zero typing.
-- **Context Menu & CLI / MCP**: Right-click context menu (`Add to favorites`), CLI command (`agentwiki favorites`), and MCP tool (`list_favorites`).
+- **Context Menu & CLI / MCP**: Right-click context menu (`Add to favorites`), CLI command (`wikiagents favorites`), and MCP tool (`list_favorites`).
 
 ### 🤖 18+ Agent Adapters Out of the Box
 Automatically locates and indexes sessions from all major coding agents:
@@ -87,32 +87,32 @@ Empower your agents to remember solutions between independent tasks.
 
 ### ↩️ Rewound Turns & Compaction History
 - AI sessions frequently rewind or compact context when token limits are reached.
-- AgentWiki-rs preserves superseded turns with an interactive **"↩ Rewound"** toggle in the viewer.
+- WikiAgents preserves superseded turns with an interactive **"↩ Rewound"** toggle in the viewer.
 
 ---
 
 ## 🚀 Quick Start
 
 ### 1. Download Prebuilt Executable
-Grab the latest release from the [Releases](https://github.com/AlexZander85/AgentWiki-rs) page:
-- **Windows**: `agentwiki-app.exe` (or `agentwiki.exe` for CLI-only)
-- **macOS / Linux**: `agentwiki-app` / `agentwiki`
+Grab the latest release from the [Releases](https://github.com/AlexZander85/WikiAgents) page:
+- **Windows**: `wikiagents-app.exe` (or `wikiagents.exe` for CLI-only)
+- **macOS / Linux**: `wikiagents-app` / `wikiagents`
 
 *No installer or prerequisites needed &mdash; just double-click and run!*
 
 ### 2. Launch Native Desktop App
 ```bash
-./agentwiki-app
+./wikiagents-app
 ```
-AgentWiki-rs automatically scans your local disks, discovers existing AI coding sessions, indexes them in parallel, and opens the native dashboard.
+WikiAgents automatically scans your local disks, discovers existing AI coding sessions, indexes them in parallel, and opens the native dashboard.
 
 ### 3. Connect via MCP (Claude Desktop, Cursor, Antigravity)
-Add AgentWiki-rs to your MCP config (`claude_desktop_config.json` or `cursor.json`):
+Add WikiAgents to your MCP config (`claude_desktop_config.json` or `cursor.json`):
 ```json
 {
   "mcpServers": {
-    "agentwiki": {
-      "command": "agentwiki",
+    "wikiagents": {
+      "command": "wikiagents",
       "args": ["mcp"]
     }
   }
@@ -129,50 +129,50 @@ Now your agents have direct, read-and-write access to your local knowledge base 
 
 ## 💻 CLI Commands
 
-AgentWiki-rs includes a comprehensive CLI alongside the desktop GUI:
+WikiAgents includes a comprehensive CLI alongside the desktop GUI:
 
 ```bash
 # Scan and report disk space used by AI coding agents
-agentwiki scan
+wikiagents scan
 
 # Manually trigger index sync across all agent stores
-agentwiki sync
+wikiagents sync
 
 # List starred / favorite sessions
-agentwiki favorites --json
+wikiagents favorites --json
 
 # Full-text search across all agent conversations
-agentwiki search "JWT authentication with RS256"
+wikiagents search "JWT authentication with RS256"
 
 # Trace which AI session created or modified a specific file
-agentwiki trace src/auth/jwt.rs
+wikiagents trace src/auth/jwt.rs
 
 # Git blame with session attribution
-agentwiki blame src/auth/jwt.rs
+wikiagents blame src/auth/jwt.rs
 
 # Start the local browser server (optional)
-agentwiki web --port 7575
+wikiagents web --port 7575
 
 # Optimize FTS5 search index and reclaim disk space
-agentwiki vacuum
+wikiagents vacuum
 
 # Self-check health and discoverable agent stores
-agentwiki doctor
+wikiagents doctor
 ```
 
 ---
 
 ## 🏛️ High-Performance Architecture: Why Native OS WebView?
 
-AgentWiki-rs delivers a fluid, instant UI while maintaining a microscopic ~3.8 MB binary footprint and ~35 MB RAM footprint by using an optimal division of labor between Rust and the OS:
+WikiAgents delivers a fluid, instant UI while maintaining a microscopic ~3.8 MB binary footprint and ~35 MB RAM footprint by using an optimal division of labor between Rust and the OS:
 
 ### 1. Zero-Electron Native OS WebView (`wry` + `tao`)
-- **No Bundled Chromium / Node.js**: Unlike Electron apps (which weigh 120–180 MB and consume 200+ MB RAM), AgentWiki-rs leverages the operating system's native hardware-accelerated web engine:
+- **No Bundled Chromium / Node.js**: Unlike Electron apps (which weigh 120–180 MB and consume 200+ MB RAM), WikiAgents leverages the operating system's native hardware-accelerated web engine:
   - **Windows**: Microsoft Edge WebView2 (preinstalled in Windows 10/11, GPU DirectComposition).
   - **macOS**: Apple WebKit (`WKWebView` with Metal acceleration on Apple Silicon & Intel).
   - **Linux**: WebKitGTK (`libwebkit2gtk-4.1`).
 - **Native OS Font Smoothing & Anti-Aliasing**: Sub-pixel text rendering, crisp font ligatures (`Fira Code`, `JetBrains Mono`), emoji fallback, and seamless multi-monitor DPI scaling.
-- **Pure Native CLI/MCP Mode**: When invoked via CLI (`agentwiki search`) or MCP by AI agents, the GUI framework is not even loaded, executing in pure Rust with ~10 MB RAM.
+- **Pure Native CLI/MCP Mode**: When invoked via CLI (`wikiagents search`) or MCP by AI agents, the GUI framework is not even loaded, executing in pure Rust with ~10 MB RAM.
 
 ### 2. Client-Side Markdown with Lazy Rendering vs. Server-Side Pre-Rendering
 Why parse Markdown via `markdown-it` in the WebView rather than pre-generating HTML in Rust?
@@ -191,7 +191,7 @@ Why parse Markdown via `markdown-it` in the WebView rather than pre-generating H
 
 ## 🙏 Acknowledgments & Credits
 
-AgentWiki-rs stands on the shoulders of open-source excellence:
+WikiAgents stands on the shoulders of open-source excellence:
 - **[youdie006/sessionwiki](https://github.com/youdie006/sessionwiki)** &mdash; Sincere gratitude to the author of the original project for the rock-solid Rust foundation, the elegant SQLite FTS5 architecture, and the extensible adapter design for integrating diverse AI coding tools.
 - **[markdown-it](https://github.com/markdown-it/markdown-it)** &mdash; Huge thanks to the authors and maintainers of markdown-it for the lightning-fast, highly extensible, and rock-solid Markdown parser and rendering engine.
 
