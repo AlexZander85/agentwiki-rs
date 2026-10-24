@@ -32,182 +32,181 @@
 
 > Enhanced standalone fork based on upstream **youdie006/sessionwiki v0.34.9**, combining all core Pull Requests (#83, #84, #85, #86, #87, #88, #89) with a full markdown-it rendering engine, native desktop GUI, and durable agent memory.
 
-### 1. GUI (Интерфейс пользователя)
+### 1. GUI & Desktop Experience
 
-1. **Автономное нативное десктопное приложение (`agentwiki-app.exe` / `sessionwiki-app.exe`)**:
-   - Полноценное окно настольного приложения на Rust без использования тяжелого Electron или Node.js (на базе связки `wry` и `tao` с системным WebView2 в Windows, WebKit в macOS/Linux).
-   - Скомпилировано с директивой `#![windows_subsystem = "windows"]` — двойной клик запускает приложение чисто, без всплывающего черного консольного окна.
-   - Приложение автоматически проверяет наличие локального сервера и при необходимости прозрачно запускает встроенный HTTP-движок в фоновом потоке внутри того же процесса.
-2. **Масштабная интеграция полноценного движка Markdown (`markdown-it 14.3.3`)**:
-   - Полная замена примитивного regex-расщепления строк на индустриальный движок `markdown-it 14.3.3` (CommonMark + GFM).
-   - Поддержка полноценной типографики: заголовки H1–H6 со стилизованными границами, маркированные и вложенные нумерованные списки, цитаты `blockquote` с акцентной левой границей, горизонтальные разделители `hr`, жирный/наклонный шрифт и инлайн-код.
-   - Безопасная обработка ссылок: автоматическое добавление атрибутов `target="_blank"` и `rel="noopener noreferrer"`.
-3. **Полноценная поддержка таблиц GitHub Flavored Markdown (GFM Tables)**:
-   - Автоматический рендеринг структурированных Markdown-таблиц (`| header | header |`) со стилизацией в стиле MDHero: шапка `thead`, разделительные линии, чередующаяся зебра-раскраска строк (`:nth-child(even)`), подсветка строки при наведении и горизонтальный скролл на мобильных/узких экранах.
-4. **Интерактивные кнопки быстрого копирования кода («📋 Copy»)**:
-   - Во все блоки кода `<pre><code>` интегрирована плавающая кнопка «📋 Copy», появляющаяся при наведении мыши.
-   - Одно нажатие копирует чистый код блока в буфер обмена с мгновенной анимацией подтверждения («✓ Copied»).
-5. **Динамический фильтр ролей сообщений в просмотрщике чата (Transcript Viewer)**:
-   - Выпадающий селектор `#role` мгновенно фильтрует сообщения открытой сессии в реальном времени.
-   - Фильтр `пользователь и агент` скрывает массивные дампы инструментов (`tool`), выводы консоли и патчи кода, оставляя чистый диалог.
-   - Дополнительные режимы изоляции: только сообщения пользователя, только ответы агента или только вывод инструментов.
-   - Интерактивный чип-индикатор количества сообщений (например, `18 / 209 сообщ.`).
-6. **Интерактивный сплиттер изменения размера боковой панели (Draggable Resizer)**:
-   - Добавлен разделитель между `<aside>` и `<main>` с курсором `col-resize` для свободного изменения ширины списка сессий.
-   - Выбранная ширина сайдбара автоматически сохраняется в `localStorage` и восстанавливается при перезапуске.
-7. **Сворачиваемый список затронутых файлов (Collapsible Touched Files)**:
-   - Список затронутых сессией файлов упакован в компактный контейнер `<details class="files-details">`, свернутый по умолчанию (`▸ Файлы (28)`).
-   - Корректная нормализация путей на Windows (`/[/\]/`): отображаются аккуратные базовые имена файлов вместо километровых системных путей (полный путь сохраняется в тултипе).
-8. **Эргономичная компоновка панели управления и полноразмерная строка поиска**:
-   - Общая статистика базы (`3,956 сессий · 8 инструментов · 6.7 GB`) перенесена в строку бренда, экономя полезную вертикальную высоту.
-   - Селекторы инструмента и роли скомпонованы в один горизонтальный ряд с аккуратными отступами.
-   - Поле поиска вынесено на отдельную строку на 100% ширины сайдбара, обеспечивая читаемость длинных поисковых фраз.
-9. **Широкоформатный режим отображения транскрипта (Widescreen Layout до 1400px)**:
-   - Максимальная ширина центрального блока диалога увеличена с 800px до 1400px, устраняя огромные пустые поля на современных широких мониторах и делая чтение diff'ов кода и широких таблиц максимально комфортным.
-10. **Встроенный поиск по чату с навигацией и горячими клавишами (`Ctrl+F`)**:
-    - В шапку активной сессии интегрирован встроенный поиск: счетчик найденных совпадений (`1 / 14`), навигация `↑` / `↓`, сброс `✕`.
-    - Полная поддержка клавиатурных сочетаний `Ctrl+F`, `Enter`, `Shift+Enter`, `Escape`.
-    - Автоматическая плавная прокрутка к активному найденному совпадению с подсветкой.
-11. **Выделенный экран «Недавние и связанные сессии» (Recent & Related)**:
-    - Список похожих сессий убран из подвала транскрипта, где он визуально путался с окончанием диалога.
-    - В футер сайдбара добавлена кнопка истории (🕒), открывающая историю недавно просмотренных сессий (сохраняется в `localStorage`, доступна кнопка очистки) и связанные сессии.
-12. **Интерактивная панель тегов и облачная фильтрация (Tag Cloud Filter)**:
-    - Панель цветных чипов-тегов в сайдбаре (`#frontend`, `#refactor`, `#bugfix`) с динамическим подсчетом количества сессий.
-    - Нажатие на тег мгновенно фильтрует список сессий; поддерживается присвоение и удаление тегов у сессии прямо из контекстного меню.
-13. **4 режима сортировки списка сессий**:
-    - Переключатель сортировки в сайдбаре: по последней активности (свежие сверху), по дате создания, по релевантности поискового запроса и по общему числу сообщений.
-14. **Временные метки сообщений и точная дата последней активности**:
-    - Индивидуальные метки времени на каждом ходе диалога со всплывающей датой.
-    - В строке метаданных сессии выводится точное время последнего сообщения (`посл. 2026-10-24 19:15`).
-15. **Интерактивная кнопка синхронизации и 10-минутный авто-sync**:
-    - Кнопка `🔄 Синхронизация` с анимацией спиннера и обновлением счетчиков без перезагрузки страницы.
-    - Таймер автоматической фоновой синхронизации каждые 10 минут с сохранением состояния чекбокса в `localStorage`.
-16. **Контекстное меню выделенного текста**:
-    - При выделении текста в чате правой кнопкой мыши открывается контекстное меню: «Копировать как Markdown», «Копировать как текст», «Искать в Google» и быстрый шорткат `Ctrl+Shift+C`.
-17. **Форматирование вставок Claude Code `<pasted_content>`**:
-    - Автоматическое распознавание больших внешних текстовых вставок с отображением заголовка `📋 Вставленный фрагмент`.
-    - Сохранение переводов строк (`breaks: true`) для списков и отчетов, встроенная кнопка `[Копировать]` с подтверждением.
-18. **Полная русская локализация интерфейса (i18n)**:
-    - Полноценный словарь русской локализации (`ru: { ... }`) для всех компонентов UI: фильтры, карточки, плейсхолдеры, всплывающие уведомления (toasts) и автоматическое переключение по языку системы.
-
----
-
-### 2. Поддержка новых IDE, агентов и провайдеров
-
-19. **Адаптер ZCode (`src/adapters/zcode.rs`)**:
-    - Архитектура на основе SQLite по пути `~/.zcode/cli/db/db.sqlite` (с поддержкой переменных окружения `ZCODE_DB` и `ZCODE_HOME`).
-    - Полная реализация трейта `Adapter` и `Store` с быстрой инкрементальной проверкой по `time_updated` без повторного парсинга неизменившихся данных.
-    - Чтение таблиц `session`, `message`, `part` и разбор JSON-семантики ролей `user` и `assistant`.
-    - Извлечение вызовов инструментов (`ToolCall`) и их результатов (`ToolResult`) из структуры `part.data` (`Read`, `Edit`, `Write`, `Bash` и др.).
-    - Отслеживание файловых правок (`EditEvent`, `EditKind::Edit`, `EditKind::Write`) и затронутых путей (`touched`) для интеграции с механизмом code trace.
-    - Автоматическое определение субагентов по `parent_id` или `task_type == "subagent_child"`.
-20. **Адаптер Google Antigravity IDE (`src/adapters/antigravity.rs`)**:
-    - Индексация сессий `transcript.jsonl` в директориях `~/.gemini/antigravity/brain/*/` (включая путь `.system_generated/logs/transcript.jsonl`).
-    - Сканирование и построчная фильтрация типов записей (`USER_INPUT`, `PLANNER_RESPONSE`, `GENERIC`).
-    - Извлечение сообщений, мыслей планировщика, правок файлов (`write_file`, `edit_file`) и санитизация приватных ключей.
-21. **Поддержка Google Antigravity CLI (`agy`)**:
-    - Индексация сессий терминального агента Antigravity CLI из отдельного хранилища `~/.gemini/antigravity-cli/brain`.
-22. **Адаптер Qoder (`src/adapters/qoder.rs`)**:
-    - Чтение локальной SQLite базы данных `%APPDATA%/com.qoder.app.stable/main.sqlite`.
-    - Реализация трейта `Store` с инкрементальным обновлением по временным токенам `updated_at` / `created_at`.
-    - Извлечение данных из `chat_sessions` и `chat_session_messages` со структурированными `parts` и фиксацией изменений файлов для blame.
-23. **Архитектура OpenCode v2 SQLite (`src/adapters/opencode.rs`)**:
-    - Поддержка новой схемы базы данных OpenCode v2.x (`session_v2`, `session_message` в `~/.local/share/opencode/opencode.db`).
-    - Извлечение промптов пользователя, текстовых ответов агента и вызовов инструментов (`edit`, `write`, `bash`, `read`) из поля `session_message.data.content`.
-    - Сохранение полной обратной совместимости со старыми SQLite-базами OpenCode v1 и файловыми JSON-хранилищами.
-24. **Адаптер DeepSeek Harness (`~/.dsh/sessions`)**:
-    - Поддержка агентного окружения для открытых моделей DeepSeek V3 / R1 с парсингом истории рассуждений и диалогов.
-25. **Адаптер Kimi Code (`~/.kimi-code/sessions`)**:
-    - Индексация сессий и шагов решения задач CLI-агента Kimi от Moonshot AI.
-26. **Адаптер Hermes Agent (`~/.hermes/state.db`)**:
-    - Интеграция легковесного SQLite-агента Hermes с извлечением ходов и метаданных.
-27. **Поддержка транскриптов GitHub Copilot**:
-    - Обнаружение и парсинг сессий чата GitHub Copilot в рабочих пространствах VS Code.
+1. **Autonomous Native Desktop Application (`agentwiki-app.exe` / `sessionwiki-app.exe`)**:
+   - Standalone native desktop application built with 100% Rust, Wry, and Tao (using system WebView2 on Windows, WebKit on macOS/Linux), completely eliminating Electron and Node.js runtimes.
+   - Compiled with `#![windows_subsystem = "windows"]` on Windows — double-clicking launches a clean native desktop window without popping up a console terminal.
+   - Automatically checks for a running server and transparently starts the embedded web engine in a background thread within the same process.
+2. **Industrial-Grade Markdown Rendering Engine (`markdown-it 14.3.3`)**:
+   - Completely replaced primitive regex string splitting with the full-featured `markdown-it 14.3.3` engine (CommonMark + GFM).
+   - Rich typography support: styled H1–H6 headings with divider lines, bulleted and nested numbered lists, blockquotes with accent border, horizontal rules (`hr`), bold/italic formatting, and inline code.
+   - Safe link handling: automatically appends `target="_blank"` and `rel="noopener noreferrer"`.
+3. **GitHub Flavored Markdown Tables (GFM Tables)**:
+   - Full support for structured Markdown tables with MDHero-inspired styling: distinct `thead` header, borders, alternating zebra-striped rows (`:nth-child(even)`), row hover highlights, and smooth horizontal scrolling.
+4. **Interactive One-Click Code Block Copy («📋 Copy»)**:
+   - Floating «📋 Copy» button automatically attached to every `<pre><code>` block, appearing smoothly on hover.
+   - One click copies clean code to clipboard with instant visual feedback («✓ Copied»).
+5. **Dynamic Message Role Filter in Transcript Viewer**:
+   - The `#role` dropdown filters messages in the open session view in real time.
+   - The `user and agent` filter hides noisy tool dumps (`role: "tool"`), bash logs, and file patches, surfacing clean human-agent dialogue.
+   - Dedicated modes to isolate user prompts, agent replies, or tool outputs.
+   - Interactive counter badge showing filtered ratio (e.g. `18 / 209 msgs`).
+6. **Draggable Sidebar Resizer (Splitter)**:
+   - Interactive splitter between `<aside>` and `<main>` with `col-resize` cursor for customizable sidebar width.
+   - Preferred width is persisted across sessions in `localStorage`.
+7. **Collapsible Touched Files List**:
+   - Files touched by a session are neatly wrapped in `<details class="files-details">`, collapsed by default (`▸ Files (28)`).
+   - Windows path normalization (`/[/\]/`) displays clean basenames instead of verbose filesystem paths (full paths retained on tooltip).
+8. **Ergonomic Controls Layout & Full-Width Search Input**:
+   - Database metrics (`3,956 sessions · 8 tools · 6.7 GB`) integrated into the title row to save vertical screen space.
+   - Tool and role select controls arranged side-by-side with compact padding.
+   - Search input placed on its own row spanning 100% of sidebar width for clear legibility.
+9. **Widescreen Transcript Layout (Up to 1400px)**:
+   - Expanded transcript viewport from 800px to 1400px, removing excessive side margins on wide displays and maximizing readability for multi-line code diffs and tables.
+10. **In-Chat Search with Navigation & Shortcuts (`Ctrl+F`)**:
+    - Integrated transcript search directly in the session header with match counter (`1 / 14`), `↑`/`↓` buttons, clear `✕`, and hotkeys (`Ctrl+F`, `Enter`, `Shift+Enter`, `Escape`).
+    - Smooth auto-scroll and highlight on active matches.
+11. **Dedicated "Recent & Related" View**:
+    - Relocated the `SEE ALSO` list out of the transcript footer into a dedicated view.
+    - Sidebar footer Recent (🕒) button opens recently viewed sessions (saved in `localStorage`, with clear history option) and related sessions.
+12. **Interactive Tag Cloud Filter**:
+    - Color-coded tag chips in the sidebar (`#frontend`, `#refactor`, `#bugfix`) with dynamic session counters.
+    - Clicking any tag instantly filters sessions; tags can be assigned or removed directly from the context menu.
+13. **4 Session List Sorting Modes**:
+    - Quick sorting switcher: last active (newest activity first), created date, search relevance, and total message count.
+14. **Message Timestamps & Session Last-Active Display**:
+    - Individual timestamps on every dialogue turn with formatted tooltip.
+    - Sidebar session items display exact last-message timestamp (`last: 2026-10-24 19:15`).
+15. **Live Database Sync Button & 10-Minute Auto-Sync**:
+    - Interactive `🔄 Sync` button with spinner animation and live counter updates.
+    - Background 10-minute recurring auto-sync timer with state saved in `localStorage`.
+16. **Text Selection Context Menu**:
+    - Right-clicking highlighted text offers "Copy as Markdown", "Copy as Plain Text", "Search in Google", and `Ctrl+Shift+C` shortcut.
+17. **Claude Code `<pasted_content>` Formatting**:
+    - Automatic detection and styling of Claude Code external file pastes with `📋 Pasted Content` badge.
+    - Preserves line breaks (`breaks: true`) with an inline `[Copy]` button.
+18. **Internationalization & Multi-Language Support (i18n)**:
+    - Full localization across 5 languages: English, Russian (`Русский`), Korean, Japanese, and Chinese, with automatic browser language detection.
 
 ---
 
-### 3. Оптимизация производительности и потребления памяти
+### 2. New IDEs, Agents & Ecosystem Adapters
 
-28. **Высокопроизводительный кэш скомпилированного HTML (`mdCache`)**:
-    - Внедрен двухуровневый LRU-кэш распарсенного Markdown-текста в HTML, полностью исключающий повторные вычисления парсера при повторном отображении сообщений.
-29. **Отказоустойчивый резервный парсер (`renderRichFallback`)**:
-    - Реализована безопасная изоляция исключений парсера: если во внешнем тексте встретился нестандартный синтаксис, интерфейс мгновенно переключается на безопасный резервный режим без белого экрана.
-30. **Ленивый рендеринг через IntersectionObserver**:
-    - Сообщения длинных сессий монтируются мгновенно в виде легковесных плейсхолдеров, а полный тяжелый парсинг Markdown выполняется только для сообщений в видимой области экрана, обеспечивая плавные 60–120 FPS.
-31. **Memory-Mapped I/O для SQLite (`PRAGMA mmap_size = 256MB`)**:
-    - Задействование механизма нулевого копирования через виртуальную память и системный дисковый кэш ОС, обеспечивающее сверхбыстрый полнотекстовый поиск FTS5 и загрузку сессий.
-32. **Расширенный кэш страниц SQLite (`PRAGMA cache_size = 32MB`)**:
-    - Увеличение размера оперативного кэша страниц SQLite со стандартных 2 МБ до 32 МБ, устраняющее постоянные обращения к диску при пролистывании результатов поиска.
-33. **Хранение временных таблиц в RAM (`PRAGMA temp_store = MEMORY`)**:
-    - Перевод временных структур данных, буферов сортировки и агрегаций SQLite исключительно в оперативную память.
-34. **LTO-оптимизация и сокращение размера исполняемого файла на ~25%**:
-    - Сборка с флагами `opt-level = "s"`, `codegen-units = 1`, LTO (`lto = true`) и `strip = true`, уменьшившая размер бинарников (GUI `agentwiki-app.exe` — до 3.53 МБ, CLI `agentwiki.exe` — до 4.71 МБ) без потери производительности.
-35. **Строгие заголовки кэширования HTTP**:
-    - Отдача веб-интерфейса сервером `web.rs` с заголовками `Cache-Control: no-cache, no-store, must-revalidate`, что исключает устаревание интерфейса в WebView2 при обновлении бинарников.
-
----
-
-### 4. Работа SQL и хранилища
-
-36. **Команда `agentwiki vacuum` для оптимизации FTS5 и возврата места**:
-    - Команда обслуживания базы данных, дефрагментирующая страницы SQLite и возвращающая дисковое пространство ОС (на реальных базах с 4,000+ сессий освобождает 30–50+ МБ).
-37. **Предварительная проверка свободного места на диске (Free-Space Preflight)**:
-    - Безопасная проверка дискового пространства перед запуском сжатия, предотвращающая зависание или повреждение базы при нехватке свободного места.
-38. **Корректная обработка `wal_checkpoint`**:
-    - Поддержка колонок ответа `PRAGMA wal_checkpoint(TRUNCATE)` с надежным сбросом журнала упреждающей записи без падений.
-39. **Схема хранения сниппетов Базы Знаний с автоматической миграцией**:
-    - Таблица `snippets` в SQLite с проверкой колонок `tool`, `role`, `message_ts` и фоновым переносом метаданных.
-40. **Таблица Избранного (`favorites`) с сохранением при обновлении схемы**:
-    - Персистентная таблица `favorites (session_id PRIMARY KEY, created_at TEXT)`, устойчивая к смене версий кэш-схемы.
-41. **Полное удаление сессий из индекса (`forget`)**:
-    - Функция безвозвратного удаления выбранной сессии из SQLite и полнотекстового индекса поиска FTS5 прямо из интерфейса.
-42. **Защита от Prompt Injection и утечки путей**:
-    - Автоматическая нейтрализация опасных управляющих конструкций (`neutralize_field`, `safe_text`), маскирование домашних путей пользователей (`redact_home`, `safe_project`).
+19. **ZCode Adapter (`src/adapters/zcode.rs`)**:
+    - SQLite session store support at `~/.zcode/cli/db/db.sqlite` (supporting `ZCODE_DB` and `ZCODE_HOME` overrides).
+    - Implements `Adapter` and `Store` traits with fast incremental checking via `time_updated`.
+    - Parses `session`, `message`, and `part` tables, decoding `user` and `assistant` semantics.
+    - Extracts tool invocations (`ToolCall`) and results (`ToolResult`) from `part.data` (`Read`, `Edit`, `Write`, `Bash`, etc.).
+    - Captures file patches (`EditEvent`, `EditKind::Edit`, `EditKind::Write`) and touched paths (`touched`) for code provenance.
+    - Automatically discovers subagents via `parent_id` and `task_type == "subagent_child"`.
+20. **Google Antigravity IDE Adapter (`src/adapters/antigravity.rs`)**:
+    - Indexing of `transcript.jsonl` stores in `~/.gemini/antigravity/brain/*/` (including `.system_generated/logs/transcript.jsonl`).
+    - Line-by-line filtering of record types (`USER_INPUT`, `PLANNER_RESPONSE`, `GENERIC`).
+    - Extracts user prompts, planner thoughts, file edits (`write_file`, `edit_file`), and auto-redacts private tokens.
+21. **Google Antigravity CLI Support (`agy`)**:
+    - Dedicated store adapter for terminal agent sessions at `~/.gemini/antigravity-cli/brain`.
+22. **Qoder Adapter (`src/adapters/qoder.rs`)**:
+    - Reads local SQLite database at `%APPDATA%/com.qoder.app.stable/main.sqlite`.
+    - Incremental sync via `updated_at` / `created_at` change tokens.
+    - Parses `chat_sessions` and `chat_session_messages` with structured message parts and file blame tracking.
+23. **OpenCode v2 SQLite Architecture (`src/adapters/opencode.rs`)**:
+    - Full support for OpenCode v2.x schema (`session_v2`, `session_message` in `~/.local/share/opencode/opencode.db`).
+    - Extracts user messages, agent responses, and structured tool calls (`edit`, `write`, `bash`, `read`) from `session_message.data.content`.
+    - Preserves backward compatibility with OpenCode v1 databases and JSON stores.
+24. **DeepSeek Harness Adapter (`~/.dsh/sessions`)**:
+    - Support for DeepSeek V3 / R1 CLI agent environments with reasoning transcripts.
+25. **Kimi Code Adapter (`~/.kimi-code/sessions`)**:
+    - Parses sessions and task workflows from Moonshot AI's Kimi Code CLI agent.
+26. **Hermes Agent Adapter (`~/.hermes/state.db`)**:
+    - Integration for Hermes SQLite-backed state and task history.
+27. **GitHub Copilot Transcript Discovery**:
+    - Discovers and parses GitHub Copilot chat conversations stored in VS Code workspaces.
 
 ---
 
-### 5. Новые фичи (База знаний, Durable Memory, Аналитика и Субагенты)
+### 3. Performance & Memory Optimizations
 
-43. **База знаний и сниппеты решений (Knowledge Base & Solution Snippets)**:
-    - Закрепление (📌 Pin) любого сообщения или блока кода из транскрипта сессии в локальную базу знаний.
-    - Быстрое сохранение выделенного фрагмента текста через контекстное меню (`📌 Сохранить выделение в сниппеты`).
-44. **Выделенный раздел «Сниппеты» в боковой панели**:
-    - Переключатель вкладок «Сессии» / «Сниппеты» со счетчиком сохраненных заметок.
-    - Фильтрация сниппетов по инструментам, ролям, датам и 5 режимам сортировки (по дате сохранения, по времени сообщения, по релевантности, по алфавиту, по объему).
-45. **Интерактивное управление сниппетами**:
-    - Контекстное меню сниппета: переименование (включая быстрый клик по иконке карандаша `✏️`), копирование чистого Markdown, экспорт в `.md`, удаление.
-    - Переход к оригинальной сессии по клику на карточку сниппета с плавной прокруткой и подсветкой сообщения.
-46. **Инструмент долговременной памяти Durable Memory в MCP (`propose_memory` / `save_memory`)**:
-    - Поддержка сохранения архитектурных выводов, причин багов и конвенций проекта напрямую агентами через MCP-инструменты `propose_memory` и `save_memory`.
-47. **Набор инструментов синтеза решений для MCP-агентов**:
-    - `recall_solution`: высокоуровневый инструмент поиска решений с автоматическим приоритетом сессий, помеченных звездочкой (⭐).
-    - `get_session_summary`: быстрое извлечение метаданных и файлов без перекачки многомегабайтного транскрипта.
-    - `list_favorites`: доступ к проверенным эталонным сессиям.
-    - `list_snippets`: поиск по базе знаний сохраненных решений.
-48. **Иерархия Subagents DAG и Workflows (Дерево субагентов)**:
-    - Фиксация связей `parent_id` / `parent_session_id`.
-    - Отображение цепочки подчинения в шапке сессии: «Родительская сессия → Вызов подзадачи → Дочерняя сессия».
-    - Быстрый переход к родительской сессии в один клик и фильтр «Подагенты» в сайдбаре.
-49. **История откатов и отмененных шагов (Superseded & Rewound Turns)**:
-    - Отслеживание отмененных или сжатых ходов (`is_rewound`) с возможностью показать или скрыть их через тумблер `↩ Отмененные`.
-50. **Экран аналитики активности разработчика (Activity Heatmap & Recap)**:
-    - 52-недельный график активности в духе GitHub contribution graph.
-    - 24-часовая круговая шкала суточной активности.
-    - Аналитика доли используемых агентов и моделей (Claude vs Codex vs ZCode vs OpenCode vs Antigravity).
-    - Список наиболее часто изменяемых файлов проекта (Top Touched Files).
-51. **Избранные сессии (⭐ Starred Sessions)**:
-    - Закрепление ключевых сессий золотой звездочкой в шапке или контекстном меню.
-    - Фильтр избранного в сайдбаре `⭐ Избранное (N)`, поддержка в CLI `agentwiki favorites` и MCP.
-52. **Генератор AI-брифов сессий (`AI Brief`)**:
-    - Формирование сжатого Markdown-брифа сессии (~1,500 токенов) для передачи контекста в другие агенты одной кнопкой.
-53. **Экспорт сессий в чистый Markdown (.md)**:
-    - Экспорт полного диалога с метаданными и затронутыми файлами через системный диалог «Сохранить как».
-54. **Поиск по пересечению нескольких ключевых слов (чипы `+`)**:
-    - Добавление нескольких поисковых чипов для поиска сессий, где разные ключевые слова встречаются в рамках одного проекта.
-55. **Трейсинг истории файлов по всем сессиям (Reverse File Provenance)**:
-    - Поиск сессий, изменявших конкретный файл, через контекстное меню или префикс `file:path/to/file`.
-56. **Ребрендинг в AgentWiki-rs**:
-    - Трансформация проекта в автономный настольный командный центр и платформу долгосрочной памяти для AI-агентов.
+28. **High-Performance Compiled HTML Cache (`mdCache`)**:
+    - In-memory LRU cache storing parsed Markdown HTML, eliminating redundant parser overhead on re-rendered messages.
+29. **Fault-Tolerant Markdown Fallback (`renderRichFallback`)**:
+    - Safe exception isolation: if malformed external text fails parsing, gracefully falls back to raw rendering without breaking the page.
+30. **Zero-Lag Lazy Rendering via IntersectionObserver**:
+    - Messages mount instantly as lightweight placeholders, with heavy Markdown parsing deferred until scrolled into view for solid 60–120 FPS.
+31. **SQLite Memory-Mapped I/O (`PRAGMA mmap_size = 256MB`)**:
+    - Zero-copy OS page caching for instant full-text search (FTS5) queries and session loading.
+32. **Enlarged Page Cache (`PRAGMA cache_size = 32MB`)**:
+    - Enlarged SQLite page cache from default 2 MB to 32 MB, eliminating disk I/O when navigating search results.
+33. **In-Memory Temporary Storage (`PRAGMA temp_store = MEMORY`)**:
+    - Diverts SQLite temp tables, sort buffers, and aggregations directly to RAM.
+34. **LTO Binary Shrink by ~25%**:
+    - Built with `opt-level = "s"`, `codegen-units = 1`, LTO (`lto = true`), and `strip = true`, reducing binary size (GUI `agentwiki-app.exe` to ~3.53 MB, CLI `agentwiki.exe` to ~4.71 MB) with no runtime speed penalty.
+35. **Strict HTTP Cache Control**:
+    - Serves web assets with `Cache-Control: no-cache, no-store, must-revalidate` to prevent stale WebView2 caching upon binary upgrades.
+
+---
+
+### 4. SQL Engine & Storage Reliability
+
+36. **`agentwiki vacuum` Command for FTS5 & Disk Reclaim**:
+    - Reclaims fragmented SQLite pages and disk space (reclaiming 30–50+ MB on 4,000+ session databases).
+37. **Free-Space Preflight Safety Check**:
+    - Validates available filesystem space before executing vacuum to prevent database corruption during low disk space.
+38. **WAL Checkpoint Handling**:
+    - Safely processes `PRAGMA wal_checkpoint(TRUNCATE)` output columns without crashing.
+39. **Knowledge Base Snippets Schema with Auto-Migration**:
+    - Dedicated SQLite `snippets` table with automated column migrations (`tool`, `role`, `message_ts`) and background backfill.
+40. **Favorites Table (`favorites`) across Schema Upgrades**:
+    - Persistent `favorites (session_id PRIMARY KEY, created_at TEXT)` table preserved across index rebuilds.
+41. **Permanent Session Deletion (`forget`)**:
+    - Securely deletes sessions from SQLite and FTS5 search indexes via the UI context menu.
+42. **Prompt Injection & Path Privacy Defense**:
+    - Sanitizes control sequences (`neutralize_field`, `safe_text`) and redacts user home directories (`redact_home`, `safe_project`).
+
+---
+
+### 5. Advanced Features: Knowledge Base, Durable Memory, Analytics & Subagents
+
+43. **Knowledge Base & Solution Snippets**:
+    - Pin (📌) any message or code block from transcripts into a persistent local knowledge base.
+    - Quick selection pinning via context menu (`📌 Save selection to Snippets`).
+44. **Dedicated "Snippets" Sidebar Tab**:
+    - Segmented switcher between "Sessions" and "Snippets" with live badge counters.
+    - Filter snippets by tool, role, date range, and 5 sorting modes (saved date, message date, relevance, alphabetical, length).
+45. **Interactive Snippet Management**:
+    - Snippet context menu: rename (including inline pencil `✏️` button), copy Markdown, export as `.md`, and delete.
+    - One-click jump to original session with smooth scroll and target turn highlight pulse.
+46. **Durable Agent Memory Tool via MCP (`propose_memory` / `save_memory`)**:
+    - Enables Claude Code, Codex, Cursor, and Antigravity to persist architectural decisions, bug causes, and project conventions directly into AgentWiki.
+47. **Synthesized Solution Retrieval for MCP Agents**:
+    - `recall_solution`: high-level problem-solving tool prioritizing bookmarked (⭐) sessions.
+    - `get_session_summary`: lightweight metadata and files retrieval without streaming large transcripts.
+    - `list_favorites`: direct access to verified solution sessions.
+    - `list_snippets`: queries saved knowledge base snippets.
+48. **Subagents DAG Hierarchy & Workflows**:
+    - Tracks `parent_id` / `parent_session_id` relationships.
+    - Displays hierarchy chain in the session header: "Parent session → Subtask invocation → Child session".
+    - One-click navigation to parent session and sidebar "Subagents" toggle filter.
+49. **Turn History & Rollback Awareness (Superseded & Rewound Turns)**:
+    - Tracks `is_rewound` attribute for reverted or compacted turns, with a WebUI toggle (`↩ Rewound`).
+50. **Developer Activity Heatmap & Recap**:
+    - 52-week GitHub-style contribution calendar.
+    - 24-hour diurnal activity rhythm chart.
+    - Agent & model distribution breakdown (Claude vs Codex vs ZCode vs OpenCode vs Antigravity).
+    - Top modified files ranking (Top Touched Files).
+51. **Starred Sessions (⭐ Favorites)**:
+    - Bookmark crucial sessions with a gold star in the header or context menu.
+    - Sidebar filter `⭐ Favorites (N)`, CLI command `agentwiki favorites`, and MCP integration.
+52. **AI Brief Generator (`AI Brief`)**:
+    - Generates concise Markdown briefs (~1,500 tokens) to transfer session context to other agents in one click.
+53. **Export Sessions to Clean Markdown (.md)**:
+    - Exports formatted session dialogue with metadata and file diffs via native "Save As" dialog.
+54. **Multi-Keyword Intersecting Search ('+' Chips)**:
+    - Adds keyword chips to search sessions matching multiple disparate terms across the project.
+55. **Reverse File Provenance Tracing**:
+    - Search sessions that touched a specific file via context menu or `file:path/to/file` syntax.
+56. **Rebranded to AgentWiki-rs**:
+    - Evolves from a simple transcript reader into an autonomous desktop command center and long-term memory engine for AI coding agents.
 
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow
