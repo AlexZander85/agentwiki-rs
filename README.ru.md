@@ -53,17 +53,19 @@
 - **Быстрый фильтр-чип**: мгновенная фильтрация по клику на `⭐ Избранное (N)` в боковой панели без необходимости ввода текста.
 - **Контекстное меню, CLI и MCP**: управление через правый клик мыши, отдельная команда консоли (`agentwiki favorites`) и инструмент MCP (`list_favorites`).
 
-### 🤖 14+ встроенных адаптеров AI-агентов
+### 🤖 18+ встроенных адаптеров AI-агентов
 Автоматически находит и индексирует сессии:
 - **Anthropic Claude Code** (`~/.claude/projects`)
 - **OpenAI Codex** (`~/.codex/sessions` и `thread_history_1.sqlite`)
-- **Google Antigravity IDE и CLI (`agy`)** (`~/.gemini/antigravity` и `~/.gemini/antigravity-cli`)
 - **OpenCode** (схемы **v1.x** SQLite/JSON и **v2.x** `session_v2`)
-- **Qoder** (`AppData/Roaming/com.qoder.app.stable`)
+- **Google Antigravity IDE и CLI (`agy`)** (`~/.gemini/antigravity` и `~/.gemini/antigravity-cli`)
 - **ZCode** (`~/.zcode/cli`)
-- **Cline, Roo Code, Kilo Code, Gajae Code** (`globalStorage`)
+- **Qoder** (`AppData/Roaming/com.qoder.app.stable`)
 - **DeepSeek Harness** (`~/.dsh/sessions`)
-- **Aider, Continue.dev, Hermes, Kimi, GPT-me** и другие.
+- **Kimi Code** (`~/.kimi-code/sessions`)
+- **Hermes Agent** (`~/.hermes/state.db`)
+- **Cline, Roo Code, Kilo Code, Gajae Code** (`globalStorage`)
+- **Aider, Continue.dev, Gemini CLI, Prodex, gptme** и другие (всего 21 конфигурация адаптеров).
 
 ### 🧠 Долговременная память через Model Context Protocol (MCP)
 Дайте вашим агентам возможность сохранять и вспоминать выводы между независимыми задачами:

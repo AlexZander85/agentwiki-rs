@@ -37,7 +37,7 @@ pub fn run(preferred_port: Option<u16>) -> Result<()> {
     };
 
     let mut builder = WindowBuilder::new()
-        .with_title("AgentWiki")
+        .with_title(format!("AgentWiki v{}", env!("CARGO_PKG_VERSION")))
         .with_inner_size(tao::dpi::LogicalSize::new(1440.0, 920.0));
     if let Some(ic) = icon {
         builder = builder.with_window_icon(Some(ic));

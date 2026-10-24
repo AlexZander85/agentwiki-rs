@@ -312,7 +312,7 @@ fn api_stats(conn: &Connection) -> Result<Boxed> {
         .map(|(t, c)| json!({ "tag": t, "count": c }))
         .collect();
 
-    json_response(json!({ "tools": rows, "tags": tags }))
+    json_response(json!({ "tools": rows, "tags": tags, "version": env!("CARGO_PKG_VERSION") }))
 }
 
 fn api_sessions(conn: &Connection, query: &str) -> Result<Boxed> {

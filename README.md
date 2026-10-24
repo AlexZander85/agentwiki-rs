@@ -53,17 +53,19 @@ Every day, coding agents like **Claude Code, Codex, Antigravity, OpenCode, Qoder
 - **Instant Filter Chip**: Dedicated `⭐ Favorites (N)` quick-filter chip in the sidebar to isolate starred work with zero typing.
 - **Context Menu & CLI / MCP**: Right-click context menu (`Add to favorites`), CLI command (`agentwiki favorites`), and MCP tool (`list_favorites`).
 
-### 🤖 14+ Agent Adapters Out of the Box
+### 🤖 18+ Agent Adapters Out of the Box
 Automatically locates and indexes sessions from all major coding agents:
 - **Anthropic Claude Code** (`~/.claude/projects`)
 - **OpenAI Codex** (`~/.codex/sessions` & `thread_history_1.sqlite`)
-- **Google Antigravity IDE & CLI (`agy`)** (`~/.gemini/antigravity` & `~/.gemini/antigravity-cli`)
 - **OpenCode** (both **v1.x** SQLite/JSON and **v2.x** `session_v2` schemas)
-- **Qoder** (`AppData/Roaming/com.qoder.app.stable`)
+- **Google Antigravity IDE & CLI (`agy`)** (`~/.gemini/antigravity` & `~/.gemini/antigravity-cli`)
 - **ZCode** (`~/.zcode/cli`)
-- **Cline, Roo Code, Kilo Code, Gajae Code** (`globalStorage`)
+- **Qoder** (`AppData/Roaming/com.qoder.app.stable`)
 - **DeepSeek Harness** (`~/.dsh/sessions`)
-- **Aider, Continue.dev, Hermes, Kimi, GPT-me**, and more.
+- **Kimi Code** (`~/.kimi-code/sessions`)
+- **Hermes Agent** (`~/.hermes/state.db`)
+- **Cline, Roo Code, Kilo Code, Gajae Code** (`globalStorage`)
+- **Aider, Continue.dev, Gemini CLI, Prodex, gptme**, and more (21 adapter configurations in total).
 
 ### 🧠 Model Context Protocol (MCP) Durable Memory
 Empower your agents to remember solutions between independent tasks.
