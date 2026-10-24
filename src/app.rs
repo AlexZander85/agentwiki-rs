@@ -14,7 +14,7 @@ pub fn run(preferred_port: Option<u16>) -> Result<()> {
     let port = preferred_port.unwrap_or(7575);
     let addr = format!("127.0.0.1:{port}");
 
-    // Check if a SessionWiki server is already running on this port
+    // Check if an AgentWiki server is already running on this port
     let already_running = TcpStream::connect(&addr).is_ok();
     if !already_running {
         thread::spawn(move || {
@@ -37,7 +37,7 @@ pub fn run(preferred_port: Option<u16>) -> Result<()> {
     };
 
     let mut builder = WindowBuilder::new()
-        .with_title("SessionWiki")
+        .with_title("AgentWiki")
         .with_inner_size(tao::dpi::LogicalSize::new(1440.0, 920.0));
     if let Some(ic) = icon {
         builder = builder.with_window_icon(Some(ic));

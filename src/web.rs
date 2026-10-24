@@ -18,9 +18,9 @@ pub fn serve(port: u16, no_open: bool, sync: bool) -> Result<()> {
     let addr = format!("127.0.0.1:{port}");
     let server = Server::http(&addr).map_err(|e| anyhow::anyhow!("bind {addr}: {e}"))?;
     let url = format!("http://{addr}");
-    println!("sessionwiki web: {url}");
+    println!("agentwiki web: {url}");
     if !sync {
-        println!("(read-only view; run `sessionwiki list` or `web --sync` to refresh the index)");
+        println!("(read-only view; run `agentwiki list` or `web --sync` to refresh the index)");
     }
     let wsl = is_wsl();
     if should_open_browser(no_open, wsl) {
