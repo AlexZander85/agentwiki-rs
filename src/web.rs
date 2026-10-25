@@ -719,7 +719,7 @@ fn api_brief(conn: &Connection, query: &str) -> Result<Boxed> {
     let row = matches.first().context("session not found")?;
     let mut session = commands::load_session(conn, row)?;
     commands::redact_session_for_export(&mut session);
-    let markdown = commands::brief_markdown(&session, max_chars, include_tools);
+    let markdown = crate::brief::smart_brief(&session, max_chars, include_tools, false);
     let chars = markdown.len();
     let est_tokens = chars / 4;
     json_response(json!({

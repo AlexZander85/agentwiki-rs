@@ -111,7 +111,7 @@ Finds sessions that created, edited, or touched a specific file.
   - `path` *(string, required)*: Relative or absolute path (e.g. `src/auth.rs` or `auth.rs`).
 
 ### 📄 7. `get_session_brief` (Bounded Session Briefing)
-Returns a head-and-tail markdown summary of a session.
+Returns a structured markdown briefing of a session: goal, outcome, turn-by-turn timeline, key points, corrections, open items, files, commands, errors (fixed or not) and the last exchange verbatim. Extractive, no model; short sessions come back as their transcript.
 - **When to use:** Reading the essential context of an older session within a strict token budget.
 - **Arguments:**
   - `id` *(string, required)*: Session ID or prefix.
@@ -146,7 +146,7 @@ When operating from bash or PowerShell, invoke `agentwiki` directly:
 | `recall` | `agentwiki recall "<query>" [-n 5] [--json]` | Search and brief top matching session |
 | `search` | `agentwiki search "<query>" [--role user,assistant] [--json]` | Full-text search across conversations |
 | `trace` | `agentwiki trace <path>` | Find sessions that modified a file |
-| `brief` | `agentwiki brief <id> [--max-chars 4000]` | Output head+tail markdown briefing |
+| `brief` | `agentwiki brief <id> [--max-chars 4000]` | Output a structured markdown briefing |
 | `show` | `agentwiki show <id> [--outline \| --window \| --json]` | View session transcript or digest |
 | `list` | `agentwiki list [-n 20] [--project <p>] [--json]` | List timeline of recent sessions |
 | `sync` | `agentwiki sync` | Manually trigger incremental store freshen |

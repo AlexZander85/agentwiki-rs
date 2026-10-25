@@ -591,7 +591,7 @@ pub fn recall(
     let top = &hits[0];
     let mut session = load_session(&conn, &top.row)?;
     redact_session_for_export(&mut session);
-    let markdown = brief_text(&session, max_chars, false, true);
+    let markdown = crate::brief::smart_brief(&session, max_chars, false, true);
 
     if json {
         let candidates: Vec<serde_json::Value> = hits
@@ -1263,7 +1263,7 @@ pub fn brief(
     let row = resolve_lazy(&mut conn, id, no_sync)?;
     let mut session = load_session(&conn, &row)?;
     redact_session_for_export(&mut session);
-    let markdown = brief_text(&session, max_chars, include_tools, true);
+    let markdown = crate::brief::smart_brief(&session, max_chars, include_tools, true);
     if json {
         let v = serde_json::json!({
             "id": session.id,
@@ -1281,10 +1281,11 @@ pub fn brief(
     Ok(())
 }
 
-/// Render a session as the same markdown briefing the `brief` command prints,
-/// without going through the command line. For programs that embed this crate
-/// as a library and show a briefing in their own interface. The source path is
-/// left out, since an embedder's paths mean nothing to its reader.
+/// Render a session as a head-and-tail transcript excerpt, without going
+/// through the command line. For programs that embed this crate as a library
+/// and show the conversation itself; [`crate::brief::smart_brief`] is the
+/// condensed briefing the `brief` command prints. The source path is left
+/// out, since an embedder's paths mean nothing to its reader.
 pub fn brief_markdown(
     session: &crate::model::Session,
     max_chars: usize,
@@ -1293,7 +1294,8 @@ pub fn brief_markdown(
     brief_text(session, max_chars, include_tools, false)
 }
 
-/// The markdown briefing used by `brief` and as LLM input for `summarize`.
+/// The head-and-tail transcript excerpt: LLM input for `summarize`, and what
+/// [`crate::brief::smart_brief`] returns for a session too short to condense.
 pub(crate) fn brief_text(
     session: &crate::model::Session,
     max_chars: usize,

@@ -11,6 +11,7 @@ pub mod adapters;
 #[cfg(feature = "gui")]
 pub mod app;
 pub mod blame;
+pub mod brief;
 pub mod commands;
 pub mod doctor;
 pub mod hook;
