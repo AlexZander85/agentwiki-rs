@@ -314,6 +314,7 @@ pub fn ensure_snippets_table(conn: &Connection) -> Result<()> {
         ("snippets", "message_ts", "TEXT"),
         ("files", "parent_id", "TEXT"),
         ("messages", "is_rewound", "INTEGER DEFAULT 0"),
+        ("summaries", "kind", "TEXT NOT NULL DEFAULT 'llm'"),
     ] {
         if let Err(e) = add_missing_column(conn, table, column, decl) {
             eprintln!("warning: could not add {table}.{column}: {e:#}");
@@ -626,7 +627,10 @@ fn create_cache_schema_with_tokenizer(conn: &Connection, tokenizer: &str) -> Res
         CREATE TABLE IF NOT EXISTS summaries(
             session_id TEXT PRIMARY KEY,
             summary    TEXT NOT NULL,
-            created    TEXT NOT NULL
+            created    TEXT NOT NULL,
+            -- 'llm': written by `summarize` (kept); 'auto': the instant
+            -- extractive line, rewritten whenever the session is reindexed.
+            kind       TEXT NOT NULL DEFAULT 'llm'
         );
         -- Curation layer (the editable 'wiki' part). Like summaries, these
         -- are user-authored and survive index rebuilds: only files/messages/
@@ -1524,8 +1528,82 @@ fn write_session(
 ) -> Result<()> {
     let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
     index_one(&tx, session, key, mtime, size, output_mode)?;
+    if !session.subagent {
+        store_auto_summary(&tx, &session.id, crate::brief::short_summary(session).as_deref())?;
+    }
     tx.commit()?;
     Ok(())
+}
+
+/// Keep the instant one-line summary in step with the session; a summary the
+/// model wrote is never touched.
+fn store_auto_summary(conn: &Connection, session_id: &str, line: Option<&str>) -> Result<()> {
+    match line {
+        Some(line) => conn.execute(
+            "INSERT INTO summaries(session_id, summary, created, kind)
+             VALUES (?1, ?2, datetime('now'), 'auto')
+             ON CONFLICT(session_id) DO UPDATE SET summary = excluded.summary, created = excluded.created
+             WHERE summaries.kind = 'auto'",
+            params![session_id, line],
+        )?,
+        None => conn.execute(
+            "DELETE FROM summaries WHERE session_id = ?1 AND kind = 'auto'",
+            params![session_id],
+        )?,
+    };
+    Ok(())
+}
+
+/// Bump when [`crate::brief::short_summary`] changes what it writes.
+const AUTO_SUMMARY_VERSION: &str = "1";
+const AUTO_SUMMARY_KEY: &str = "auto_summary_version";
+
+/// Give sessions indexed before instant summaries existed their line, a slice
+/// per sync (newest first, about a second of work) so no sync is held up.
+fn backfill_auto_summaries(conn: &mut Connection) -> Result<usize> {
+    // A better line-maker re-derives every instant line (model ones stay):
+    // dropping them lets this same slice-per-sync fill them in again.
+    let version: Option<String> = conn
+        .query_row("SELECT value FROM meta WHERE key = ?1", [AUTO_SUMMARY_KEY], |r| r.get(0))
+        .optional()?;
+    if version.as_deref() != Some(AUTO_SUMMARY_VERSION) {
+        let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        tx.execute("DELETE FROM summaries WHERE kind = 'auto'", [])?;
+        tx.execute(
+            "INSERT INTO meta(key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![AUTO_SUMMARY_KEY, AUTO_SUMMARY_VERSION],
+        )?;
+        tx.commit()?;
+    }
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(1000);
+    let mut done = 0;
+    loop {
+        let rows = summary_candidates(conn, 50, None, false)?;
+        if rows.is_empty() {
+            return Ok(done);
+        }
+        let mut lines = Vec::with_capacity(rows.len());
+        for row in &rows {
+            let line = session_from_index(conn, row).ok().and_then(|s| crate::brief::short_summary(&s));
+            // A session with nothing to say still gets a row, or it would be
+            // picked again on every sync.
+            lines.push((row.session_id.clone(), line.unwrap_or_default()));
+        }
+        let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        for (id, line) in &lines {
+            tx.execute(
+                "INSERT OR IGNORE INTO summaries(session_id, summary, created, kind)
+                 VALUES (?1, ?2, datetime('now'), 'auto')",
+                params![id, line],
+            )?;
+        }
+        tx.commit()?;
+        done += lines.len();
+        if std::time::Instant::now() >= deadline {
+            return Ok(done);
+        }
+    }
 }
 
 pub fn sync(conn: &mut Connection, only_tool: Option<&str>) -> Result<()> {
@@ -1759,7 +1837,14 @@ pub fn sync_with(
         }
         report_indexed(tool, total, failed);
     }
-    if wrote || archived_total > 0 {
+    let backfilled = match backfill_auto_summaries(conn) {
+        Ok(n) => n,
+        Err(e) => {
+            eprintln!("warning: could not backfill instant summaries: {e:#}");
+            0
+        }
+    };
+    if wrote || archived_total > 0 || backfilled > 0 {
         maintain(conn);
     }
 
@@ -3226,24 +3311,37 @@ pub fn live_row(tool: String, path: PathBuf) -> SessionRow {
 /// before it lands in this durable table.
 pub fn set_summary(conn: &Connection, session_id: &str, summary: &str) -> Result<()> {
     conn.execute(
-        "INSERT OR REPLACE INTO summaries(session_id, summary, created)
-         VALUES (?1, ?2, datetime('now'))",
+        "INSERT OR REPLACE INTO summaries(session_id, summary, created, kind)
+         VALUES (?1, ?2, datetime('now'), 'llm')",
         params![session_id, crate::redact::redact(summary).as_ref()],
     )?;
     Ok(())
 }
 
-/// Most recent main sessions that have no cached summary yet.
+/// Most recent main sessions that have no model-written summary yet (an
+/// instant extractive one does not count: `summarize` replaces it).
 pub fn unsummarized(
     conn: &Connection,
     limit: usize,
     tool: Option<&str>,
 ) -> Result<Vec<SessionRow>> {
+    summary_candidates(conn, limit, tool, true)
+}
+
+/// Main sessions lacking a summary: a model-written one (`llm_only`), or
+/// any at all.
+fn summary_candidates(
+    conn: &Connection,
+    limit: usize,
+    tool: Option<&str>,
+    llm_only: bool,
+) -> Result<Vec<SessionRow>> {
+    let kind = if llm_only { " AND s.kind = 'llm'" } else { "" };
     let mut sql = format!(
         "SELECT session_id, tool, path, project, title, started, msg_count, kind, {PREVIEW_SQL}, {SUMMARY_SQL}, {TAGS_SQL}, (archived_at IS NOT NULL)
          FROM files f
          WHERE kind = 'main' AND NOT EXISTS
-               (SELECT 1 FROM summaries s WHERE s.session_id = f.session_id)",
+               (SELECT 1 FROM summaries s WHERE s.session_id = f.session_id{kind})",
     );
     let mut args: Vec<String> = Vec::new();
     if let Some(t) = tool {
@@ -4478,6 +4576,34 @@ mod listing_tests {
         };
         let rows = search_sessions_multi_terms(&c, &["alpha", "beta"], 10, None, scope).unwrap();
         assert_eq!(ids(&rows), ["dense", "sparse"]);
+    }
+
+    #[test]
+    fn instant_summaries_fill_in_but_never_replace_a_model_one() {
+        let mut c = conn();
+        for sid in ["a", "b"] {
+            session(&c, sid, "2026-10-01T10:00:00Z", "2026-10-01T11:00:00Z", 2);
+            message(&c, sid, "user", "Fix the CSV parser please");
+            message(&c, sid, "assistant", "Fixed: quoted fields now parse and all tests pass.");
+        }
+        set_summary(&c, "b", "model-written synopsis").unwrap();
+        assert_eq!(backfill_auto_summaries(&mut c).unwrap(), 1, "only the session without one");
+        let get = |sid: &str| -> (String, String) {
+            c.query_row("SELECT summary, kind FROM summaries WHERE session_id = ?1", [sid], |r| Ok((r.get(0)?, r.get(1)?)))
+                .unwrap()
+        };
+        let (line, kind) = get("a");
+        assert_eq!(kind, "auto");
+        assert!(line.starts_with("Fix the CSV parser please → Fixed: quoted fields"), "{line}");
+        assert_eq!(get("b"), ("model-written synopsis".into(), "llm".into()));
+        // Reindexing rewrites an instant line, never a model one.
+        store_auto_summary(&c, "a", Some("newer line")).unwrap();
+        store_auto_summary(&c, "b", Some("newer line")).unwrap();
+        assert_eq!(get("a").0, "newer line");
+        assert_eq!(get("b").0, "model-written synopsis");
+        // `summarize` still offers the session that only has an instant line.
+        let todo: Vec<String> = unsummarized(&c, 10, None).unwrap().into_iter().map(|r| r.session_id).collect();
+        assert_eq!(todo, vec!["a".to_string()]);
     }
 }
 

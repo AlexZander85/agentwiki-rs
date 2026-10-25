@@ -40,6 +40,16 @@ pub fn smart_brief(
     crate::redact::redact(&out).into_owned()
 }
 
+/// One line for the session list: the request, what came of it, and counts -
+/// `Fix the CSV parser → quoted fields now parse · 4 turns · ✎3 · ⚠1`. The
+/// same analysis as [`smart_brief`], cut to its headline; instant, no model.
+/// `None` when the session has no request to speak of.
+pub fn short_summary(session: &Session) -> Option<String> {
+    let turns = segment(session);
+    let line = Brief::new(session, turns, 0).headline()?;
+    Some(crate::redact::redact(&line).into_owned())
+}
+
 // ---------------------------------------------------------------------------
 // Turns
 
@@ -161,9 +171,17 @@ fn clean(text: &str) -> String {
         }
     }
     let s = strip_tag_markers(&s);
+    // "The handoff plugin sent a message: <request>" - keep the request.
+    let s = match s.find(" plugin sent a message:") {
+        Some(i) if i < 60 && s.starts_with("The ") => s[i + " plugin sent a message:".len()..].to_string(),
+        _ => s,
+    };
     let mut out = String::with_capacity(s.len());
     let mut blank = 0;
     for line in s.lines() {
+        if line.starts_with("This is how Claude Code surfaces") {
+            continue;
+        }
         if line.trim().is_empty() {
             blank += 1;
             if blank > 1 {
@@ -544,12 +562,16 @@ const TODO: &[&str] = &[
     "remaining", "still need", "not yet", "deferred", "open question", "not verified", "not committed",
     "nothing committed", "left to do",
 ];
+/// Replies that report a stop, not an outcome.
+const NOT_A_RESULT: &[&str] = &[
+    "you've hit your", "session limit", "waiting for", "ожидаю", "жду ", "usage limit", "rate limit",
+];
 /// Phrases that look like a TODO cue but say the opposite.
 const NOT_TODO: &[&str] = &["не осталось", "nothing left", "nothing remaining"];
 const BOILERPLATE: &[&str] = &[
     "давайте", "сейчас ", "теперь ", "отлично", "хорошо,", "понял", "смотрю", "проверяю",
     "посмотрю", "let me", "now i", "now let", "great", "perfect", "okay", "ok,", "i'll ", "i will ",
-    "let's ", "first,", "looking at", "i need to", "i see",
+    "let's ", "first,", "looking at", "i need to", "i see", "now ", "next,", "далее ", "сначала ",
 ];
 
 fn has_cue(lower: &str, cues: &[&str]) -> bool {
@@ -790,6 +812,7 @@ struct Labels {
     other_tools: &'static str,
     lookups: &'static str,
     script: &'static str,
+    turns_n: fn(usize) -> String,
     temp_files: fn(usize) -> String,
 }
 
@@ -818,6 +841,14 @@ const RU: Labels = Labels {
     other_tools: "Прочие инструменты",
     lookups: "Просмотр и поиск",
     script: "скрипты",
+    turns_n: |n| {
+        let word = match (n % 10, n % 100) {
+            (1, r) if r != 11 => "ход",
+            (2..=4, r) if !(12..=14).contains(&r) => "хода",
+            _ => "ходов",
+        };
+        format!("{n} {word}")
+    },
     temp_files: |n| format!("… и {n} временных файлов вне проекта"),
 };
 
@@ -846,8 +877,17 @@ const EN: Labels = Labels {
     other_tools: "Other tools",
     lookups: "Looking around",
     script: "scripts",
+    turns_n: |n| format!("{n} {}", if n == 1 { "turn" } else { "turns" }),
     temp_files: |n| format!("… and {n} scratch files outside the project"),
 };
+
+struct ErrorGroup {
+    sig: String,
+    target: String,
+    count: usize,
+    turn: usize,
+    fixed: bool,
+}
 
 struct Brief<'a> {
     session: &'a Session,
@@ -859,9 +899,15 @@ struct Brief<'a> {
 
 impl<'a> Brief<'a> {
     fn new(session: &'a Session, turns: Vec<Turn>, budget: usize) -> Self {
-        let user_text: String = turns.iter().map(|t| t.request.as_str()).collect();
-        let letters = user_text.chars().filter(|c| c.is_alphabetic()).count().max(1);
-        let cyr = user_text.chars().filter(|c| matches!(c, 'а'..='я' | 'А'..='Я' | 'ё' | 'Ё')).count();
+        // Words only: paths, identifiers and pasted code are Latin in any
+        // language.
+        let words: String = turns
+            .iter()
+            .flat_map(|t| t.request.split_whitespace())
+            .filter(|w| !w.contains(['/', '\\', '.', '_', '=', ':']) && w.chars().all(|c| c.is_alphabetic() || ",;!?()«»\"'-".contains(c)))
+            .collect();
+        let letters = words.chars().filter(|c| c.is_alphabetic()).count().max(1);
+        let cyr = words.chars().filter(|c| matches!(c, 'а'..='я' | 'А'..='Я' | 'ё' | 'Ё')).count();
         // A fifth is enough: pasted logs and code in a Russian session are
         // English, the person's own words are not.
         let l = if cyr * 5 >= letters { &RU } else { &EN };
@@ -1278,7 +1324,7 @@ impl<'a> Brief<'a> {
     /// Errors grouped by signature; fixed when the same command, or any later
     /// call of the same non-shell tool, succeeded after the last failure.
     /// Refusals by the person are not errors of the work.
-    fn errors(&self, budget: usize) -> String {
+    fn error_groups(&self) -> Vec<ErrorGroup> {
         let flat: Vec<(usize, &ToolLine)> = self
             .turns
             .iter()
@@ -1292,44 +1338,42 @@ impl<'a> Brief<'a> {
                 x.name.clone()
             }
         };
-        struct Err {
-            sig: String,
-            target: String,
-            count: usize,
-            last_at: usize,
-            turn: usize,
-        }
-        let mut errs: Vec<Err> = Vec::new();
+        let mut groups: Vec<(ErrorGroup, usize)> = Vec::new();
         for (i, (t, x)) in flat.iter().enumerate() {
             if x.status != Status::Error || is_rejection(x) {
                 continue;
             }
             let sig = error_signature(x);
             let tgt = target(x);
-            match errs.iter_mut().find(|e| e.sig == sig && e.target == tgt) {
-                Some(e) => {
-                    e.count += 1;
-                    e.last_at = i;
+            match groups.iter_mut().find(|(g, _)| g.sig == sig && g.target == tgt) {
+                Some((g, last)) => {
+                    g.count += 1;
+                    *last = i;
                 }
-                None => errs.push(Err { sig, target: tgt, count: 1, last_at: i, turn: *t }),
+                None => groups.push((ErrorGroup { sig, target: tgt, count: 1, turn: *t, fixed: false }, i)),
             }
         }
+        groups
+            .into_iter()
+            .map(|(mut g, last)| {
+                g.fixed = flat[last + 1..].iter().any(|(_, x)| x.status == Status::Ok && target(x) == g.target);
+                g
+            })
+            .collect()
+    }
+
+    fn errors(&self, budget: usize) -> String {
+        let mut errs = self.error_groups();
+        // Unfixed ones first: they are what the next session inherits.
+        errs.sort_by_key(|e| (e.fixed, e.turn));
         let mut lines = Vec::new();
         let mut used = 0;
-        let fixed_flags: Vec<bool> = errs
-            .iter()
-            .map(|e| flat[e.last_at + 1..].iter().any(|(_, x)| x.status == Status::Ok && target(x) == e.target))
-            .collect();
-        let mut order: Vec<usize> = (0..errs.len()).collect();
-        // Unfixed ones first: they are what the next session inherits.
-        order.sort_by_key(|&i| (fixed_flags[i], errs[i].turn));
-        for i in order {
-            let e = &errs[i];
-            let mark = if fixed_flags[i] { format!("✓ {}", self.l.fixed) } else { format!("✗ {}", self.l.unfixed) };
+        for e in &errs {
+            let mark = if e.fixed { format!("✓ {}", self.l.fixed) } else { format!("✗ {}", self.l.unfixed) };
             let sig = if e.sig.is_empty() { "error".to_string() } else { e.sig.clone() };
             let times = if e.count > 1 { format!(" ×{}", e.count) } else { String::new() };
             let line = format!("{mark}: {sig}{times} — `{}` ({})", truncate_words(&e.target, 60), e.turn + 1);
-            if fixed_flags[i] && lines.len() >= 6 {
+            if e.fixed && lines.len() >= 6 {
                 break;
             }
             if used + line.len() > budget && !lines.is_empty() {
@@ -1339,6 +1383,56 @@ impl<'a> Brief<'a> {
             lines.push(line);
         }
         bullets(lines.into_iter())
+    }
+
+    /// The list line: request → result · counts.
+    fn headline(&self) -> Option<String> {
+        let first = self.turns.iter().find(|t| !t.slash && !t.request.is_empty())?;
+        let mut line = first_sentence(&first.request, 90);
+        // The last turns that said something; a reply cut off mid-work
+        // ("Now let me read…", "Waiting for…", a usage-limit notice) does not.
+        let says_something = |s: &Sentence| {
+            let lower = s.text.to_lowercase();
+            !s.text.trim_end().ends_with(':')
+                && !BOILERPLATE.iter().any(|b| lower.starts_with(b))
+                && !NOT_A_RESULT.iter().any(|b| lower.contains(b))
+        };
+        let result = self
+            .turns
+            .iter()
+            .enumerate()
+            .rev()
+            .filter(|(_, t)| !t.replies.is_empty())
+            .take(3)
+            .find_map(|(t, turn)| {
+                let replies = turn.replies.len().max(1) as f64;
+                let weight = |s: &Sentence| {
+                    let cue = if has_cue(&s.text.to_lowercase(), RESULT) { 0.3 } else { 0.0 };
+                    s.score + cue + 0.1 * s.msg as f64 / replies
+                };
+                self.sentences
+                    .iter()
+                    .filter(|s| s.turn == t && s.role == Role::Assistant && says_something(s))
+                    .max_by(|a, b| weight(a).total_cmp(&weight(b)))
+            })
+            .map(|s| truncate_words(&s.text, 110));
+        if let Some(r) = result {
+            line.push_str(" → ");
+            line.push_str(&r);
+        }
+        let real_turns = self.turns.iter().filter(|t| !t.slash).count();
+        let files = self.changed_files().iter().filter(|f| !f.2).count();
+        let unfixed = self.error_groups().iter().filter(|e| !e.fixed).count();
+        let mut counts = vec![(self.l.turns_n)(real_turns)];
+        if files > 0 {
+            counts.push(format!("✎{files}"));
+        }
+        if unfixed > 0 {
+            counts.push(format!("⚠{unfixed}"));
+        }
+        line.push_str(" · ");
+        line.push_str(&counts.join(" · "));
+        Some(one_line(&line))
     }
 
     fn last_calls(&self, budget: usize) -> String {
@@ -1583,6 +1677,29 @@ mod tests {
         assert!(out.contains("## Last exchange") && out.contains("summarize where we are"), "{out}");
         assert!(!out.contains("Filler reasoning step 7"), "low-information filler is not quoted: {out}");
         assert!(out.len() <= 6500, "within budget: {}", out.len());
+    }
+
+    #[test]
+    fn the_list_line_is_request_result_and_counts() {
+        let line = short_summary(&long_session()).unwrap();
+        assert!(line.starts_with("Fix the CSV parser"), "{line}");
+        assert!(line.contains(" → "), "{line}");
+        assert!(line.ends_with("4 turns · ✎2 · ⚠1"), "two files, clippy still failing: {line}");
+        assert!(!line.contains('\n'));
+        let ru = session(vec![msg(Role::User, "Почини сборку"), msg(Role::Assistant, "Исправил импорт, сборка проходит.")]);
+        assert_eq!(short_summary(&ru).unwrap(), "Почини сборку → Исправил импорт, сборка проходит. · 1 ход");
+        assert_eq!(short_summary(&session(vec![msg(Role::Assistant, "hello there, nothing asked")])), None);
+        let cut = session(vec![
+            msg(Role::User, "The handoff plugin sent a message: Прочитай C:/tmp/handoff.md и продолжай работу над D:/game/src/main.rs"),
+            msg(Role::Assistant, "Перенёс сохранения в новый формат, тесты проходят."),
+            msg(Role::User, "дальше"),
+            msg(Role::Assistant, "Now let me read the remaining files:"),
+            msg(Role::Assistant, "You've hit your session limit · resets 10:40pm"),
+        ]);
+        let line = short_summary(&cut).unwrap();
+        assert!(line.starts_with("Прочитай C:/tmp/handoff.md"), "relay prefix dropped: {line}");
+        assert!(line.contains("→ Перенёс сохранения в новый формат"), "a cut-off reply is not the outcome: {line}");
+        assert!(line.ends_with("· 2 хода"), "Russian count despite Latin paths: {line}");
     }
 
     #[test]

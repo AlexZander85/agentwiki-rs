@@ -4214,7 +4214,7 @@ function renderItems(rows, isSearch) {
       snip.appendChild(snippetNodes(r.snippet));
       item.appendChild(snip);
     } else if (r.summary || r.preview) {
-      item.appendChild(el("div", "preview", (r.summary || r.preview).replace(/\s+/g, " ")));
+      item.appendChild(el("div", "preview", listSummary(r)));
     }
     if (r.tags && r.tags.length) {
       const tg = el("div", "tags");
@@ -5191,6 +5191,19 @@ function filterByFile(filePath) {
   currentFileTrace = filePath.trim();
   $("q").value = "";
   refresh();
+}
+
+// The list line under a title. An instant summary reads "request → result ·
+// counts"; when its request is what the title already says, show from the
+// result on, so the two preview lines carry news.
+function listSummary(r) {
+  const text = (r.summary || r.preview || "").replace(/\s+/g, " ");
+  const arrow = text.indexOf(" → ");
+  if (!r.summary || arrow < 0) return text;
+  const norm = (s) => (s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "").slice(0, 24);
+  const head = norm(text.slice(0, arrow));
+  const title = norm((r.title || "").replace(/^The .{1,40} plugin sent a message:\s*/, ""));
+  return head && title && (head.startsWith(title) || title.startsWith(head)) ? text.slice(arrow + 3) : text;
 }
 
 // Typing, filters and sync all call refresh(); only the latest call may
