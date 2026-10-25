@@ -1,5 +1,41 @@
 # Changelog
 
+## [1.1.0] - 2026-10-25 (WikiAgents)
+
+### Added & Enhanced
+- **Autonomous Background Database Compaction**:
+  - The embedded server and desktop app periodically evaluate compaction needs in the background (3 min after launch, then every 10 min during 2 min of user inactivity and when no sync or writes are active).
+  - Triggers automatically when freelist pages exceed 10%, after 1 week with 20% size growth, or after 1 month. Bypassed if database < 16 MB or free disk space is insufficient (< 2x DB size).
+  - **Windows Physical File Truncation**: Disabled SQLite `mmap` on Windows (`set_mmap` in `index.rs`), eliminating memory-mapped file handle locks and allowing Windows to actually truncate and shrink SQLite database files on disk without affecting search throughput (measured variance ±10 ms).
+- **Activity Dashboard 2.0**:
+  - **Period Range Switcher**: Toggle between 7 days, 30 days, 90 days, 1 year, and All Time (persisted in localStorage).
+  - **6 Interactive KPI Summary Cards**: Track Sessions, Time in Work, Active Days, Messages, Files Touched, and Projects with delta indicators against previous period and hoverable sparklines.
+  - **Streak & Peak Analytics**: Visualizes current consecutive active day streak, record streak with calendar dates, and single most active day.
+  - **Agent Contribution Breakdown**: Stacked agent distribution bars (daily on short ranges, weekly on 1 year, monthly on all-time) with persistent palette colors and aggregated "others".
+  - **Local Timezone Alignment**: Hour-of-day and calendar dates computed directly from client's local timezone (e.g. UTC+5), eliminating UTC evening date shifts. Subagents are excluded from session aggregates.
+  - **Clickable Dashboard Filters**: Clicking any day, agent bar, streak, project, or file navigates to the session list with matching date and filter applied.
+  - **Project Filter Chip**: Added interactive «project: ...» chip with dismiss button in sidebar search.
+  - **24-Hour Weekday x Hour Heatmap**: 7 days x 24 hours grid showing session initiation density in local time.
+  - **File Language Breakdown**: Detects ~30 languages by extension, displaying top 8 languages with file count, session count, and percentage share.
+  - **Hot Files Ranking**: Displays most frequently modified files with independent period switcher (selected range, 7d, 30d).
+  - **Database Storage Health**: Shows physical on-disk file size, internal freelist space, and timestamp/status of the last auto-compaction.
+- **Concurrency, Threading & Lock Contention Optimization**:
+  - **Short Immediate Write Transactions**: Replaced monolithic sync batch transactions with granular `IMMEDIATE` per-session write transactions. Write lock wait times plummeted from **1,091 ms median / 2,971 ms max down to 3 ms median / 264 ms max**!
+  - **Multi-Process Sync Conflict Resolution**: Concurrent sync runs from different processes now use immediate write locks and wait cleanly without `database is locked` failures.
+  - **Sync Request Coalescence**: Multiple clicks and auto-sync ticks coalesce into a single server run, avoiding worker starvation.
+  - **UI Race Condition Guards**: Fixed race conditions in `openSession` (only the latest selected session renders) and search `refresh` (slow previous queries cannot overwrite newer ones). Unconditional reset of MCP `already_running` flag upon error.
+- **Extractive Smart AI Brief (`src/brief.rs`)**:
+  - Completely redesigned offline summarization algorithm for the «AI Brief» button, CLI (`wikiagents brief`), and MCP (`get_session_brief`, `recall_solution`).
+  - Turn-based segmentation isolating user prompts and tool actions while stripping system notices, compact tokens, and skills boilerplate.
+  - Information scoring combining TF-IDF word rarity, code paths, decision markers («because», «root cause», «fixed»), and recency weighting.
+  - Maximal Marginal Relevance (MMR) deduplication to prevent repetitive phrasing.
+  - Semantic command folding (e.g. `cargo test ×12 - latest: ok (passed 357 failed 0)`), error signature grouping with status markers (✓/✗), and transcript-matched language headings.
+- **Instant Extractive One-Line Summaries (`summaries.kind = 'auto'`)**:
+  - Instant one-line summaries in the format `«task → result · turns · ✎files · ⚠errors»` generated on-the-fly during indexing with zero neural network latency.
+  - Stored in SQLite `summaries` table under `kind = 'auto'` without overwriting LLM summaries.
+  - Incremental background backfill of historical sessions in ~1s batches.
+  - Smart list preview: suppresses task text if identical to session title to avoid duplicate lines.
+
 ## [1.0.1] - 2026-10-24 (WikiAgents)
 
 ### Added & Enhanced
