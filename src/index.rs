@@ -805,6 +805,16 @@ mod migration_tests {
     }
 }
 
+/// Memory-mapped reads, except on Windows: it cannot shrink a file another
+/// connection has mapped, so a VACUUM or incremental_vacuum in the app (whose
+/// handlers keep their connections open) or next to a running `mcp` never
+/// gave the space back. Reads measured the same without it.
+fn set_mmap(conn: &Connection) {
+    if !cfg!(windows) {
+        let _ = conn.pragma_update(None, "mmap_size", 268435456i64);
+    }
+}
+
 /// A read-only handle for serving processes (the MCP server): it can never
 /// create the schema, migrate, VACUUM, or write durable data. Fails if no
 /// index exists yet (unlike `open`, which creates one).
@@ -815,7 +825,7 @@ pub fn open_readonly() -> Result<Connection> {
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
     )?;
     conn.busy_timeout(std::time::Duration::from_millis(5000))?;
-    let _ = conn.pragma_update(None, "mmap_size", 268435456i64);
+    set_mmap(&conn);
     let _ = conn.pragma_update(None, "cache_size", -32000i64);
     Ok(conn)
 }
@@ -823,7 +833,7 @@ pub fn open_readonly() -> Result<Connection> {
 pub fn open() -> Result<Connection> {
     let conn = Connection::open(db_path()?)?;
     // A brand-new file can take incremental auto-vacuum for free; an existing
-    // one switches on its next `sessionwiki vacuum`.
+    // one switches on its first automatic compaction.
     let fresh: i64 = conn.pragma_query_value(None, "page_count", |r| r.get(0))?;
     if fresh == 0 {
         conn.pragma_update(None, "auto_vacuum", "INCREMENTAL")?;
@@ -834,7 +844,7 @@ pub fn open() -> Result<Connection> {
     // A full sync grows the WAL by the size of everything it wrote; without a
     // limit the file keeps that size on disk after the checkpoint.
     let _ = conn.pragma_update(None, "journal_size_limit", 64i64 * 1024 * 1024);
-    let _ = conn.pragma_update(None, "mmap_size", 268435456i64);
+    set_mmap(&conn);
     let _ = conn.pragma_update(None, "cache_size", -32000i64);
     let _ = conn.pragma_update(None, "temp_store", "MEMORY");
     create_meta_schema(&conn)?;
