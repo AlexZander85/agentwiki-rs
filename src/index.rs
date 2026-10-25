@@ -1528,7 +1528,7 @@ fn write_session(
 ) -> Result<()> {
     let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
     index_one(&tx, session, key, mtime, size, output_mode)?;
-    if !session.subagent {
+    if !session.subagent && stored_auto_summary_version(&tx)? <= AUTO_SUMMARY_VERSION {
         store_auto_summary(&tx, &session.id, crate::brief::short_summary(session).as_deref())?;
     }
     tx.commit()?;
@@ -1555,26 +1555,56 @@ fn store_auto_summary(conn: &Connection, session_id: &str, line: Option<&str>) -
 }
 
 /// Bump when [`crate::brief::short_summary`] changes what it writes.
-const AUTO_SUMMARY_VERSION: &str = "1";
+const AUTO_SUMMARY_VERSION: i64 = 1;
 const AUTO_SUMMARY_KEY: &str = "auto_summary_version";
 
 /// Give sessions indexed before instant summaries existed their line, a slice
 /// per sync (newest first, about a second of work) so no sync is held up.
-fn backfill_auto_summaries(conn: &mut Connection) -> Result<usize> {
-    // A better line-maker re-derives every instant line (model ones stay):
-    // dropping them lets this same slice-per-sync fill them in again.
-    let version: Option<String> = conn
-        .query_row("SELECT value FROM meta WHERE key = ?1", [AUTO_SUMMARY_KEY], |r| r.get(0))
-        .optional()?;
-    if version.as_deref() != Some(AUTO_SUMMARY_VERSION) {
+/// The line-maker version the index's instant lines were written by (0 when
+/// none is recorded).
+fn stored_auto_summary_version(conn: &Connection) -> Result<i64> {
+    Ok(conn
+        .query_row("SELECT value FROM meta WHERE key = ?1", [AUTO_SUMMARY_KEY], |r| r.get::<_, String>(0))
+        .optional()?
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0))
+}
+
+/// Settle which line-maker owns the instant lines, and whether this binary
+/// (at `current`) may write them. A newer one re-derives them all: the old
+/// lines go and backfill fills them in again (model-written ones stay). The
+/// version only ever moves up, so an older process still running beside a
+/// newer one (a long-lived MCP server, say) neither wipes the newer lines nor
+/// writes its own over them - two versions would otherwise take turns
+/// deleting each other's work on every sync.
+fn claim_auto_summaries(conn: &mut Connection, current: i64) -> Result<bool> {
+    let stored = stored_auto_summary_version(conn)?;
+    if stored > current {
+        return Ok(false);
+    }
+    if stored < current {
         let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        tx.execute("DELETE FROM summaries WHERE kind = 'auto'", [])?;
-        tx.execute(
-            "INSERT INTO meta(key, value) VALUES (?1, ?2)
-             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            params![AUTO_SUMMARY_KEY, AUTO_SUMMARY_VERSION],
-        )?;
+        // Re-read under the write lock: another process may have moved it.
+        let stored = stored_auto_summary_version(&tx)?;
+        if stored > current {
+            return Ok(false);
+        }
+        if stored < current {
+            tx.execute("DELETE FROM summaries WHERE kind = 'auto'", [])?;
+            tx.execute(
+                "INSERT INTO meta(key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                params![AUTO_SUMMARY_KEY, current.to_string()],
+            )?;
+        }
         tx.commit()?;
+    }
+    Ok(true)
+}
+
+fn backfill_auto_summaries(conn: &mut Connection) -> Result<usize> {
+    if !claim_auto_summaries(conn, AUTO_SUMMARY_VERSION)? {
+        return Ok(0);
     }
     let deadline = std::time::Instant::now() + std::time::Duration::from_millis(1000);
     let mut done = 0;
@@ -4576,6 +4606,36 @@ mod listing_tests {
         };
         let rows = search_sessions_multi_terms(&c, &["alpha", "beta"], 10, None, scope).unwrap();
         assert_eq!(ids(&rows), ["dense", "sparse"]);
+    }
+
+    #[test]
+    fn the_instant_summary_version_only_moves_up() {
+        let mut c = conn();
+        let line = |c: &Connection, sid: &str, text: &str, kind: &str| {
+            c.execute(
+                "INSERT OR REPLACE INTO summaries(session_id, summary, created, kind) VALUES (?1, ?2, 'now', ?3)",
+                params![sid, text, kind],
+            )
+            .unwrap();
+        };
+        let count = |c: &Connection, kind: &str| -> i64 {
+            c.query_row("SELECT count(*) FROM summaries WHERE kind = ?1", [kind], |r| r.get(0)).unwrap()
+        };
+        // First run: nothing recorded, the version is claimed.
+        assert!(claim_auto_summaries(&mut c, 2).unwrap());
+        assert_eq!(stored_auto_summary_version(&c).unwrap(), 2);
+        line(&c, "a", "v2 line", "auto");
+        line(&c, "b", "model line", "llm");
+        // An older binary leaves the newer lines alone and stays out.
+        assert!(!claim_auto_summaries(&mut c, 1).unwrap());
+        assert_eq!((count(&c, "auto"), stored_auto_summary_version(&c).unwrap()), (1, 2));
+        // The same version again changes nothing.
+        assert!(claim_auto_summaries(&mut c, 2).unwrap());
+        assert_eq!(count(&c, "auto"), 1);
+        // A newer one drops the instant lines for re-deriving; model lines stay.
+        assert!(claim_auto_summaries(&mut c, 3).unwrap());
+        assert_eq!((count(&c, "auto"), count(&c, "llm")), (0, 1));
+        assert_eq!(stored_auto_summary_version(&c).unwrap(), 3);
     }
 
     #[test]
