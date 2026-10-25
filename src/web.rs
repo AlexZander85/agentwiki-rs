@@ -185,6 +185,7 @@ fn handle_request(
         "/api/subagents" => api_subagents(&conn, query),
         "/api/analytics" => api_analytics(&conn),
         "/api/analytics/files" => api_analytics_files(&conn, query),
+        "/api/analytics/langs" => api_analytics_langs(&conn, query),
         p if p.starts_with("/api/related/") => {
             api_related(&conn, p.trim_start_matches("/api/related/"))
         }
@@ -779,6 +780,9 @@ fn api_analytics(conn: &Connection) -> Result<Boxed> {
             "snippets": count("SELECT COUNT(*) FROM snippets"),
             "favorites": count("SELECT COUNT(*) FROM favorites"),
         },
+        "storage": index::db_path()
+            .ok()
+            .and_then(|path| index::storage_status(conn, &path).ok()),
     }))
 }
 
@@ -1083,5 +1087,87 @@ mod tests {
         assert!(!origin_ok(Some("http://evil.com"), 7575)); // cross-origin fetch
         assert!(!origin_ok(Some("https://127.0.0.1:7575"), 7575)); // wrong scheme
         assert!(!origin_ok(Some("http://127.0.0.1:7576"), 7575)); // wrong port
+    }
+}
+
+/// Languages of the files touched by the main sessions active in
+/// `since`..`until`, by extension: distinct files and sessions per language.
+fn api_analytics_langs(conn: &Connection, query: &str) -> Result<Boxed> {
+    let since = param(query, "since");
+    let until = param(query, "until");
+    let mut stmt = conn.prepare(
+        "SELECT t.path, t.session_id FROM touched t
+         WHERE t.session_id IN (
+           SELECT session_id FROM files
+           WHERE kind = 'main'
+             AND (?1 IS NULL OR julianday(COALESCE(ended, started)) >= julianday(?1))
+             AND (?2 IS NULL OR julianday(started) <= julianday(?2))
+         )",
+    )?;
+    let mut langs: std::collections::BTreeMap<&'static str, (std::collections::HashSet<String>, std::collections::HashSet<String>)> =
+        Default::default();
+    let mut rows = stmt.query(rusqlite::params![since, until])?;
+    while let Some(r) = rows.next()? {
+        let path: String = r.get(0)?;
+        let session: String = r.get(1)?;
+        let entry = langs.entry(language_of(&path)).or_default();
+        entry.0.insert(path);
+        entry.1.insert(session);
+    }
+    let mut out: Vec<_> = langs
+        .into_iter()
+        .map(|(lang, (files, sessions))| (lang, files.len(), sessions.len()))
+        .collect();
+    out.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
+    json_response(json!(out
+        .iter()
+        .map(|(lang, files, sessions)| json!({ "lang": lang, "files": files, "sessions": sessions }))
+        .collect::<Vec<_>>()))
+}
+
+/// A display language for a path, by extension (or well-known file name).
+fn language_of(path: &str) -> &'static str {
+    let name = path.rsplit(['/', '\\']).next().unwrap_or(path).to_ascii_lowercase();
+    match name.as_str() {
+        "dockerfile" => return "Docker",
+        "makefile" => return "Make",
+        "cargo.toml" | "cargo.lock" => return "Rust",
+        _ => {}
+    }
+    let ext = match name.rsplit_once('.') {
+        Some((stem, ext)) if !stem.is_empty() => ext,
+        _ => return "Other",
+    };
+    match ext {
+        "rs" => "Rust",
+        "ts" | "tsx" | "mts" | "cts" => "TypeScript",
+        "js" | "jsx" | "mjs" | "cjs" => "JavaScript",
+        "py" | "pyi" | "ipynb" => "Python",
+        "go" => "Go",
+        "java" => "Java",
+        "kt" | "kts" => "Kotlin",
+        "swift" => "Swift",
+        "c" | "h" => "C",
+        "cc" | "cpp" | "cxx" | "hpp" | "hh" => "C++",
+        "cs" => "C#",
+        "rb" => "Ruby",
+        "php" => "PHP",
+        "lua" => "Lua",
+        "dart" => "Dart",
+        "sol" => "Solidity",
+        "sql" => "SQL",
+        "sh" | "bash" | "zsh" => "Shell",
+        "ps1" | "psm1" | "bat" | "cmd" => "PowerShell/Batch",
+        "html" | "htm" => "HTML",
+        "css" | "scss" | "sass" | "less" => "CSS",
+        "vue" => "Vue",
+        "svelte" => "Svelte",
+        "md" | "mdx" | "markdown" => "Markdown",
+        "json" | "jsonc" | "json5" => "JSON",
+        "yaml" | "yml" => "YAML",
+        "toml" => "TOML",
+        "xml" => "XML",
+        "txt" | "log" => "Text",
+        _ => "Other",
     }
 }

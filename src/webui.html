@@ -1654,6 +1654,16 @@
   .act-agent:hover { background: var(--hover); }
   .top-files-list button.top-file-row { border: 0; background: transparent; color: inherit; font: inherit; width: 100%; text-align: left; }
 
+  .act-period.small .act-period-btn { font-size: 11px; padding: 3px 8px; }
+  .act-wh { display: grid; grid-template-columns: 28px repeat(24, minmax(10px, 1fr)); gap: 3px; align-items: center; }
+  .act-wh-hour { font-size: 9px; color: var(--ink-3); text-align: left; }
+  .act-wh-day { font-size: 10px; color: var(--ink-3); }
+  .act-wh-cell { width: auto; height: 16px; }
+  .act-db { display: flex; flex-direction: column; gap: 10px; }
+  .act-db-row { display: grid; grid-template-columns: 1fr auto; column-gap: 12px; font-size: 13px; }
+  .act-db-lbl { color: var(--ink-2); }
+  .act-db-val { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+  .act-db-sub { grid-column: 2; text-align: right; font-size: 11px; color: var(--ink-3); }
   .act-tip {
     position: fixed; z-index: 1000; display: none; pointer-events: none; min-width: 140px; max-width: 320px;
     background: var(--card); color: var(--ink); border: 1px solid var(--line-strong); border-radius: 8px;
@@ -2668,6 +2678,15 @@
         <button type="button" class="act-nav-btn" id="act-btn-agents">
           <span>🤖</span> <span id="act-btn-agents-text">Agent Distribution</span>
         </button>
+        <button type="button" class="act-nav-btn" id="act-btn-week">
+          <span>🗓</span> <span id="act-btn-week-text">Weekday × hour</span>
+        </button>
+        <button type="button" class="act-nav-btn" id="act-btn-langs">
+          <span>🧩</span> <span id="act-btn-langs-text">Languages</span>
+        </button>
+        <button type="button" class="act-nav-btn" id="act-btn-db">
+          <span>🗄</span> <span id="act-btn-db-text">Index database</span>
+        </button>
         <button type="button" class="act-nav-btn" id="act-btn-files">
           <span>📂</span> <span id="act-btn-files-text">Top Touched Files</span>
         </button>
@@ -2840,6 +2859,11 @@ const I18N = {
     actTrend: "Сессии по агентам", actProjects: "Проекты", actHourly: "Начало сессий по часам", actOther: "другие",
     actClickHint: "Клик по столбцу, дню, проекту или агенту открывает список сессий с этим фильтром",
     actEmpty: "За этот период сессий нет", actNoFiles: "За этот период файлы не затрагивались", actNoProject: "(без проекта)",
+    actWeekHour: "День недели × час", actLangs: "Языки затронутых файлов", actLangsNav: "Языки", actHotFiles: "Горячие файлы",
+    actFilesN: (n) => `${n} файл.`, actDb: "База индекса", actDbSize: "Размер на диске", actDbFree: "Свободно внутри",
+    actDbMode: "Место возвращается после sync", actYes: "да", actDbAfterCompact: "после первого сжатия", actDbCompacted: "Последнее сжатие",
+    actNever: "ещё не было", actDaysAgo: (n) => (n ? `${n} дн. назад` : "сегодня"),
+    actDbNote: "Сжатие запускается само, пока приложение простаивает: раз в месяц, после роста индекса на пятую часть или если свободно больше 10%.",
     actFavorites: "Избранное", actHourShort: "ч", actMinShort: "мин", projectFilterChip: (p) => `проект: ${p}`,
     searchSnippets: "Поиск по сохранённым сниппетам...",
     pinSnippet: "📌 Сохранить в сниппеты / базу знаний", unpinSnippet: "Удалить из сниппетов",
@@ -2946,6 +2970,11 @@ const I18N = {
     actTrend: "Sessions by agent", actProjects: "Projects", actHourly: "Sessions started by hour", actOther: "other",
     actClickHint: "Click a bar, day, project or agent to list its sessions",
     actEmpty: "No sessions in this period", actNoFiles: "No files touched in this period", actNoProject: "(no project)",
+    actWeekHour: "Weekday × hour", actLangs: "Languages of touched files", actLangsNav: "Languages", actHotFiles: "Hot files",
+    actFilesN: (n) => `${n} ${n === 1 ? "file" : "files"}`, actDb: "Index database", actDbSize: "Size on disk", actDbFree: "Free space inside",
+    actDbMode: "Space returned after sync", actYes: "yes", actDbAfterCompact: "after the first compaction", actDbCompacted: "Last compaction",
+    actNever: "not yet", actDaysAgo: (n) => (n ? `${n} d ago` : "today"),
+    actDbNote: "Compaction runs on its own while the app is idle: monthly, after the index grows by a fifth, or when over 10% of it is free.",
     actFavorites: "Favorites", actHourShort: "h", actMinShort: "m", projectFilterChip: (p) => `project: ${p}`,
     searchSnippets: "Search pinned snippets...",
     pinSnippet: "Pin snippet to Knowledge Base",
@@ -3529,8 +3558,11 @@ function applyStaticStrings() {
   if ($("act-btn-hourly-text")) $("act-btn-hourly-text").textContent = L.actNavHourly || "Hourly Activity";
   if ($("act-btn-trend-text")) $("act-btn-trend-text").textContent = L.actTrend || "Sessions by agent";
   if ($("act-btn-projects-text")) $("act-btn-projects-text").textContent = L.actProjects || "Projects";
+  if ($("act-btn-week-text")) $("act-btn-week-text").textContent = L.actWeekHour || "Weekday × hour";
+  if ($("act-btn-langs-text")) $("act-btn-langs-text").textContent = L.actLangsNav || "Languages";
+  if ($("act-btn-db-text")) $("act-btn-db-text").textContent = L.actDb || "Index database";
   if ($("act-btn-agents-text")) $("act-btn-agents-text").textContent = L.actNavAgents || "Agent Distribution";
-  if ($("act-btn-files-text")) $("act-btn-files-text").textContent = L.actNavFiles || "Top Touched Files";
+  if ($("act-btn-files-text")) $("act-btn-files-text").textContent = L.actHotFiles || "Hot files";
   if ($("snippet-q")) $("snippet-q").placeholder = L.searchSnippets || "Search pinned snippets...";
   if ($("snippet-tool") && $("snippet-tool").options.length > 0) {
     $("snippet-tool").options[0].textContent = L.allTools;
@@ -6789,6 +6821,9 @@ let actPeriod = (() => {
   try { return localStorage.getItem("act-period") || "30d"; } catch (e) { return "30d"; }
 })();
 let actFilesSeq = 0;
+// Which range the hot-files list shows; kept across period switches.
+let actFilesRange = "period";
+let actHotSeq = 0;
 
 function actToolColor(tool) {
   const i = ACT_TOOL_ORDER.indexOf(tool);
@@ -6884,7 +6919,7 @@ function actPrepare(raw) {
   }
   const sessionsByDay = new Map();
   for (const r of rows) sessionsByDay.set(r.day, (sessionsByDay.get(r.day) || 0) + 1);
-  return { rows, workByDay, sessionsByDay, totals: raw.totals || {}, first: rows.length ? rows[0].s : Date.now() };
+  return { rows, workByDay, sessionsByDay, totals: raw.totals || {}, storage: raw.storage || null, first: rows.length ? rows[0].s : Date.now() };
 }
 
 /** The window a period covers: [start, end) in local days, and the one before. */
@@ -7452,35 +7487,162 @@ function renderActivityDashboard() {
     container.appendChild(two);
   }
 
-  // Most touched files in the period (fetched separately: it needs a join).
-  const files = actSection("sec-files", "📂", L.topTouchedFiles || "Most touched files");
-  const filesList = el("div", "top-files-list");
-  filesList.appendChild(el("div", "act-muted", L.loading || "Loading..."));
-  files.appendChild(filesList);
-  container.appendChild(files);
+  // Weekday x hour: when sessions start, in local time.
+  if (cur.sessions) {
+    const week = actSection("sec-week", "🗓", L.actWeekHour || "Weekday × hour");
+    const grid = Array.from({ length: 7 }, () => new Array(24).fill(0));
+    for (const r of cur.rows) {
+      const d = new Date(r.s);
+      grid[(d.getDay() + 6) % 7][d.getHours()]++;
+    }
+    const max = Math.max(1, ...grid.flat());
+    const level = (n) => (!n ? 0 : Math.min(4, Math.ceil((n / max) * 4)));
+    const table = el("div", "act-wh");
+    table.appendChild(el("span", ""));
+    for (let h = 0; h < 24; h++) table.appendChild(el("span", "act-wh-hour", h % 3 === 0 ? String(h) : ""));
+    grid.forEach((hours, wd) => {
+      const dayName = new Date(2024, 0, 1 + wd).toLocaleDateString(lang, { weekday: "short" });
+      table.appendChild(el("span", "act-wh-day", dayName));
+      hours.forEach((n, h) => {
+        const cell = el("span", `act-hm-cell act-wh-cell l${level(n)}`);
+        actHover(cell, () => actTipLines(`${dayName}, ${actPad(h)}:00 – ${actPad(h)}:59`, [[L.actKpiSessions || "Sessions", actFmtNum(n)]]));
+        table.appendChild(cell);
+      });
+    });
+    week.appendChild(table);
+    container.appendChild(week);
+  }
+
+  const sinceIso = (t) => encodeURIComponent(new Date(t).toISOString());
+  const windowQuery = (start, end) => `since=${sinceIso(start)}&until=${sinceIso(end - 1)}`;
+
+  // Languages of the touched files, and the state of the index file.
+  const two2 = el("div", "analytics-two-col");
+  const langs = actSection("sec-langs", "🧩", L.actLangs || "Languages of touched files");
+  const langList = el("div", "agent-share-list");
+  langList.appendChild(el("div", "act-muted", L.loading || "Loading..."));
+  langs.appendChild(langList);
+  two2.appendChild(langs);
   const seq = ++actFilesSeq;
-  const fq = `since=${encodeURIComponent(new Date(win.start).toISOString())}&until=${encodeURIComponent(new Date(win.end - 1).toISOString())}`;
-  jget(`/api/analytics/files?limit=12&${fq}`).then((rows) => {
+  jget(`/api/analytics/langs?${windowQuery(win.start, win.end)}`).then((rows) => {
     if (seq !== actFilesSeq) return;
-    filesList.replaceChildren();
+    langList.replaceChildren();
     if (!rows.length) {
-      filesList.appendChild(el("div", "act-muted", L.actNoFiles || "No files touched in this period"));
+      langList.appendChild(el("div", "act-muted", L.actNoFiles || "No files touched in this period"));
       return;
     }
-    for (const f of rows) {
-      const row = el("button", "top-file-row");
-      row.type = "button";
-      row.title = f.path;
-      const name = el("span", "top-file-name", "📄 " + f.path);
-      const cnt = el("span", "top-file-count",
-        `${L.actSessionsN ? L.actSessionsN(f.sessions) : f.sessions + " sessions"}${f.edits ? " · " + (L.actEditsN ? L.actEditsN(f.edits) : f.edits + " edits") : ""}`);
-      row.append(name, cnt);
-      row.onclick = () => actOpenList({ file: f.path, from: win.start, to: win.end });
-      filesList.appendChild(row);
+    const total = rows.reduce((a, r) => a + r.files, 0) || 1;
+    // Unrecognised extensions join the tail as one "other" bar.
+    const known = rows.filter((r) => r.lang !== "Other");
+    const shown = known.slice(0, 8);
+    const rest = known.slice(8).reduce((a, r) => a + r.files, 0)
+      + rows.filter((r) => r.lang === "Other").reduce((a, r) => a + r.files, 0);
+    if (rest) shown.push({ lang: L.actOther || "other", files: rest, sessions: null });
+    for (const r of shown) {
+      const pct = Math.round((r.files / total) * 100);
+      const item = el("div", "agent-share-item");
+      const top = el("div", "agent-share-top");
+      top.append(el("span", "", r.lang), el("span", "act-muted",
+        `${L.actFilesN ? L.actFilesN(r.files) : r.files + " files"}${r.sessions !== null ? " · " + (L.actSessionsN ? L.actSessionsN(r.sessions) : r.sessions + " sessions") : ""} · ${pct}%`));
+      const track = el("div", "agent-share-bar-track");
+      const fill = el("div", "agent-share-bar-fill");
+      fill.style.width = `${Math.max(1, pct)}%`;
+      fill.style.background = "var(--series-1)";
+      track.appendChild(fill);
+      item.append(top, track);
+      langList.appendChild(item);
     }
   }).catch(() => {
-    if (seq === actFilesSeq) filesList.replaceChildren(el("div", "act-muted", L.loadFailed || "Failed to load"));
+    if (seq === actFilesSeq) langList.replaceChildren(el("div", "act-muted", L.loadFailed || "Failed to load"));
   });
+
+  const db = actSection("sec-db", "🗄", L.actDb || "Index database");
+  const st = data.storage;
+  if (st) {
+    const size = (b) => {
+      const u = ["B", "KB", "MB", "GB"];
+      let i = 0;
+      while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
+      return `${b.toFixed(i >= 2 ? 1 : 0)} ${u[i]}`;
+    };
+    const dl = el("div", "act-db");
+    const row = (label, value, sub) => {
+      const r = el("div", "act-db-row");
+      const v = el("span", "act-db-val", value);
+      r.append(el("span", "act-db-lbl", label), v);
+      if (sub) r.appendChild(el("span", "act-db-sub", sub));
+      dl.appendChild(r);
+    };
+    row(L.actDbSize || "Size on disk", size(st.bytes));
+    row(L.actDbFree || "Free space inside", size(st.free_bytes),
+      st.bytes ? `${((st.free_bytes / st.bytes) * 100).toFixed(1)}%` : "");
+    row(L.actDbMode || "Space returned after sync", st.incremental ? (L.actYes || "yes") : (L.actDbAfterCompact || "after the first compaction"));
+    if (st.compacted_at) {
+      const ago = Math.max(0, Math.round((actDayStart(Date.now()) - actDayStart(st.compacted_at * 1000)) / ACT_DAY));
+      row(L.actDbCompacted || "Last compaction",
+        new Date(st.compacted_at * 1000).toLocaleDateString(lang, { day: "numeric", month: "short", year: "numeric" }),
+        `${L.actDaysAgo ? L.actDaysAgo(ago) : ago + " d ago"}${st.compacted_size ? " · " + size(st.compacted_size) : ""}`);
+    } else {
+      row(L.actDbCompacted || "Last compaction", L.actNever || "not yet");
+    }
+    db.appendChild(dl);
+    db.appendChild(el("div", "act-hint", L.actDbNote || "Compaction runs on its own while the app is idle: monthly, after the index grows by a fifth, or when over 10% of it is free."));
+  }
+  two2.appendChild(db);
+  container.appendChild(two2);
+
+  // Hot files: the period, or the last 7 / 30 days whatever the period.
+  const files = actSection("sec-files", "🔥", L.actHotFiles || "Hot files");
+  const fileSeg = el("div", "act-period small");
+  files.querySelector(".section-head").appendChild(fileSeg);
+  const filesList = el("div", "top-files-list");
+  files.appendChild(filesList);
+  container.appendChild(files);
+  const today = actAddDays(actDayStart(Date.now()), 1);
+  const ranges = [
+    { id: "period", label: periodLabel(actPeriod), start: win.start, end: win.end },
+    { id: "7d", label: L.actPeriod7 || "7 days", start: actAddDays(today, -7), end: today },
+    { id: "30d", label: L.actPeriod30 || "30 days", start: actAddDays(today, -30), end: today },
+  ].filter((r, i, all) => i === 0 || r.id !== actPeriod);
+  const loadFiles = (range) => {
+    actFilesRange = range.id;
+    for (const b of fileSeg.children) {
+      const on = b.dataset.id === range.id;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    }
+    filesList.replaceChildren(el("div", "act-muted", L.loading || "Loading..."));
+    const fseq = ++actHotSeq;
+    jget(`/api/analytics/files?limit=12&${windowQuery(range.start, range.end)}`).then((rows) => {
+      if (fseq !== actHotSeq) return;
+      filesList.replaceChildren();
+      if (!rows.length) {
+        filesList.appendChild(el("div", "act-muted", L.actNoFiles || "No files touched in this period"));
+        return;
+      }
+      for (const f of rows) {
+        const row = el("button", "top-file-row");
+        row.type = "button";
+        row.title = f.path;
+        const name = el("span", "top-file-name", "📄 " + f.path);
+        const cnt = el("span", "top-file-count",
+          `${L.actSessionsN ? L.actSessionsN(f.sessions) : f.sessions + " sessions"}${f.edits ? " · " + (L.actEditsN ? L.actEditsN(f.edits) : f.edits + " edits") : ""}`);
+        row.append(name, cnt);
+        row.onclick = () => actOpenList({ file: f.path, from: range.start, to: range.end });
+        filesList.appendChild(row);
+      }
+    }).catch(() => {
+      if (fseq === actHotSeq) filesList.replaceChildren(el("div", "act-muted", L.loadFailed || "Failed to load"));
+    });
+  };
+  for (const r of ranges) {
+    const b = el("button", "act-period-btn", r.label);
+    b.type = "button";
+    b.dataset.id = r.id;
+    b.onclick = () => loadFiles(r);
+    fileSeg.appendChild(b);
+  }
+  loadFiles(ranges.find((r) => r.id === actFilesRange) || ranges[0]);
 
   main.replaceChildren(container);
   container.scrollTop = scrollTop;
@@ -7488,7 +7650,8 @@ function renderActivityDashboard() {
   // Sidebar navigation and recap.
   const scrollSec = (id) => $(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   const nav = { "act-btn-summary": "sec-recap", "act-btn-trend": "sec-trend", "act-btn-heatmap": "sec-heatmap",
-    "act-btn-projects": "sec-projects", "act-btn-hourly": "sec-hourly", "act-btn-agents": "sec-agents", "act-btn-files": "sec-files" };
+    "act-btn-projects": "sec-projects", "act-btn-hourly": "sec-hourly", "act-btn-agents": "sec-agents", "act-btn-week": "sec-week",
+    "act-btn-langs": "sec-langs", "act-btn-db": "sec-db", "act-btn-files": "sec-files" };
   for (const [btn, sec] of Object.entries(nav)) {
     const b = $(btn);
     if (b) b.onclick = () => scrollSec(sec);

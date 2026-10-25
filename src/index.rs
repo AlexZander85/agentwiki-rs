@@ -1903,6 +1903,36 @@ pub fn compact(conn: &Connection, path: &std::path::Path) -> Result<CompactRepor
 /// Below this a full compaction is never worth interrupting anyone for.
 const COMPACT_MIN_BYTES: u64 = 16 * 1024 * 1024;
 
+/// The index file as the Activity tab shows it: size on disk (with WAL),
+/// free pages, whether syncs give space back on their own, and the last
+/// full compaction (Unix seconds and the size it left), if any.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct StorageStatus {
+    pub bytes: u64,
+    pub free_bytes: u64,
+    pub incremental: bool,
+    pub compacted_at: Option<i64>,
+    pub compacted_size: Option<u64>,
+}
+
+pub fn storage_status(conn: &Connection, path: &std::path::Path) -> Result<StorageStatus> {
+    let pragma = |name: &str| -> Result<i64> { Ok(conn.pragma_query_value(None, name, |r| r.get(0))?) };
+    let meta = |key: &str| -> Result<Option<i64>> {
+        Ok(conn
+            .query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get::<_, String>(0))
+            .optional()?
+            .and_then(|v| v.parse().ok()))
+    };
+    Ok(StorageStatus {
+        bytes: db_and_wal_size(path),
+        free_bytes: (pragma("freelist_count")? * pragma("page_size")?).max(0) as u64,
+        incremental: pragma("auto_vacuum")? == 2,
+        compacted_at: meta(COMPACT_AT_KEY)?,
+        compacted_size: meta(COMPACT_SIZE_KEY)?.map(|v| v.max(0) as u64),
+    })
+}
+
+
 /// Whether a full [`compact`] is worth running now, and why. Cheap: a few
 /// pragmas and two meta reads.
 ///
