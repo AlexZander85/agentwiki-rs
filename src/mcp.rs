@@ -548,6 +548,15 @@ fn spawn_background_freshen() {
         return; // one is already running
     }
     std::thread::spawn(|| {
+        // Cleared on drop, so a panicking sync does not turn freshening off
+        // for the rest of the process.
+        struct Done;
+        impl Drop for Done {
+            fn drop(&mut self) {
+                FRESHENING.store(false, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+        let _done = Done;
         if let Ok(mut w) = crate::index::open() {
             let since = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -555,7 +564,6 @@ fn spawn_background_freshen() {
                 .ok();
             let _ = crate::index::sync_bounded(&mut w, None, since);
         }
-        FRESHENING.store(false, Ordering::SeqCst);
     });
 }
 

@@ -518,10 +518,21 @@ fn api_tag(conn: &Connection, query: &str) -> Result<Boxed> {
 }
 
 fn api_sync(conn: &mut Connection, sync_lock: &std::sync::Mutex<()>) -> Result<Boxed> {
-    // Auto-sync and the Sync button can overlap; the second waits for the
-    // first and then finds little left to do, instead of failing on the lock.
-    let _guard = sync_lock.lock().unwrap_or_else(|e| e.into_inner());
-    index::sync(conn, None)?;
+    // Auto-sync, the Sync button and other windows can overlap. A request
+    // that finds a sync running waits for it and reports its result rather
+    // than walking every session store again right after it.
+    use std::sync::TryLockError;
+    let _guard = match sync_lock.try_lock() {
+        Ok(guard) => {
+            index::sync(conn, None)?;
+            guard
+        }
+        Err(TryLockError::Poisoned(e)) => {
+            index::sync(conn, None)?;
+            e.into_inner()
+        }
+        Err(TryLockError::WouldBlock) => sync_lock.lock().unwrap_or_else(|e| e.into_inner()),
+    };
     let count: i64 = conn
         .query_row("SELECT count(*) FROM files WHERE kind = 'main'", [], |r| {
             r.get(0)

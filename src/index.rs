@@ -1422,7 +1422,7 @@ fn restore_unchanged(conn: &mut Connection, keys: &[String]) -> Result<()> {
     if keys.is_empty() {
         return Ok(());
     }
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
     for key in keys {
         tx.execute(
             "DELETE FROM archive WHERE session_id = (SELECT session_id FROM files WHERE path = ?1)",
@@ -1505,32 +1505,27 @@ fn report_indexed(tool: &str, total: usize, failed: usize) {
     }
 }
 
-/// How much one sync transaction takes before it commits and starts the next.
-/// Each session is written whole inside one transaction, so a commit between
-/// sessions never exposes a half-indexed one; slicing keeps the WAL bounded,
-/// lets readers and the hook's writer in, and makes an interrupted first sync
-/// keep what it already indexed instead of rolling all of it back.
-#[derive(Default)]
-struct SyncBatch {
-    sessions: usize,
-    messages: usize,
-}
-
-impl SyncBatch {
-    const MAX_SESSIONS: usize = 200;
-    const MAX_MESSAGES: usize = 20_000;
-
-    /// Count one indexed session; true when the batch is full (and reset).
-    fn add(&mut self, messages: usize) -> bool {
-        self.sessions += 1;
-        self.messages += messages;
-        if self.sessions >= Self::MAX_SESSIONS || self.messages >= Self::MAX_MESSAGES {
-            *self = Self::default();
-            true
-        } else {
-            false
-        }
-    }
+/// Write one parsed session in its own short transaction. The write lock is
+/// held for the few milliseconds its rows take, never across a parse - a
+/// sync of thousands of sessions used to keep it for seconds at a time, and
+/// a favorite, note or tag saved meanwhile (or another process's sync) failed
+/// as "database is locked" once its busy timeout ran out. IMMEDIATE takes the
+/// lock up front, so a concurrent writer is waited for through the busy
+/// timeout instead of failing the upgrade from a stale read snapshot. Each
+/// session is still written whole, and an interrupted sync keeps what it
+/// already indexed.
+fn write_session(
+    conn: &mut Connection,
+    session: &crate::model::Session,
+    key: &str,
+    mtime: i64,
+    size: i64,
+    output_mode: ToolOutputMode,
+) -> Result<()> {
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    index_one(&tx, session, key, mtime, size, output_mode)?;
+    tx.commit()?;
+    Ok(())
 }
 
 pub fn sync(conn: &mut Connection, only_tool: Option<&str>) -> Result<()> {
@@ -1652,8 +1647,6 @@ pub fn sync_with(
                 let total = pending.len();
                 let mut failed = 0usize;
                 wrote = true;
-                let mut batch = SyncBatch::default();
-                let mut tx = conn.transaction()?;
                 for (i, key) in pending.iter().enumerate() {
                     if progress {
                         eprint!("\r[{tool}] indexing {}/{total}", i + 1);
@@ -1670,13 +1663,8 @@ pub fn sync_with(
                         }
                     };
                     let token = token_of.get(key.as_str()).copied().unwrap_or(0);
-                    index_one(&tx, &session, key, token, 0, output_mode)?;
-                    if batch.add(session.messages.len()) {
-                        tx.commit()?;
-                        tx = conn.transaction()?;
-                    }
+                    write_session(conn, &session, key, token, 0, output_mode)?;
                 }
-                tx.commit()?;
                 report_indexed(tool, total, failed);
             }
             continue;
@@ -1749,8 +1737,6 @@ pub fn sync_with(
         let total = pending.len();
         let mut done = 0usize;
         let mut failed = 0usize;
-        let mut batch = SyncBatch::default();
-        let mut tx = conn.transaction()?;
         for (path, mtime, size) in pending {
             done += 1;
             if progress {
@@ -1769,13 +1755,8 @@ pub fn sync_with(
                 }
             };
             let key = path.to_string_lossy();
-            index_one(&tx, &session, &key, mtime, size, output_mode)?;
-            if batch.add(session.messages.len()) {
-                tx.commit()?;
-                tx = conn.transaction()?;
-            }
+            write_session(conn, &session, &key, mtime, size, output_mode)?;
         }
-        tx.commit()?;
         report_indexed(tool, total, failed);
     }
     if wrote || archived_total > 0 {
@@ -3953,7 +3934,7 @@ pub fn session_from_index(conn: &Connection, row: &SessionRow) -> Result<crate::
 pub fn forget(conn: &mut Connection, session_id: &str) -> Result<()> {
     ensure_favorites_table(conn)?;
     ensure_snippets_table(conn)?;
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
     delete_session_msgs(&tx, session_id)?;
     for table in [
         "files",

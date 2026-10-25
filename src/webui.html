@@ -4335,8 +4335,14 @@ async function loadThrough(idx) {
   return document.getElementById("msg-" + idx);
 }
 
+// Only the session clicked last may open: a large one clicked earlier must
+// not replace it when its first page arrives later.
+let openSessionSeq = 0;
+
 async function openSession(id, opts = {}) {
+  const seq = ++openSessionSeq;
   const s = await jget(`/api/session/${encodeURIComponent(id)}?offset=0&limit=${SESSION_PAGE}`);
+  if (seq !== openSessionSeq) return;
   if (s && s.favorite) {
     favoriteSet.add(s.id);
     updateItemFavStar(s.id, true);
@@ -5187,7 +5193,12 @@ function filterByFile(filePath) {
   refresh();
 }
 
+// Typing, filters and sync all call refresh(); only the latest call may
+// render, or a slow earlier search lands on top of a newer list.
+let refreshSeq = 0;
+
 async function refresh() {
+  const seq = ++refreshSeq;
   const inputVal = $("q").value.trim();
   const tool = $("tool").value;
   const t = tool ? `&tool=${encodeURIComponent(tool)}` : "";
@@ -5241,6 +5252,7 @@ async function refresh() {
   } else {
     items = await jget(`/api/sessions?limit=500${t}${projParam}${sParam}${uParam}${subParam}${sortParam}`);
   }
+  if (seq !== refreshSeq) return;
 
   if (currentOnlyFavorites) {
     items = items.filter((row) => favoriteSet.has(row.id));
@@ -5673,7 +5685,19 @@ async function loadStats() {
     L.stats(sessions.toLocaleString(), stats.tools.length, fmtBytes(bytes));
 }
 
-async function performSync(isAuto = false) {
+// One sync at a time from this page: a second press (or the auto timer firing
+// meanwhile) joins the running one instead of parking another server worker
+// on the sync lock.
+let syncInFlight = null;
+
+function performSync(isAuto = false) {
+  if (!syncInFlight) {
+    syncInFlight = runSync(isAuto).finally(() => { syncInFlight = null; });
+  }
+  return syncInFlight;
+}
+
+async function runSync(isAuto) {
   const btn = $("sync-btn");
   const label = $("sync-label");
   if (btn) btn.classList.add("loading");
