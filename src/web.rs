@@ -184,6 +184,7 @@ fn handle_request(
         "/api/snippet/rename" => api_snippet_rename(&conn, &mut request, query),
         "/api/subagents" => api_subagents(&conn, query),
         "/api/analytics" => api_analytics(&conn),
+        "/api/analytics/files" => api_analytics_files(&conn, query),
         p if p.starts_with("/api/related/") => {
             api_related(&conn, p.trim_start_matches("/api/related/"))
         }
@@ -426,7 +427,8 @@ fn api_search(conn: &Connection, query: &str) -> Result<Boxed> {
     }
 
     // Default search mode: strictly within one message (FTS5 rank & snippet)
-    let hits = index::search_scoped(conn, qt, limit, tool.as_deref(), None, scope)?;
+    let project = param(query, "project");
+    let hits = index::search_scoped(conn, qt, limit, tool.as_deref(), project.as_deref(), scope)?;
     json_response(json!(hits
         .iter()
         .map(|h| {
@@ -726,129 +728,95 @@ fn api_subagents(conn: &Connection, query: &str) -> Result<Boxed> {
     json_response(json!(rows.iter().map(row_json).collect::<Vec<_>>()))
 }
 
+/// Raw material for the Activity tab: one compact row per main session
+/// (subagents would count the same piece of work several times) with Unix
+/// start/end, tool and project as indexes into the two name lists, message
+/// and edit counts. The browser buckets these into its own local days and
+/// hours and any period it is asked for, which the server - not knowing the
+/// viewer's time zone - could not do correctly.
 fn api_analytics(conn: &Connection) -> Result<Boxed> {
+    let mut tools: Vec<String> = Vec::new();
+    let mut projects: Vec<String> = Vec::new();
+    let mut tool_idx = std::collections::HashMap::<String, usize>::new();
+    let mut project_idx = std::collections::HashMap::<String, usize>::new();
     let mut stmt = conn.prepare(
-        "SELECT substr(COALESCE(started, datetime(mtime, 'unixepoch')), 1, 10) AS day, COUNT(*) AS count
-         FROM files
-         WHERE day IS NOT NULL AND day != ''
-         GROUP BY day
-         ORDER BY day ASC",
+        "SELECT CAST(strftime('%s', COALESCE(f.started, datetime(f.mtime, 'unixepoch'))) AS INTEGER),
+                CAST(strftime('%s', COALESCE(f.ended, f.started, datetime(f.mtime, 'unixepoch'))) AS INTEGER),
+                f.tool, f.project, f.msg_count, COALESCE(e.n, 0)
+         FROM files f
+         LEFT JOIN (SELECT session_id, COUNT(*) AS n FROM edits GROUP BY session_id) e
+           ON e.session_id = f.session_id
+         WHERE f.kind = 'main'
+         ORDER BY 1",
     )?;
-    let daily: Vec<serde_json::Value> = stmt
-        .query_map([], |r| {
-            let day: String = r.get(0)?;
-            let count: i64 = r.get(1)?;
-            Ok(json!({ "date": day, "count": count }))
-        })?
-        .filter_map(rusqlite::Result::ok)
-        .collect();
-
-    let mut stmt = conn.prepare(
-        "SELECT tool, COUNT(*) AS count
-         FROM files
-         WHERE tool IS NOT NULL AND tool != ''
-         GROUP BY tool
-         ORDER BY count DESC",
-    )?;
-    let tools: Vec<serde_json::Value> = stmt
-        .query_map([], |r| {
-            let tool: String = r.get(0)?;
-            let count: i64 = r.get(1)?;
-            Ok(json!({ "tool": tool, "count": count }))
-        })?
-        .filter_map(rusqlite::Result::ok)
-        .collect();
-
-    let mut stmt = conn.prepare(
-        "SELECT CAST(substr(started, 12, 2) AS INTEGER) AS hr, COUNT(*) AS count
-         FROM files
-         WHERE started IS NOT NULL AND length(started) >= 13
-         GROUP BY hr
-         ORDER BY hr ASC",
-    )?;
-    let mut hourly_map = vec![0i64; 24];
-    let rows = stmt.query_map([], |r| {
-        let hr: Option<i64> = r.get(0).ok();
-        let count: i64 = r.get(1)?;
-        Ok((hr, count))
-    })?;
-    for (hr_opt, count) in rows.flatten() {
-        if let Some(hr) = hr_opt {
-            if (0..24).contains(&hr) {
-                hourly_map[hr as usize] = count;
-            }
-        }
+    let mut sessions = Vec::new();
+    let mut rows = stmt.query([])?;
+    while let Some(r) = rows.next()? {
+        let Some(start) = r.get::<_, Option<i64>>(0)? else {
+            continue;
+        };
+        let end = r.get::<_, Option<i64>>(1)?.unwrap_or(start).max(start);
+        let tool: String = r.get(2)?;
+        let project: String = r.get(3)?;
+        let t = *tool_idx.entry(tool.clone()).or_insert_with(|| {
+            tools.push(tool);
+            tools.len() - 1
+        });
+        let p = *project_idx.entry(project.clone()).or_insert_with(|| {
+            projects.push(project);
+            projects.len() - 1
+        });
+        sessions.push(json!([start, end, t, p, r.get::<_, i64>(4)?, r.get::<_, i64>(5)?]));
     }
-    let hourly: Vec<serde_json::Value> = hourly_map
-        .iter()
-        .enumerate()
-        .map(|(hr, count)| json!({ "hour": hr, "count": count }))
-        .collect();
 
-    let mut stmt = conn.prepare(
-        "SELECT path, COUNT(DISTINCT session_id) AS count
-         FROM touched
-         WHERE path IS NOT NULL AND path != ''
-         GROUP BY path
-         ORDER BY count DESC
-         LIMIT 15",
-    )?;
-    let top_files: Vec<serde_json::Value> = stmt
-        .query_map([], |r| {
-            let path: String = r.get(0)?;
-            let count: i64 = r.get(1)?;
-            Ok(json!({ "path": path, "count": count }))
-        })?
-        .filter_map(rusqlite::Result::ok)
-        .collect();
-
-    let total_sessions: i64 = conn
-        .query_row("SELECT COUNT(*) FROM files", [], |r| r.get(0))
-        .unwrap_or(0);
-    let total_messages: i64 = conn
-        .query_row(
-            "SELECT COALESCE(SUM(msg_count), 0) FROM files",
-            [],
-            |r| r.get(0),
-        )
-        .unwrap_or(0);
-    let total_touched: i64 = conn
-        .query_row("SELECT COUNT(DISTINCT path) FROM touched", [], |r| {
-            r.get(0)
-        })
-        .unwrap_or(0);
-    let total_snippets: i64 = conn
-        .query_row("SELECT COUNT(*) FROM snippets", [], |r| r.get(0))
-        .unwrap_or(0);
-    let active_days: i64 = conn
-        .query_row(
-            "SELECT COUNT(DISTINCT substr(COALESCE(started, datetime(mtime, 'unixepoch')), 1, 10)) FROM files",
-            [],
-            |r| r.get(0),
-        )
-        .unwrap_or(0);
-    let top_tool: Option<String> = conn
-        .query_row(
-            "SELECT tool FROM files GROUP BY tool ORDER BY COUNT(*) DESC LIMIT 1",
-            [],
-            |r| r.get(0),
-        )
-        .ok();
-
+    let count = |sql: &str| -> i64 { conn.query_row(sql, [], |r| r.get(0)).unwrap_or(0) };
     json_response(json!({
-        "daily": daily,
         "tools": tools,
-        "hourly": hourly,
-        "top_files": top_files,
-        "summary": {
-            "total_sessions": total_sessions,
-            "total_messages": total_messages,
-            "total_touched_files": total_touched,
-            "total_snippets": total_snippets,
-            "active_days": active_days,
-            "top_tool": top_tool,
-        }
+        "projects": projects,
+        "sessions": sessions,
+        "totals": {
+            "touched_files": count("SELECT COUNT(DISTINCT path) FROM touched"),
+            "snippets": count("SELECT COUNT(*) FROM snippets"),
+            "favorites": count("SELECT COUNT(*) FROM favorites"),
+        },
     }))
+}
+
+/// Files touched by the main sessions active in `since`..`until` (RFC 3339
+/// instants from the browser; both optional), most sessions first.
+fn api_analytics_files(conn: &Connection, query: &str) -> Result<Boxed> {
+    let since = param(query, "since");
+    let until = param(query, "until");
+    let limit: i64 = param(query, "limit")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(12)
+        .clamp(1, 100);
+    let mut stmt = conn.prepare(
+        "WITH s AS (
+           SELECT session_id FROM files
+           WHERE kind = 'main'
+             AND (?1 IS NULL OR julianday(COALESCE(ended, started)) >= julianday(?1))
+             AND (?2 IS NULL OR julianday(started) <= julianday(?2))
+         )
+         SELECT t.path, COUNT(DISTINCT t.session_id),
+                (SELECT COUNT(*) FROM edits e WHERE e.path = t.path
+                   AND e.session_id IN (SELECT session_id FROM s))
+         FROM touched t
+         WHERE t.session_id IN (SELECT session_id FROM s)
+         GROUP BY t.path
+         ORDER BY 2 DESC, 3 DESC
+         LIMIT ?3",
+    )?;
+    let rows: Vec<serde_json::Value> = stmt
+        .query_map(rusqlite::params![since, until, limit], |r| {
+            Ok(json!({
+                "path": r.get::<_, String>(0)?,
+                "sessions": r.get::<_, i64>(1)?,
+                "edits": r.get::<_, i64>(2)?,
+            }))
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    json_response(json!(rows))
 }
 
 fn api_snippets(conn: &Connection, query: &str) -> Result<Boxed> {

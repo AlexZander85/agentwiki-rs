@@ -1459,6 +1459,8 @@
     box-shadow: 0 1px 2px rgba(0,0,0,0.03);
   }
   .section-head {
+    flex-wrap: wrap;
+    gap: 6px 16px;
     font-size: 15px;
     font-weight: 600;
     margin-bottom: 16px;
@@ -1517,6 +1519,150 @@
   [data-theme="dark"] .heatmap-cell.l2 { background: #006d32; }
   [data-theme="dark"] .heatmap-cell.l3 { background: #26a641; }
   [data-theme="dark"] .heatmap-cell.l4 { background: #39d353; }
+
+  /* Activity dashboard v2: series colours (one fixed hue per agent) and the
+     sequential ramp of the calendar, stepped separately for each theme. */
+  :root {
+    --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
+    --series-5: #e87ba4; --series-6: #008300; --series-7: #6250d6; --series-other: #a3a097;
+    --seq-0: #ece9e2; --seq-1: #b7d3f6; --seq-2: #6da7ec; --seq-3: #2a78d6; --seq-4: #184f95;
+  }
+  [data-theme="dark"] {
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+    --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-other: #686874;
+    --seq-0: #23232b; --seq-1: #104281; --seq-2: #1c5cab; --seq-3: #3987e5; --seq-4: #86b6ef;
+  }
+  .activity-dashboard { height: 100%; box-sizing: border-box; }
+  .activity-dashboard .activity-header {
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  }
+  .act-period {
+    display: inline-flex; background: var(--bg-sunken); border: 1px solid var(--line);
+    border-radius: 8px; padding: 2px; gap: 2px;
+  }
+  .act-period-btn {
+    border: 0; background: transparent; color: var(--ink-2); font: inherit; font-size: 12px;
+    padding: 5px 10px; border-radius: 6px; cursor: pointer;
+  }
+  .act-period-btn:hover { color: var(--ink); background: var(--hover); }
+  .act-period-btn.active { background: var(--card); color: var(--ink); box-shadow: var(--shadow); font-weight: 600; }
+
+  .act-kpis {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 14px;
+  }
+  .act-kpi {
+    position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 14px 0; display: flex; flex-direction: column; gap: 2px; overflow: hidden; box-shadow: var(--shadow);
+  }
+  .act-kpi-lbl { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); }
+  .act-kpi-val { font-size: 24px; font-weight: 700; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .act-kpi-foot { display: flex; flex-wrap: wrap; gap: 0 6px; align-items: baseline; font-size: 11px; color: var(--ink-3); min-height: 15px; }
+  .act-kpi-foot span { white-space: nowrap; }
+  .act-kpi-delta { color: var(--ink-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .act-spark { display: block; width: calc(100% + 28px); margin: 6px -14px 0; height: 32px; }
+  .act-spark-line { fill: none; stroke: var(--series-1); stroke-width: 2; stroke-linejoin: round; }
+  .act-spark-area { fill: var(--series-1); opacity: .12; stroke: none; }
+
+  .act-streaks { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 24px; }
+  .act-streak {
+    display: inline-flex; align-items: center; gap: 10px; padding: 8px 14px; border-radius: 10px;
+    background: var(--card); border: 1px solid var(--line); color: var(--ink); font: inherit; text-align: left;
+  }
+  .act-streak.clickable { cursor: pointer; }
+  .act-streak.clickable:hover { border-color: var(--line-strong); background: var(--hover); }
+  .act-streak-icon { font-size: 18px; }
+  .act-streak-txt { display: flex; flex-direction: column; }
+  .act-streak-val { font-weight: 700; font-size: 15px; }
+  .act-streak-lbl { font-size: 11px; color: var(--ink-3); }
+
+  .act-empty { padding: 32px; text-align: center; color: var(--ink-2); border: 1px dashed var(--line-strong); border-radius: 10px; margin-bottom: 24px; }
+  .act-error { margin-bottom: 12px; color: var(--ink-2); }
+  .act-muted { color: var(--ink-3); font-size: 12px; }
+  .act-hint { margin-top: 8px; font-size: 11px; color: var(--ink-3); }
+  .act-head-note { font-size: 12px; font-weight: 400; color: var(--ink-3); }
+
+  .act-swatch { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; vertical-align: 0; flex: none; }
+  .act-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; font-weight: 400; }
+  .act-legend-item {
+    border: 0; background: transparent; color: var(--ink-2); font: inherit; padding: 2px 4px; border-radius: 4px;
+    display: inline-flex; align-items: center;
+  }
+  button.act-legend-item { cursor: pointer; }
+  button.act-legend-item:hover { background: var(--hover); color: var(--ink); }
+  .act-legend-n { color: var(--ink-3); font-variant-numeric: tabular-nums; margin-left: 4px; }
+
+  .act-trend { display: flex; gap: 8px; height: 180px; }
+  .act-trend-axis {
+    display: flex; flex-direction: column; justify-content: space-between; font-size: 10px; color: var(--ink-3);
+    text-align: right; min-width: 24px; font-variant-numeric: tabular-nums;
+  }
+  .act-trend-plot {
+    flex: 1; display: flex; align-items: flex-end; gap: 2px; position: relative;
+    border-bottom: 1px solid var(--line-strong);
+    background: linear-gradient(to bottom, var(--line) 1px, transparent 1px) 0 0 / 100% 50%;
+  }
+  .act-trend-col {
+    flex: 1; height: 100%; display: flex; align-items: flex-end; border: 0; padding: 0; background: transparent;
+    cursor: pointer; min-width: 2px; border-radius: 4px 4px 0 0;
+  }
+  .act-trend-col:hover { background: var(--hover); }
+  .act-trend-bar { width: 100%; display: flex; flex-direction: column-reverse; gap: 2px; min-height: 0; }
+  .act-trend-seg { min-height: 2px; flex-basis: 0; }
+  .act-trend-bar .act-trend-seg:last-child { border-radius: 4px 4px 0 0; }
+  .act-trend-x { display: flex; justify-content: space-between; margin-left: 32px; margin-top: 4px; font-size: 10px; color: var(--ink-3); }
+
+  .act-hm-scroll { overflow-x: auto; padding-bottom: 4px; min-width: 0; }
+  .act-hm-wrap { display: flex; gap: 6px; }
+  .act-hm-right { width: max-content; }
+  .act-hm-days { display: grid; grid-template-rows: 14px repeat(7, 12px); row-gap: 3px; font-size: 9px; color: var(--ink-3); line-height: 12px; white-space: nowrap; flex: none; padding-right: 2px; }
+  .act-hm-days span:first-child { grid-row: 2; }
+  .act-hm-right { display: flex; flex-direction: column; gap: 3px; }
+  .act-hm-months { display: flex; gap: 3px; height: 14px; font-size: 9px; color: var(--ink-3); }
+  .act-hm-months span { width: 12px; overflow: visible; white-space: nowrap; }
+  .act-hm { display: flex; gap: 3px; }
+  .act-hm-week { display: flex; flex-direction: column; gap: 3px; }
+  .act-hm-cell { width: 12px; height: 12px; border-radius: 3px; border: 0; padding: 0; background: var(--seq-0); display: inline-block; }
+  button.act-hm-cell { cursor: pointer; }
+  button.act-hm-cell:hover { outline: 2px solid var(--ink-2); outline-offset: 1px; }
+  .act-hm-cell.future { background: transparent; }
+  .act-hm-cell.l1 { background: var(--seq-1); }
+  .act-hm-cell.l2 { background: var(--seq-2); }
+  .act-hm-cell.l3 { background: var(--seq-3); }
+  .act-hm-cell.l4 { background: var(--seq-4); }
+  .act-hm-foot { display: flex; justify-content: flex-end; align-items: center; gap: 4px; margin-top: 10px; font-size: 11px; color: var(--ink-3); }
+
+  .act-projects { display: flex; flex-direction: column; }
+  .act-project {
+    display: grid; grid-template-columns: minmax(120px, 1.3fr) 2fr 48px 80px 64px; gap: 12px; align-items: center;
+    padding: 7px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit;
+    font-size: 13px; text-align: left; cursor: pointer;
+  }
+  .act-project:hover { background: var(--hover); }
+  .act-project-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; }
+  .act-project-name .act-swatch { margin-right: 3px; }
+  .act-project-name .act-swatch:last-of-type { margin-right: 8px; }
+  .act-project-track { height: 8px; background: var(--bg-sunken); border-radius: 4px; overflow: hidden; }
+  .act-project-bar { display: block; height: 100%; background: var(--series-1); border-radius: 0 4px 4px 0; }
+  .act-project-num { text-align: right; font-variant-numeric: tabular-nums; }
+  .act-project-num.muted { color: var(--ink-3); font-size: 12px; }
+  @media (max-width: 700px) {
+    .act-project { grid-template-columns: 1fr 48px 72px; }
+    .act-project-track, .act-project-num.muted:last-child { display: none; }
+  }
+
+  .act-agent { border: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; padding: 4px 6px; border-radius: 6px; cursor: pointer; width: 100%; }
+  .act-agent:hover { background: var(--hover); }
+  .top-files-list button.top-file-row { border: 0; background: transparent; color: inherit; font: inherit; width: 100%; text-align: left; }
+
+  .act-tip {
+    position: fixed; z-index: 1000; display: none; pointer-events: none; min-width: 140px; max-width: 320px;
+    background: var(--card); color: var(--ink); border: 1px solid var(--line-strong); border-radius: 8px;
+    padding: 8px 10px; font-size: 12px; box-shadow: 0 6px 24px rgba(0, 0, 0, .18);
+  }
+  .act-tip-title { font-weight: 600; margin-bottom: 4px; overflow-wrap: anywhere; }
+  .act-tip-row { display: flex; justify-content: space-between; gap: 16px; color: var(--ink-2); }
+  .act-tip-lbl { display: inline-flex; align-items: center; }
+  .act-tip-val { color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 600; }
 
   /* Two Column Grid */
   .analytics-two-col {
@@ -2507,8 +2653,14 @@
         <button type="button" class="act-nav-btn" id="act-btn-summary">
           <span>📊</span> <span id="act-btn-summary-text">Summary</span>
         </button>
+        <button type="button" class="act-nav-btn" id="act-btn-trend">
+          <span>📈</span> <span id="act-btn-trend-text">Sessions by agent</span>
+        </button>
         <button type="button" class="act-nav-btn" id="act-btn-heatmap">
           <span>📅</span> <span id="act-btn-heatmap-text">Contribution Heatmap</span>
+        </button>
+        <button type="button" class="act-nav-btn" id="act-btn-projects">
+          <span>🗂</span> <span id="act-btn-projects-text">Projects</span>
         </button>
         <button type="button" class="act-nav-btn" id="act-btn-hourly">
           <span>⏰</span> <span id="act-btn-hourly-text">Hourly Activity</span>
@@ -2679,7 +2831,16 @@ const I18N = {
     agentDistribution: "Доля агентов",
     topTouchedFiles: "Топ затронутых файлов",
     less: "Меньше",
-    retry: "Повторить", more: "Больше", actNavTitle: "Навигация", actNavSummary: "Сводка показателей", actNavHeatmap: "Календарь активности", actNavHourly: "Активность по часам", actNavAgents: "Доли агентов", actNavFiles: "Топ затронутых файлов", actSummary: "Сводка",
+    retry: "Повторить", more: "Больше", actNavTitle: "Навигация", actNavSummary: "Сводка показателей", actNavHeatmap: "Календарь активности", actNavHourly: "Активность по часам", actNavAgents: "Доли агентов", actNavFiles: "Топ затронутых файлов", actSummary: "Сводка", actPeriodLabel: "Период", actPeriod7: "7 дней", actPeriod30: "30 дней", actPeriod90: "90 дней", actPeriod1y: "Год", actPeriodAll: "Всё время",
+    actKpiSessions: "Сессии", actKpiTime: "Время в работе", actKpiDays: "Активные дни", actKpiMessages: "Сообщения", actKpiEdits: "Правки файлов", actKpiProjects: "Проекты",
+    actTimeNote: "Оценка по интервалам сессий, без двойного счёта параллельных; у сессий длиннее 6 ч учитываются первый и последний час.",
+    actVsPrev: "к прошлому периоду", actPrevPeriod: "Прошлый период", actAllTime: "за всё время", actNew: "новое",
+    actStreakNow: "Текущая серия", actStreakBest: "Рекордная серия", actBusiestDay: "Самый активный день",
+    actDaysN: (n) => `${n} дн.`, actSessionsN: (n) => `${n} сесс.`, actEditsN: (n) => `${n} правок`, actProjectsN: (n) => `всего ${n}`,
+    actTrend: "Сессии по агентам", actProjects: "Проекты", actHourly: "Начало сессий по часам", actOther: "другие",
+    actClickHint: "Клик по столбцу, дню, проекту или агенту открывает список сессий с этим фильтром",
+    actEmpty: "За этот период сессий нет", actNoFiles: "За этот период файлы не затрагивались", actNoProject: "(без проекта)",
+    actFavorites: "Избранное", actHourShort: "ч", actMinShort: "мин", projectFilterChip: (p) => `проект: ${p}`,
     searchSnippets: "Поиск по сохранённым сниппетам...",
     pinSnippet: "📌 Сохранить в сниппеты / базу знаний", unpinSnippet: "Удалить из сниппетов",
     pinnedSnippet: "В сниппетах", pinSnippetBtn: "Сниппет",
@@ -2776,7 +2937,16 @@ const I18N = {
     agentDistribution: "Agent Share",
     topTouchedFiles: "Most Touched Files",
     less: "Less",
-    retry: "Retry", more: "More", actNavTitle: "Navigation", actNavSummary: "Summary", actNavHeatmap: "Contribution Heatmap", actNavHourly: "Hourly Activity", actNavAgents: "Agent Distribution", actNavFiles: "Top Touched Files", actSummary: "Quick Recap",
+    retry: "Retry", more: "More", actNavTitle: "Navigation", actNavSummary: "Summary", actNavHeatmap: "Contribution Heatmap", actNavHourly: "Hourly Activity", actNavAgents: "Agent Distribution", actNavFiles: "Top Touched Files", actSummary: "Quick Recap", actPeriodLabel: "Period", actPeriod7: "7 days", actPeriod30: "30 days", actPeriod90: "90 days", actPeriod1y: "Year", actPeriodAll: "All time",
+    actKpiSessions: "Sessions", actKpiTime: "Time at work", actKpiDays: "Active days", actKpiMessages: "Messages", actKpiEdits: "File edits", actKpiProjects: "Projects",
+    actTimeNote: "Estimated from session intervals, parallel sessions counted once; sessions longer than 6 h count their first and last hour.",
+    actVsPrev: "vs previous period", actPrevPeriod: "Previous period", actAllTime: "all time", actNew: "new",
+    actStreakNow: "Current streak", actStreakBest: "Longest streak", actBusiestDay: "Busiest day",
+    actDaysN: (n) => `${n} ${n === 1 ? "day" : "days"}`, actSessionsN: (n) => `${n} ${n === 1 ? "session" : "sessions"}`, actEditsN: (n) => `${n} ${n === 1 ? "edit" : "edits"}`, actProjectsN: (n) => `${n} total`,
+    actTrend: "Sessions by agent", actProjects: "Projects", actHourly: "Sessions started by hour", actOther: "other",
+    actClickHint: "Click a bar, day, project or agent to list its sessions",
+    actEmpty: "No sessions in this period", actNoFiles: "No files touched in this period", actNoProject: "(no project)",
+    actFavorites: "Favorites", actHourShort: "h", actMinShort: "m", projectFilterChip: (p) => `project: ${p}`,
     searchSnippets: "Search pinned snippets...",
     pinSnippet: "Pin snippet to Knowledge Base",
     unpinSnippet: "Unpin snippet",
@@ -3357,6 +3527,8 @@ function applyStaticStrings() {
   if ($("act-btn-summary-text")) $("act-btn-summary-text").textContent = L.actNavSummary || "Summary";
   if ($("act-btn-heatmap-text")) $("act-btn-heatmap-text").textContent = L.actNavHeatmap || "Contribution Heatmap";
   if ($("act-btn-hourly-text")) $("act-btn-hourly-text").textContent = L.actNavHourly || "Hourly Activity";
+  if ($("act-btn-trend-text")) $("act-btn-trend-text").textContent = L.actTrend || "Sessions by agent";
+  if ($("act-btn-projects-text")) $("act-btn-projects-text").textContent = L.actProjects || "Projects";
   if ($("act-btn-agents-text")) $("act-btn-agents-text").textContent = L.actNavAgents || "Agent Distribution";
   if ($("act-btn-files-text")) $("act-btn-files-text").textContent = L.actNavFiles || "Top Touched Files";
   if ($("snippet-q")) $("snippet-q").placeholder = L.searchSnippets || "Search pinned snippets...";
@@ -4973,6 +5145,8 @@ function setupFavoritesControls() {
 }
 
 let currentFileTrace = null;
+// Exact project the list is narrowed to (set from the Activity tab).
+let currentProject = null;
 
 function filterByFile(filePath) {
   if (!filePath) return;
@@ -4992,6 +5166,7 @@ async function refresh() {
   const uParam = until ? `&until=${encodeURIComponent(until)}` : "";
   const subParam = $("show-subagents-cb") && $("show-subagents-cb").checked ? "&subagents=1" : "";
   const tagParam = currentTag ? `&tag=${encodeURIComponent(currentTag)}` : "";
+  const projParam = currentProject ? `&project=${encodeURIComponent(currentProject)}` : "";
   // The listing is sorted by the server so "created" and "message count"
   // cover every session, not just the 500 most recently active.
   const sortMode = $("sort-mode") ? $("sort-mode").value : "last_active";
@@ -5025,18 +5200,22 @@ async function refresh() {
     // Mode 3: Keyword filter chips via '+' -> cross-message session intersection!
     const sessionTermsParam = `&session_terms=${encodeURIComponent(searchKeywords.join(","))}`;
     const qParam = inputVal ? `&q=${encodeURIComponent(inputVal)}` : "";
-    items = await jget(`/api/search?limit=500${sessionTermsParam}${qParam}${t}${r}${tagParam}${sParam}${uParam}`);
+    items = await jget(`/api/search?limit=500${sessionTermsParam}${qParam}${t}${r}${tagParam}${projParam}${sParam}${uParam}`);
   } else if (inputVal.length >= 2) {
     // Mode 1 & 2: Search bar input -> strictly within one message!
-    items = await jget(`/api/search?q=${encodeURIComponent(inputVal)}${t}${r}${tagParam}${sParam}${uParam}`);
+    items = await jget(`/api/search?q=${encodeURIComponent(inputVal)}${t}${r}${tagParam}${projParam}${sParam}${uParam}`);
   } else if (currentTag) {
-    items = await jget(`/api/sessions?limit=500${t}${tagParam}${sParam}${uParam}${subParam}${sortParam}`);
+    items = await jget(`/api/sessions?limit=500${t}${tagParam}${projParam}${sParam}${uParam}${subParam}${sortParam}`);
   } else {
-    items = await jget(`/api/sessions?limit=500${t}${sParam}${uParam}${subParam}${sortParam}`);
+    items = await jget(`/api/sessions?limit=500${t}${projParam}${sParam}${uParam}${subParam}${sortParam}`);
   }
 
   if (currentOnlyFavorites) {
     items = items.filter((row) => favoriteSet.has(row.id));
+  }
+  // The server matches projects by substring; keep the exact one.
+  if (currentProject !== null) {
+    items = items.filter((row) => row.project === currentProject);
   }
 
   // Client-side date filter for the modes the server does not filter by date
@@ -5066,7 +5245,7 @@ async function refresh() {
 // A removable chip above the list when a tag filter is active.
 function renderTagBar() {
   let bar = $("tagbar");
-  if (!currentTag && !currentFileTrace && !currentOnlyFavorites) { if (bar) bar.remove(); return; }
+  if (!currentTag && !currentFileTrace && !currentOnlyFavorites && currentProject === null) { if (bar) bar.remove(); return; }
   if (!bar) {
     bar = el("div", "");
     bar.id = "tagbar";
@@ -5083,6 +5262,16 @@ function renderTagBar() {
     const x = el("span", "", "  ✕");
     x.style.cursor = "pointer";
     x.onclick = () => { currentFileTrace = null; refresh(); };
+    chip.appendChild(x);
+    bar.appendChild(chip);
+  }
+  if (currentProject !== null) {
+    const name = currentProject.split(/[\\/]/).filter(Boolean).pop() || currentProject || (L.actNoProject || "(no project)");
+    const chip = el("span", "tagchip", L.projectFilterChip ? L.projectFilterChip(name) : `project: ${name}`);
+    chip.title = currentProject;
+    const x = el("span", "", "  ✕");
+    x.style.cursor = "pointer";
+    x.onclick = () => { currentProject = null; refresh(); };
     chip.appendChild(x);
     bar.appendChild(chip);
   }
@@ -6143,6 +6332,9 @@ function switchSidebarMode(mode) {
   tabSessions?.classList.toggle("active", mode === "sessions");
   tabSnippets?.classList.toggle("active", mode === "snippets");
   tabActivity?.classList.toggle("active", mode === "activity");
+  // The list's filter chips belong to the session list only.
+  const tagbar = $("tagbar");
+  if (tagbar) tagbar.style.display = mode === "sessions" ? "" : "none";
 
   if (mode === "activity") {
     if (sessionControls) sessionControls.style.display = "none";
@@ -6571,264 +6763,750 @@ function setupSnippetsControls() {
 }
 
 /* ---------- activity heatmap & agent analytics ---------- */
+// ---- Activity tab ----
+// The server hands over one compact row per main session; everything here is
+// bucketed in the viewer's own time zone, so a session at 01:00 local time
+// lands on its local day and hour, not the UTC one.
+
+const ACT_PERIODS = [
+  { id: "7d", days: 7 },
+  { id: "30d", days: 30 },
+  { id: "90d", days: 90 },
+  { id: "1y", days: 365 },
+  { id: "all", days: null },
+];
+const ACT_DAY = 86400000;
+const ACT_HOUR = 3600000;
+// Sessions longer than this were resumed later rather than worked through:
+// only their first and last hour count as time at work.
+const ACT_LONG_SESSION = 6 * ACT_HOUR;
+// A fixed colour per agent, so a tool keeps its colour whatever the period
+// or its rank; the rest share a neutral grey.
+const ACT_TOOL_ORDER = ["claude-code", "codex", "antigravity", "opencode", "gemini", "cline", "qoder"];
+
+let actData = null;
+let actPeriod = (() => {
+  try { return localStorage.getItem("act-period") || "30d"; } catch (e) { return "30d"; }
+})();
+let actFilesSeq = 0;
+
+function actToolColor(tool) {
+  const i = ACT_TOOL_ORDER.indexOf(tool);
+  return i >= 0 ? `var(--series-${i + 1})` : "var(--series-other)";
+}
+
+function actToolRank(tool) {
+  const i = ACT_TOOL_ORDER.indexOf(tool);
+  return i >= 0 ? i : ACT_TOOL_ORDER.length;
+}
+
+const actPad = (n) => String(n).padStart(2, "0");
+const actDayKey = (t) => {
+  const d = new Date(t);
+  return `${d.getFullYear()}-${actPad(d.getMonth() + 1)}-${actPad(d.getDate())}`;
+};
+const actDayStart = (t) => {
+  const d = new Date(t);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+};
+const actAddDays = (t, n) => {
+  const d = new Date(t);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n).getTime();
+};
+const actFmtNum = (n) => Math.round(n).toLocaleString(lang);
+const actFmtDate = (t, opts) => new Date(t).toLocaleDateString(lang, opts || { day: "numeric", month: "short" });
+
+function actFmtDur(ms) {
+  const mins = Math.round(ms / 60000);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const hs = L.actHourShort || "h";
+  const ms_ = L.actMinShort || "m";
+  if (h === 0) return `${m} ${ms_}`;
+  if (h >= 100) return `${actFmtNum(h)} ${hs}`;
+  return m ? `${h} ${hs} ${m} ${ms_}` : `${h} ${hs}`;
+}
+
+function actProjectName(p) {
+  if (!p) return L.actNoProject || "(no project)";
+  const parts = p.split(/[\\/]/).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : p;
+}
+
+/** Time a session spent at work: whole if short, else first and last hour. */
+function actSegments(row) {
+  const s = row.s;
+  const e = Math.max(row.e, s + 60000);
+  if (e - s <= ACT_LONG_SESSION) return [[s, e]];
+  return [[s, s + ACT_HOUR], [e - ACT_HOUR, e]];
+}
+
+/** Length of the union of [start, end] segments: parallel sessions count once. */
+function actUnionLength(segs) {
+  let total = 0, curS = null, curE = null;
+  for (const [s, e] of [...segs].sort((a, b) => a[0] - b[0])) {
+    if (curE === null || s > curE) {
+      if (curE !== null) total += curE - curS;
+      curS = s;
+      curE = e;
+    } else curE = Math.max(curE, e);
+  }
+  return curE === null ? 0 : total + (curE - curS);
+}
+
+function actPrepare(raw) {
+  const rows = (raw.sessions || []).map(([s, e, t, p, msgs, edits]) => ({
+    s: s * 1000,
+    e: e * 1000,
+    tool: raw.tools[t],
+    project: raw.projects[p],
+    msgs,
+    edits,
+    day: actDayKey(s * 1000),
+  }));
+  // Time at work per local day: the union of all sessions' segments, so two
+  // agents running side by side are not counted twice.
+  const segs = rows.flatMap(actSegments).sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  for (const [s, e] of segs) {
+    const last = merged[merged.length - 1];
+    if (last && s <= last[1]) last[1] = Math.max(last[1], e);
+    else merged.push([s, e]);
+  }
+  const workByDay = new Map();
+  for (let [s, e] of merged) {
+    while (s < e) {
+      const next = Math.min(e, actAddDays(actDayStart(s), 1));
+      const key = actDayKey(s);
+      workByDay.set(key, (workByDay.get(key) || 0) + (next - s));
+      s = next;
+    }
+  }
+  const sessionsByDay = new Map();
+  for (const r of rows) sessionsByDay.set(r.day, (sessionsByDay.get(r.day) || 0) + 1);
+  return { rows, workByDay, sessionsByDay, totals: raw.totals || {}, first: rows.length ? rows[0].s : Date.now() };
+}
+
+/** The window a period covers: [start, end) in local days, and the one before. */
+function actWindow(data, periodId) {
+  const period = ACT_PERIODS.find((p) => p.id === periodId) || ACT_PERIODS[1];
+  const end = actAddDays(actDayStart(Date.now()), 1);
+  const start = period.days ? actAddDays(end, -period.days) : actDayStart(data.first);
+  const days = Math.round((end - start) / ACT_DAY);
+  const prev = period.days ? { start: actAddDays(start, -period.days), end: start } : null;
+  return { period, start, end, days, prev };
+}
+
+function actStats(data, start, end) {
+  const rows = data.rows.filter((r) => r.s >= start && r.s < end);
+  let msgs = 0, edits = 0, work = 0, activeDays = 0;
+  const projects = new Set();
+  for (const r of rows) { msgs += r.msgs; edits += r.edits; projects.add(r.project); }
+  for (let t = start; t < end; t = actAddDays(t, 1)) {
+    const key = actDayKey(t);
+    work += data.workByDay.get(key) || 0;
+    if (data.sessionsByDay.has(key)) activeDays++;
+  }
+  return { rows, sessions: rows.length, msgs, edits, work, activeDays, projects: projects.size };
+}
+
+/** Buckets for charts: days up to 90 of them, then weeks, then months. */
+function actBuckets(win) {
+  const out = [];
+  if (win.days <= 92) {
+    for (let t = win.start; t < win.end; t = actAddDays(t, 1)) out.push({ start: t, end: actAddDays(t, 1), unit: "day" });
+  } else if (win.days <= 400) {
+    let t = win.start;
+    const dow = (new Date(t).getDay() + 6) % 7; // weeks start on Monday
+    t = actAddDays(t, -dow);
+    for (; t < win.end; t = actAddDays(t, 7)) out.push({ start: Math.max(t, win.start), end: Math.min(actAddDays(t, 7), win.end), unit: "week" });
+  } else {
+    const d = new Date(win.start);
+    let t = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+    while (t < win.end) {
+      const n = new Date(t);
+      const next = new Date(n.getFullYear(), n.getMonth() + 1, 1).getTime();
+      out.push({ start: Math.max(t, win.start), end: Math.min(next, win.end), unit: "month" });
+      t = next;
+    }
+  }
+  return out;
+}
+
+function actBucketLabel(b) {
+  if (b.unit === "month") return actFmtDate(b.start, { month: "short", year: "numeric" });
+  if (b.unit === "week") return `${actFmtDate(b.start)} – ${actFmtDate(b.end - 1)}`;
+  return actFmtDate(b.start, { weekday: "short", day: "numeric", month: "short" });
+}
+
+/** Streaks of consecutive local days with at least one session (all time). */
+function actStreaks(data) {
+  const has = (t) => data.sessionsByDay.has(actDayKey(t));
+  const today = actDayStart(Date.now());
+  let t = has(today) ? today : actAddDays(today, -1);
+  let current = 0;
+  while (has(t)) { current++; t = actAddDays(t, -1); }
+  const days = [...data.sessionsByDay.keys()].sort();
+  let best = 0, bestEnd = null, run = 0, prev = null;
+  for (const key of days) {
+    const [y, m, d] = key.split("-").map(Number);
+    const ts = new Date(y, m - 1, d).getTime();
+    run = prev !== null && actAddDays(prev, 1) === ts ? run + 1 : 1;
+    if (run > best) { best = run; bestEnd = ts; }
+    prev = ts;
+  }
+  return { current, best, bestStart: bestEnd !== null ? actAddDays(bestEnd, -(best - 1)) : null, bestEnd };
+}
+
+// ---- small pieces ----
+
+function actTip() {
+  let tip = $("act-tip");
+  if (!tip) {
+    tip = el("div", "act-tip");
+    tip.id = "act-tip";
+    tip.setAttribute("role", "tooltip");
+    document.body.appendChild(tip);
+  }
+  return tip;
+}
+
+function actHover(node, render) {
+  node.addEventListener("mouseenter", () => {
+    const tip = actTip();
+    tip.replaceChildren(...render());
+    tip.style.display = "block";
+  });
+  node.addEventListener("mousemove", (ev) => {
+    const tip = actTip();
+    const pad = 14;
+    let x = ev.clientX + pad;
+    let y = ev.clientY + pad;
+    const r = tip.getBoundingClientRect();
+    if (x + r.width > window.innerWidth - 8) x = ev.clientX - r.width - pad;
+    if (y + r.height > window.innerHeight - 8) y = ev.clientY - r.height - pad;
+    tip.style.left = `${Math.max(8, x)}px`;
+    tip.style.top = `${Math.max(8, y)}px`;
+  });
+  node.addEventListener("mouseleave", () => { actTip().style.display = "none"; });
+}
+
+function actTipLines(title, lines) {
+  const out = [el("div", "act-tip-title", title)];
+  for (const [label, value, color] of lines) {
+    const row = el("div", "act-tip-row");
+    const left = el("span", "act-tip-lbl");
+    if (color) {
+      const sw = el("span", "act-swatch");
+      sw.style.background = color;
+      left.appendChild(sw);
+    }
+    left.appendChild(document.createTextNode(label));
+    row.append(left, el("span", "act-tip-val", value));
+    out.push(row);
+  }
+  return out;
+}
+
+function actSparkline(values) {
+  const w = 120, h = 32;
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  svg.setAttribute("preserveAspectRatio", "none");
+  svg.setAttribute("class", "act-spark");
+  svg.setAttribute("aria-hidden", "true");
+  if (values.length < 2) return svg;
+  const max = Math.max(1, ...values);
+  const pts = values.map((v, i) => [(i / (values.length - 1)) * w, h - 2 - (v / max) * (h - 4)]);
+  const line = pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join("");
+  const area = document.createElementNS(NS, "path");
+  area.setAttribute("d", `${line}L${w},${h}L0,${h}Z`);
+  area.setAttribute("class", "act-spark-area");
+  const path = document.createElementNS(NS, "path");
+  path.setAttribute("d", line);
+  path.setAttribute("class", "act-spark-line");
+  path.setAttribute("vector-effect", "non-scaling-stroke");
+  svg.append(area, path);
+  return svg;
+}
+
+function actSection(id, icon, title, extra) {
+  const sec = el("section", "analytics-section");
+  sec.id = id;
+  const head = el("div", "section-head");
+  head.appendChild(el("span", "", `${icon} ${title}`));
+  if (extra) head.appendChild(extra);
+  sec.appendChild(head);
+  return sec;
+}
+
+/** Open the session list filtered the way a chart element was clicked. */
+function actOpenList({ tool = "", project = null, from = null, to = null, file = null } = {}) {
+  actTip().style.display = "none";
+  switchSidebarMode("sessions");
+  $("q").value = "";
+  searchKeywords = [];
+  renderSearchTags();
+  currentTag = null;
+  currentOnlyFavorites = false;
+  $("favbtn")?.classList.remove("active");
+  currentFileTrace = file;
+  currentProject = project;
+  const toolSel = $("tool");
+  if (tool && ![...toolSel.options].some((o) => o.value === tool)) toolSel.appendChild(new Option(tool, tool));
+  toolSel.value = tool;
+  if (from !== null) {
+    const a = actDayKey(from);
+    const b = actDayKey((to ?? from + 1) - 1);
+    if (a === b) {
+      $("date-mode").value = "single";
+      $("date-single").value = a;
+    } else {
+      $("date-mode").value = "range";
+      $("date-from").value = a;
+      $("date-to").value = b;
+    }
+  } else {
+    $("date-mode").value = "all";
+  }
+  updateDateUI();
+  refresh();
+}
+
+// ---- loading ----
+
 async function loadActivityAnalytics() {
   const main = $("main");
   if (!main) return;
   main.replaceChildren(el("div", "placeholder", L.loading || "Loading analytics..."));
   try {
-    const data = await jget("/api/analytics");
-    if (!data || !data.summary) {
-      const errBox = el("div", "placeholder", "");
-      errBox.innerHTML = `
-        <div style="margin-bottom:12px;color:var(--ink-2);">${L.loadFailed || "Failed to load analytics"}</div>
-        <button type="button" class="btn primary" onclick="loadActivityAnalytics()">${L.retry || "Retry"}</button>
-      `;
-      main.replaceChildren(errBox);
-      return;
-    }
-    renderActivityDashboard(data);
+    const raw = await jget("/api/analytics");
+    actData = actPrepare(raw);
+    renderActivityDashboard();
   } catch (err) {
-    const errBox = el("div", "placeholder", "");
-    errBox.innerHTML = `
-      <div style="margin-bottom:8px;font-weight:600;color:var(--ink);">${L.loadFailed || "Failed to load analytics"}</div>
-      <div style="margin-bottom:14px;font-size:12px;color:var(--ink-3);">${err.message || String(err)}</div>
-      <button type="button" class="btn primary" onclick="loadActivityAnalytics()">${L.retry || "Retry"}</button>
-    `;
-    main.replaceChildren(errBox);
+    const box = el("div", "placeholder", "");
+    box.appendChild(el("div", "act-error", L.loadFailed || "Failed to load analytics"));
+    const btn = el("button", "btn primary", L.retry || "Retry");
+    btn.type = "button";
+    btn.onclick = loadActivityAnalytics;
+    box.appendChild(btn);
+    main.replaceChildren(box);
   }
 }
 
-function renderActivityDashboard(data) {
+// ---- dashboard ----
+
+function renderActivityDashboard() {
   const main = $("main");
-  if (!main) return;
-  main.replaceChildren();
+  const data = actData;
+  if (!main || !data) return;
+  const scrollTop = main.querySelector(".activity-dashboard")?.scrollTop || 0;
+  const win = actWindow(data, actPeriod);
+  const cur = actStats(data, win.start, win.end);
+  const prev = win.prev ? actStats(data, win.prev.start, win.prev.end) : null;
+  const buckets = actBuckets(win);
+  const streaks = actStreaks(data);
+  const periodLabel = (id) => ({
+    "7d": L.actPeriod7 || "7 days", "30d": L.actPeriod30 || "30 days", "90d": L.actPeriod90 || "90 days",
+    "1y": L.actPeriod1y || "Year", all: L.actPeriodAll || "All time",
+  })[id];
 
   const container = el("div", "activity-dashboard");
 
-  // Header
+  // Header with the period switch.
   const header = el("div", "activity-header");
   header.id = "sec-overview";
-  const title = el("div", "activity-title");
-  title.innerHTML = `<span>📊</span> <span>${L.analyticsTitle || "Activity & Agent Analytics"}</span>`;
-  const subtitle = el("div", "activity-subtitle", `${data.summary.active_days || 0} ${L.activeDays || "active days"} · ${(data.summary.total_sessions || 0).toLocaleString()} ${L.totalSessions || "sessions"}`);
-  header.append(title, subtitle);
+  const titleWrap = el("div", "");
+  titleWrap.appendChild(el("div", "activity-title", `📊 ${L.analyticsTitle || "Activity & Agent Analytics"}`));
+  titleWrap.appendChild(el("div", "activity-subtitle",
+    `${actFmtDate(win.start, { day: "numeric", month: "short", year: "numeric" })} – ${actFmtDate(win.end - 1, { day: "numeric", month: "short", year: "numeric" })}`));
+  const seg = el("div", "act-period");
+  seg.setAttribute("role", "group");
+  seg.setAttribute("aria-label", L.actPeriodLabel || "Period");
+  for (const p of ACT_PERIODS) {
+    const b = el("button", "act-period-btn" + (p.id === actPeriod ? " active" : ""), periodLabel(p.id));
+    b.type = "button";
+    b.setAttribute("aria-pressed", p.id === actPeriod ? "true" : "false");
+    b.onclick = () => {
+      actPeriod = p.id;
+      try { localStorage.setItem("act-period", p.id); } catch (e) {}
+      renderActivityDashboard();
+    };
+    seg.appendChild(b);
+  }
+  header.append(titleWrap, seg);
   container.appendChild(header);
 
-  // 1. Recap summary cards
-  const recapGrid = el("div", "recap-grid");
-  recapGrid.id = "sec-recap";
-  const cards = [
-    { label: L.totalSessions || "Total Sessions", val: (data.summary.total_sessions || 0).toLocaleString() },
-    { label: L.totalMessages || "Total Messages", val: (data.summary.total_messages || 0).toLocaleString() },
-    { label: L.touchedFilesCount || "Touched Files", val: (data.summary.total_touched_files || 0).toLocaleString() },
-    { label: L.totalSnippets || "Pinned Snippets", val: (data.summary.total_snippets || 0).toLocaleString() },
-    { label: L.activeDays || "Active Days", val: (data.summary.active_days || 0).toLocaleString() },
-    { label: L.primaryAgent || "Primary Agent", val: data.summary.top_tool || "-" },
+  // KPI cards: value for the period, change against the period before, and
+  // a sparkline over the period's buckets.
+  const kpiGrid = el("div", "act-kpis");
+  kpiGrid.id = "sec-recap";
+  const perBucket = buckets.map((b) => actStats(data, b.start, b.end));
+  const kpis = [
+    { key: "sessions", label: L.actKpiSessions || "Sessions", fmt: actFmtNum },
+    { key: "work", label: L.actKpiTime || "Time at work", fmt: actFmtDur, note: L.actTimeNote || "Estimated from session intervals; sessions longer than 6 h count their first and last hour." },
+    { key: "activeDays", label: L.actKpiDays || "Active days", fmt: (v) => `${actFmtNum(v)} / ${win.days}` },
+    { key: "msgs", label: L.actKpiMessages || "Messages", fmt: actFmtNum },
+    { key: "edits", label: L.actKpiEdits || "File edits", fmt: actFmtNum },
+    { key: "projects", label: L.actKpiProjects || "Projects", fmt: actFmtNum },
   ];
-
-  for (const c of cards) {
-    const card = el("div", "recap-card");
-    const val = el("div", "recap-val");
-    if (c.label === (L.primaryAgent || "Primary Agent") && c.val !== "-") {
-      const dot = el("span", "dot " + c.val);
-      val.appendChild(dot);
-      val.appendChild(document.createTextNode(" " + c.val));
+  for (const k of kpis) {
+    const card = el("div", "act-kpi");
+    if (k.note) card.title = k.note;
+    card.appendChild(el("div", "act-kpi-lbl", k.label));
+    card.appendChild(el("div", "act-kpi-val", k.fmt(cur[k.key])));
+    const foot = el("div", "act-kpi-foot");
+    if (prev) {
+      const before = prev[k.key];
+      let text;
+      if (!before) text = cur[k.key] ? (L.actNew || "new") : "—";
+      else {
+        const pct = Math.round(((cur[k.key] - before) / before) * 100);
+        text = `${pct > 0 ? "▲ +" : pct < 0 ? "▼ " : "■ "}${pct}%`;
+      }
+      foot.appendChild(el("span", "act-kpi-delta", text));
+      foot.appendChild(el("span", "act-kpi-vs", L.actVsPrev || "vs previous period"));
     } else {
-      val.textContent = c.val;
+      foot.appendChild(el("span", "act-kpi-vs", L.actAllTime || "all time"));
     }
-    const lbl = el("div", "recap-lbl", c.label);
-    card.append(val, lbl);
-    recapGrid.appendChild(card);
+    card.appendChild(foot);
+    const spark = actSparkline(perBucket.map((s) => s[k.key]));
+    card.appendChild(spark);
+    actHover(card, () => actTipLines(k.label, [
+      [periodLabel(actPeriod), k.fmt(cur[k.key])],
+      ...(prev ? [[L.actPrevPeriod || "Previous period", k.fmt(prev[k.key])]] : []),
+      ...(k.note ? [[k.note, ""]] : []),
+    ]));
+    kpiGrid.appendChild(card);
   }
-  container.appendChild(recapGrid);
+  container.appendChild(kpiGrid);
 
-  // 2. Heatmap Contribution Graph
-  const heatmapSection = el("div", "analytics-section");
-  heatmapSection.id = "sec-heatmap";
-  const hmHead = el("div", "section-head");
-  hmHead.innerHTML = `<span>📅 ${L.activityHeatmap || "Yearly Contribution Heatmap"}</span>`;
-  heatmapSection.appendChild(hmHead);
-
-  const dailyMap = {};
-  for (const d of (data.daily || [])) {
-    if (d.date) dailyMap[d.date] = d.count;
-  }
-
-  const daysTotal = 364; // 52 weeks * 7 days
-  const today = new Date();
-  const startDate = new Date(today);
-  startDate.setDate(today.getDate() - daysTotal + 1);
-
-  const hmScroll = el("div", "heatmap-scroll");
-  const hmCal = el("div", "heatmap-calendar");
-
-  let curDate = new Date(startDate);
-  for (let w = 0; w < 52; w++) {
-    const col = el("div", "heatmap-week");
-    for (let d = 0; d < 7; d++) {
-      const dateStr = curDate.toISOString().slice(0, 10);
-      const count = dailyMap[dateStr] || 0;
-      let level = "";
-      if (count >= 10) level = "l4";
-      else if (count >= 6) level = "l3";
-      else if (count >= 3) level = "l2";
-      else if (count >= 1) level = "l1";
-
-      const cell = el("div", "heatmap-cell" + (level ? " " + level : ""));
-      cell.title = `${dateStr}: ${count} session${count === 1 ? "" : "s"}`;
-      cell.onclick = () => {
-        switchSidebarMode("sessions");
-        const dateInput = $("date-single");
-        const dateMode = $("date-mode");
-        if (dateInput && dateMode) {
-          dateMode.value = "single";
-          dateInput.value = dateStr;
-          onDateFilterChange();
-        }
-      };
-      col.appendChild(cell);
-      curDate.setDate(curDate.getDate() + 1);
-    }
-    hmCal.appendChild(col);
-  }
-  hmScroll.appendChild(hmCal);
-  heatmapSection.appendChild(hmScroll);
-
-  const hmFoot = el("div", "heatmap-footer");
-  hmFoot.innerHTML = `<span>${L.less || "Less"}</span>`;
-  const legend = el("div", "heatmap-legend");
-  ["", "l1", "l2", "l3", "l4"].forEach(l => {
-    legend.appendChild(el("div", "heatmap-cell " + l));
-  });
-  legend.appendChild(el("span", "", L.more || "More"));
-  hmFoot.appendChild(legend);
-  heatmapSection.appendChild(hmFoot);
-  container.appendChild(heatmapSection);
-
-  // 3. Two column section: Hourly Chart + Agent Share
-  const twoCol = el("div", "analytics-two-col");
-
-  // Left: Hourly Chart
-  const hourlySection = el("div", "analytics-section");
-  hourlySection.id = "sec-hourly";
-  const hourlyHead = el("div", "section-head");
-  hourlyHead.innerHTML = `<span>⏰ ${L.hourlyDistribution || "Hourly Activity (24h)"}</span>`;
-  hourlySection.appendChild(hourlyHead);
-
-  const hourlyChart = el("div", "hourly-chart");
-  const maxHourly = Math.max(1, ...(data.hourly || []).map(h => h.count || 0));
-  (data.hourly || []).forEach(h => {
-    const col = el("div", "hourly-col");
-    const pct = Math.round(((h.count || 0) / maxHourly) * 100);
-    const bar = el("div", "hourly-bar");
-    bar.style.height = `${Math.max(4, pct)}%`;
-    bar.title = `${String(h.hour).padStart(2, '0')}:00 - ${h.count || 0} sessions`;
-    const label = el("div", "hourly-label", (h.hour % 4 === 0) ? `${h.hour}` : "");
-    col.append(bar, label);
-    hourlyChart.appendChild(col);
-  });
-  hourlySection.appendChild(hourlyChart);
-  twoCol.appendChild(hourlySection);
-
-  // Right: Agent Share
-  const agentSection = el("div", "analytics-section");
-  agentSection.id = "sec-agents";
-  const agentHead = el("div", "section-head");
-  agentHead.innerHTML = `<span>🤖 ${L.agentDistribution || "Agent Share"}</span>`;
-  agentSection.appendChild(agentHead);
-
-  const toolColors = {
-    "claude-code": "#d97706",
-    "codex": "#10b981",
-    "opencode": "#6366f1",
-    "gemini": "#3b82f6",
-    "antigravity": "#8b5cf6",
-    "qoder": "#ec4899",
-    "zcode": "#06b6d4",
-    "cline": "#f59e0b",
-    "aider": "#14b8a6",
-    "continue_dev": "#84cc16",
-    "deepseek": "#0ea5e9",
-    "hermes": "#f97316",
-    "kimi": "#a855f7"
+  // Streaks.
+  const strip = el("div", "act-streaks");
+  const streakItem = (icon, label, value, sub, onClick) => {
+    const it = el(onClick ? "button" : "div", "act-streak" + (onClick ? " clickable" : ""));
+    if (onClick) { it.type = "button"; it.onclick = onClick; }
+    it.appendChild(el("span", "act-streak-icon", icon));
+    const txt = el("span", "act-streak-txt");
+    txt.appendChild(el("span", "act-streak-val", value));
+    txt.appendChild(el("span", "act-streak-lbl", sub ? `${label} · ${sub}` : label));
+    it.appendChild(txt);
+    return it;
   };
+  const daysN = (n) => (L.actDaysN ? L.actDaysN(n) : `${n} d`);
+  strip.appendChild(streakItem("🔥", L.actStreakNow || "Current streak", daysN(streaks.current), ""));
+  if (streaks.best) {
+    strip.appendChild(streakItem("🏆", L.actStreakBest || "Longest streak", daysN(streaks.best),
+      `${actFmtDate(streaks.bestStart)} – ${actFmtDate(streaks.bestEnd)}`,
+      () => actOpenList({ from: streaks.bestStart, to: actAddDays(streaks.bestEnd, 1) })));
+  }
+  let busiest = null;
+  for (let t = win.start; t < win.end; t = actAddDays(t, 1)) {
+    const n = data.sessionsByDay.get(actDayKey(t)) || 0;
+    if (n && (!busiest || n > busiest.n)) busiest = { t, n };
+  }
+  if (busiest) {
+    strip.appendChild(streakItem("⚡", L.actBusiestDay || "Busiest day",
+      actFmtDate(busiest.t, { weekday: "short", day: "numeric", month: "short" }),
+      L.actSessionsN ? L.actSessionsN(busiest.n) : `${busiest.n} sessions`,
+      () => actOpenList({ from: busiest.t })));
+  }
+  container.appendChild(strip);
 
-  const agentList = el("div", "agent-share-list");
-  const totalToolSessions = (data.tools || []).reduce((acc, t) => acc + (t.count || 0), 0) || 1;
-  (data.tools || []).forEach(t => {
-    const item = el("div", "agent-share-item");
-    const top = el("div", "agent-share-top");
-    const nameWrap = el("span", "", "");
-    const dot = el("span", "dot " + t.tool);
-    nameWrap.append(dot, document.createTextNode(" " + t.tool));
-    const pct = Math.round(((t.count || 0) / totalToolSessions) * 100);
-    const countSpan = el("span", "", `${t.count} (${pct}%)`);
-    top.append(nameWrap, countSpan);
+  if (!cur.sessions) {
+    container.appendChild(el("div", "act-empty", L.actEmpty || "No sessions in this period"));
+  }
 
-    const track = el("div", "agent-share-bar-track");
-    const fill = el("div", "agent-share-bar-fill");
-    fill.style.width = `${pct}%`;
-    fill.style.backgroundColor = toolColors[t.tool] || "var(--accent, #6366f1)";
-    track.appendChild(fill);
-    item.append(top, track);
-    agentList.appendChild(item);
-  });
-  agentSection.appendChild(agentList);
-  twoCol.appendChild(agentSection);
+  // Sessions over time, stacked by agent.
+  const toolTotals = new Map();
+  for (const r of cur.rows) toolTotals.set(r.tool, (toolTotals.get(r.tool) || 0) + 1);
+  const tools = [...toolTotals.keys()].sort((a, b) => actToolRank(a) - actToolRank(b) || toolTotals.get(b) - toolTotals.get(a));
+  // Tools outside the fixed palette share one grey "other" stack.
+  const stackKey = (t) => (ACT_TOOL_ORDER.includes(t) ? t : "other");
+  const stackKeys = [...new Set(tools.map(stackKey))];
+  const stackLabel = (k) => (k === "other" ? (L.actOther || "other") : k);
+  const stackColor = (k) => (k === "other" ? "var(--series-other)" : actToolColor(k));
 
-  container.appendChild(twoCol);
+  if (cur.sessions) {
+    const legend = el("div", "act-legend");
+    for (const k of stackKeys) {
+      const n = tools.filter((t) => stackKey(t) === k).reduce((a, t) => a + toolTotals.get(t), 0);
+      const item = el(k === "other" ? "span" : "button", "act-legend-item");
+      if (k !== "other") {
+        item.type = "button";
+        item.onclick = () => actOpenList({ tool: k, from: win.start, to: win.end });
+      }
+      const sw = el("span", "act-swatch");
+      sw.style.background = stackColor(k);
+      item.append(sw, document.createTextNode(stackLabel(k)), el("span", "act-legend-n", actFmtNum(n)));
+      legend.appendChild(item);
+    }
+    const trend = actSection("sec-trend", "📈", L.actTrend || "Sessions by agent", legend);
+    const stacks = buckets.map((b) => {
+      const counts = new Map();
+      for (const r of data.rows) {
+        if (r.s >= b.start && r.s < b.end) counts.set(stackKey(r.tool), (counts.get(stackKey(r.tool)) || 0) + 1);
+      }
+      return { b, counts, total: [...counts.values()].reduce((a, v) => a + v, 0) };
+    });
+    const max = Math.max(1, ...stacks.map((s) => s.total));
+    const chart = el("div", "act-trend");
+    const axis = el("div", "act-trend-axis");
+    axis.append(el("span", "", actFmtNum(max)), el("span", "", actFmtNum(Math.round(max / 2))), el("span", "", "0"));
+    const plot = el("div", "act-trend-plot");
+    for (const st of stacks) {
+      const col = el("button", "act-trend-col");
+      col.type = "button";
+      col.setAttribute("aria-label", `${actBucketLabel(st.b)}: ${st.total}`);
+      const bar = el("div", "act-trend-bar");
+      bar.style.height = `${(st.total / max) * 100}%`;
+      for (const k of stackKeys) {
+        const n = st.counts.get(k);
+        if (!n) continue;
+        const segEl = el("div", "act-trend-seg");
+        segEl.style.flexGrow = String(n);
+        segEl.style.background = stackColor(k);
+        bar.appendChild(segEl);
+      }
+      col.appendChild(bar);
+      col.onclick = () => actOpenList({ from: st.b.start, to: st.b.end });
+      actHover(col, () => actTipLines(actBucketLabel(st.b), [
+        [L.actKpiSessions || "Sessions", actFmtNum(st.total)],
+        ...stackKeys.filter((k) => st.counts.get(k)).map((k) => [stackLabel(k), actFmtNum(st.counts.get(k)), stackColor(k)]),
+        [L.actKpiTime || "Time at work", actFmtDur(actStats(data, st.b.start, st.b.end).work)],
+      ]));
+      plot.appendChild(col);
+    }
+    chart.append(axis, plot);
+    trend.appendChild(chart);
+    const xlab = el("div", "act-trend-x");
+    const pick = [0, Math.floor((stacks.length - 1) / 2), stacks.length - 1];
+    for (const i of [...new Set(pick)]) {
+      const b = stacks[i].b;
+      xlab.appendChild(el("span", "", b.unit === "month" ? actFmtDate(b.start, { month: "short", year: "numeric" }) : actFmtDate(b.start)));
+    }
+    trend.appendChild(xlab);
+    trend.appendChild(el("div", "act-hint", L.actClickHint || "Click a bar to list its sessions"));
+    container.appendChild(trend);
+  }
 
-  // 4. Most Touched Files
-  if (data.top_files && data.top_files.length > 0) {
-    const filesSection = el("div", "analytics-section");
-    filesSection.id = "sec-files";
-    const filesHead = el("div", "section-head");
-    filesHead.innerHTML = `<span>📂 ${L.topTouchedFiles || "Most Touched Files"}</span>`;
-    filesSection.appendChild(filesHead);
+  // Yearly calendar: the last 53 weeks, Monday first, in local days.
+  const heat = actSection("sec-heatmap", "📅", L.activityHeatmap || "Activity over the year");
+  {
+    const today = actDayStart(Date.now());
+    const dow = (new Date(today).getDay() + 6) % 7;
+    const first = actAddDays(today, -dow - 52 * 7);
+    const counts = [];
+    for (let t = first; t <= today; t = actAddDays(t, 1)) counts.push(data.sessionsByDay.get(actDayKey(t)) || 0);
+    const nonzero = counts.filter(Boolean).sort((a, b) => a - b);
+    const q = (p) => nonzero.length ? nonzero[Math.min(nonzero.length - 1, Math.floor(p * nonzero.length))] : 1;
+    const cuts = [q(0.25), q(0.5), q(0.75)];
+    const level = (n) => (!n ? 0 : n <= cuts[0] ? 1 : n <= cuts[1] ? 2 : n <= cuts[2] ? 3 : 4);
+    const wrap = el("div", "act-hm-wrap");
+    const days = el("div", "act-hm-days");
+    for (let i = 0; i < 7; i++) {
+      const label = i % 2 === 0 ? new Date(2024, 0, 1 + i).toLocaleDateString(lang, { weekday: "short" }) : "";
+      days.appendChild(el("span", "", label));
+    }
+    const grid = el("div", "act-hm");
+    const months = el("div", "act-hm-months");
+    let lastMonth = -1;
+    let t = first;
+    for (let w = 0; w < 53; w++) {
+      const col = el("div", "act-hm-week");
+      const m = new Date(t).getMonth();
+      const mLabel = el("span", "", m !== lastMonth ? new Date(t).toLocaleDateString(lang, { month: "short" }) : "");
+      months.appendChild(mLabel);
+      lastMonth = m;
+      for (let d = 0; d < 7; d++, t = actAddDays(t, 1)) {
+        if (t > today) { col.appendChild(el("span", "act-hm-cell future")); continue; }
+        const key = actDayKey(t);
+        const n = data.sessionsByDay.get(key) || 0;
+        const cell = el("button", `act-hm-cell l${level(n)}`);
+        cell.type = "button";
+        cell.setAttribute("aria-label", `${key}: ${n}`);
+        const day = t;
+        cell.onclick = () => actOpenList({ from: day });
+        actHover(cell, () => actTipLines(actFmtDate(day, { weekday: "short", day: "numeric", month: "long", year: "numeric" }), [
+          [L.actKpiSessions || "Sessions", actFmtNum(n)],
+          [L.actKpiTime || "Time at work", actFmtDur(data.workByDay.get(key) || 0)],
+        ]));
+        col.appendChild(cell);
+      }
+      grid.appendChild(col);
+    }
+    const right = el("div", "act-hm-right");
+    right.append(months, grid);
+    const scroll = el("div", "act-hm-scroll");
+    scroll.appendChild(right);
+    wrap.append(days, scroll);
+    heat.appendChild(wrap);
+    const foot = el("div", "act-hm-foot");
+    foot.appendChild(el("span", "", L.less || "Less"));
+    for (let i = 0; i <= 4; i++) foot.appendChild(el("span", `act-hm-cell l${i}`));
+    foot.appendChild(el("span", "", L.more || "More"));
+    heat.appendChild(foot);
+    // Show the latest weeks first on narrow screens.
+    requestAnimationFrame(() => { scroll.scrollLeft = scroll.scrollWidth; });
+  }
+  container.appendChild(heat);
 
-    const filesList = el("div", "top-files-list");
-    for (const f of data.top_files) {
-      const row = el("div", "top-file-row");
+  // Projects in the period.
+  if (cur.sessions) {
+    const byProject = new Map();
+    for (const r of cur.rows) {
+      let p = byProject.get(r.project);
+      if (!p) byProject.set(r.project, (p = { project: r.project, sessions: 0, work: 0, segs: [], msgs: 0, last: 0, tools: new Map() }));
+      p.sessions++;
+      p.msgs += r.msgs;
+      p.segs.push(...actSegments(r));
+      p.last = Math.max(p.last, r.e);
+      p.tools.set(r.tool, (p.tools.get(r.tool) || 0) + 1);
+    }
+    for (const p of byProject.values()) p.work = actUnionLength(p.segs);
+    const list = [...byProject.values()].sort((a, b) => b.sessions - a.sessions || b.last - a.last);
+    const sec = actSection("sec-projects", "🗂", L.actProjects || "Projects",
+      el("span", "act-head-note", L.actProjectsN ? L.actProjectsN(list.length) : `${list.length}`));
+    const maxS = Math.max(1, ...list.map((p) => p.sessions));
+    const table = el("div", "act-projects");
+    for (const p of list.slice(0, 12)) {
+      const row = el("button", "act-project");
+      row.type = "button";
+      row.title = p.project || "";
+      const name = el("span", "act-project-name");
+      const tl = [...p.tools.entries()].sort((a, b) => b[1] - a[1]);
+      for (const [tool] of tl.slice(0, 3)) {
+        const sw = el("span", "act-swatch");
+        sw.style.background = actToolColor(tool);
+        name.appendChild(sw);
+      }
+      name.appendChild(document.createTextNode(actProjectName(p.project)));
+      const barTrack = el("span", "act-project-track");
+      const bar = el("span", "act-project-bar");
+      bar.style.width = `${(p.sessions / maxS) * 100}%`;
+      barTrack.appendChild(bar);
+      row.append(
+        name,
+        barTrack,
+        el("span", "act-project-num", actFmtNum(p.sessions)),
+        el("span", "act-project-num muted", actFmtDur(p.work)),
+        el("span", "act-project-num muted", actFmtDate(p.last)),
+      );
+      row.onclick = () => actOpenList({ project: p.project, from: win.start, to: win.end });
+      actHover(row, () => actTipLines(p.project || actProjectName(""), [
+        [L.actKpiSessions || "Sessions", actFmtNum(p.sessions)],
+        [L.actKpiMessages || "Messages", actFmtNum(p.msgs)],
+        [L.actKpiTime || "Time at work", actFmtDur(p.work)],
+        ...tl.map(([tool, n]) => [tool, actFmtNum(n), actToolColor(tool)]),
+      ]));
+      table.appendChild(row);
+    }
+    sec.appendChild(table);
+    container.appendChild(sec);
+  }
+
+  // Hour of day and agent share, side by side.
+  if (cur.sessions) {
+    const two = el("div", "analytics-two-col");
+    const hourly = actSection("sec-hourly", "⏰", L.actHourly || "Sessions started by hour");
+    const hours = new Array(24).fill(0);
+    for (const r of cur.rows) hours[new Date(r.s).getHours()]++;
+    const maxH = Math.max(1, ...hours);
+    const chart = el("div", "hourly-chart");
+    hours.forEach((n, h) => {
+      const col = el("div", "hourly-col");
+      const bar = el("div", "hourly-bar");
+      bar.style.height = `${Math.max(2, (n / maxH) * 100)}%`;
+      col.append(bar, el("div", "hourly-label", h % 3 === 0 ? String(h) : " "));
+      actHover(col, () => actTipLines(`${actPad(h)}:00 – ${actPad(h)}:59`, [[L.actKpiSessions || "Sessions", actFmtNum(n)]]));
+      chart.appendChild(col);
+    });
+    hourly.appendChild(chart);
+    two.appendChild(hourly);
+
+    const agents = actSection("sec-agents", "🤖", L.agentDistribution || "Agent share");
+    const alist = el("div", "agent-share-list");
+    for (const tool of [...tools].sort((a, b) => toolTotals.get(b) - toolTotals.get(a))) {
+      const n = toolTotals.get(tool);
+      const pct = Math.round((n / cur.sessions) * 100);
+      const item = el("button", "agent-share-item act-agent");
+      item.type = "button";
+      const top = el("div", "agent-share-top");
+      const nm = el("span", "");
+      const sw = el("span", "act-swatch");
+      sw.style.background = actToolColor(tool);
+      nm.append(sw, document.createTextNode(tool));
+      top.append(nm, el("span", "act-muted", `${actFmtNum(n)} · ${pct}%`));
+      const track = el("div", "agent-share-bar-track");
+      const fill = el("div", "agent-share-bar-fill");
+      fill.style.width = `${pct}%`;
+      fill.style.background = actToolColor(tool);
+      track.appendChild(fill);
+      item.append(top, track);
+      item.onclick = () => actOpenList({ tool, from: win.start, to: win.end });
+      alist.appendChild(item);
+    }
+    agents.appendChild(alist);
+    two.appendChild(agents);
+    container.appendChild(two);
+  }
+
+  // Most touched files in the period (fetched separately: it needs a join).
+  const files = actSection("sec-files", "📂", L.topTouchedFiles || "Most touched files");
+  const filesList = el("div", "top-files-list");
+  filesList.appendChild(el("div", "act-muted", L.loading || "Loading..."));
+  files.appendChild(filesList);
+  container.appendChild(files);
+  const seq = ++actFilesSeq;
+  const fq = `since=${encodeURIComponent(new Date(win.start).toISOString())}&until=${encodeURIComponent(new Date(win.end - 1).toISOString())}`;
+  jget(`/api/analytics/files?limit=12&${fq}`).then((rows) => {
+    if (seq !== actFilesSeq) return;
+    filesList.replaceChildren();
+    if (!rows.length) {
+      filesList.appendChild(el("div", "act-muted", L.actNoFiles || "No files touched in this period"));
+      return;
+    }
+    for (const f of rows) {
+      const row = el("button", "top-file-row");
+      row.type = "button";
+      row.title = f.path;
       const name = el("span", "top-file-name", "📄 " + f.path);
-      const cnt = el("span", "top-file-count", `${f.count} sessions`);
+      const cnt = el("span", "top-file-count",
+        `${L.actSessionsN ? L.actSessionsN(f.sessions) : f.sessions + " sessions"}${f.edits ? " · " + (L.actEditsN ? L.actEditsN(f.edits) : f.edits + " edits") : ""}`);
       row.append(name, cnt);
-      row.onclick = () => {
-        openFileHistory(f.path);
-      };
+      row.onclick = () => actOpenList({ file: f.path, from: win.start, to: win.end });
       filesList.appendChild(row);
     }
-    filesSection.appendChild(filesList);
-    container.appendChild(filesSection);
+  }).catch(() => {
+    if (seq === actFilesSeq) filesList.replaceChildren(el("div", "act-muted", L.loadFailed || "Failed to load"));
+  });
+
+  main.replaceChildren(container);
+  container.scrollTop = scrollTop;
+
+  // Sidebar navigation and recap.
+  const scrollSec = (id) => $(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const nav = { "act-btn-summary": "sec-recap", "act-btn-trend": "sec-trend", "act-btn-heatmap": "sec-heatmap",
+    "act-btn-projects": "sec-projects", "act-btn-hourly": "sec-hourly", "act-btn-agents": "sec-agents", "act-btn-files": "sec-files" };
+  for (const [btn, sec] of Object.entries(nav)) {
+    const b = $(btn);
+    if (b) b.onclick = () => scrollSec(sec);
   }
-
-  main.appendChild(container);
-
-  // Wire up sidebar navigation and mini recap
-  const scrollSec = (id) => {
-    const target = $(id);
-    if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-  const btnSummary = $("act-btn-summary");
-  if (btnSummary) btnSummary.onclick = () => scrollSec("sec-recap");
-  const btnHeatmap = $("act-btn-heatmap");
-  if (btnHeatmap) btnHeatmap.onclick = () => scrollSec("sec-heatmap");
-  const btnHourly = $("act-btn-hourly");
-  if (btnHourly) btnHourly.onclick = () => scrollSec("sec-hourly");
-  const btnAgents = $("act-btn-agents");
-  if (btnAgents) btnAgents.onclick = () => scrollSec("sec-agents");
-  const btnFiles = $("act-btn-files");
-  if (btnFiles) btnFiles.onclick = () => scrollSec("sec-files");
-
-  const sideRecap = $("activity-sidebar-recap");
-  if (sideRecap && data.summary) {
-    sideRecap.innerHTML = `
-      <div class="act-recap-title">${L.actSummary || "Quick Recap"}</div>
-      <div class="act-stat-row"><span class="stat-lbl">${L.totalSessions || "Sessions"}:</span> <span class="stat-val">${(data.summary.total_sessions || 0).toLocaleString()}</span></div>
-      <div class="act-stat-row"><span class="stat-lbl">${L.activeDays || "Active Days"}:</span> <span class="stat-val">${data.summary.active_days || 0}</span></div>
-      <div class="act-stat-row"><span class="stat-lbl">${L.primaryAgent || "Top Agent"}:</span> <span class="stat-val">${data.summary.top_tool || "-"}</span></div>
-      <div class="act-stat-row"><span class="stat-lbl">${L.totalMessages || "Messages"}:</span> <span class="stat-val">${(data.summary.total_messages || 0).toLocaleString()}</span></div>
-      <div class="act-stat-row"><span class="stat-lbl">${L.touchedFilesCount || "Files"}:</span> <span class="stat-val">${(data.summary.total_touched_files || 0).toLocaleString()}</span></div>
-    `;
+  const side = $("activity-sidebar-recap");
+  if (side) {
+    side.replaceChildren(el("div", "act-recap-title", `${L.actSummary || "Quick Recap"} · ${periodLabel(actPeriod)}`));
+    const stat = (label, value) => {
+      const row = el("div", "act-stat-row");
+      row.append(el("span", "stat-lbl", label), el("span", "stat-val", value));
+      side.appendChild(row);
+    };
+    stat(L.actKpiSessions || "Sessions", actFmtNum(cur.sessions));
+    stat(L.actKpiTime || "Time at work", actFmtDur(cur.work));
+    stat(L.actKpiDays || "Active days", `${cur.activeDays} / ${win.days}`);
+    stat(L.actStreakNow || "Current streak", daysN(streaks.current));
+    stat(L.totalSnippets || "Snippets", actFmtNum(data.totals.snippets || 0));
+    stat(L.actFavorites || "Favorites", actFmtNum(data.totals.favorites || 0));
   }
 }
 
