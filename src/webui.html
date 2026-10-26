@@ -479,7 +479,7 @@
     background: color-mix(in srgb, var(--bg) 88%, transparent);
     backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--line);
-    padding: 14px 40px 12px;
+    padding: 10px 36px 8px;
   }
   .doc-head-top {
     display: flex;
@@ -642,6 +642,33 @@
     stroke: var(--ink-3);
   }
   .export-md-btn:hover svg {
+    stroke: var(--ink);
+  }
+  .resume-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 11.5px;
+    font-weight: 560;
+    color: var(--ink-2);
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+  .resume-btn:hover {
+    color: var(--ink);
+    border-color: var(--ink-3);
+    background: var(--bg);
+  }
+  .resume-btn svg {
+    stroke: var(--ink-3);
+  }
+  .resume-btn:hover svg {
     stroke: var(--ink);
   }
   .fav-star-btn {
@@ -807,23 +834,114 @@
   }
   .doc-head .chips .chip { display: inline-flex; align-items: center; gap: 5px; }
   .doc-head .path { color: var(--ink-3); font-size: 11.5px; margin-top: 4px; overflow-wrap: anywhere; }
-  .doc-head .synopsis {
-    margin-top: 8px;
-    max-width: 820px;
-    font-size: 13px;
-    color: var(--ink-2);
-    border-top: 1px solid var(--line);
-    padding-top: 8px;
-  }
-  .doc-head .resume {
+  .doc-head-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
     margin-top: 6px;
+  }
+  .doc-head details.head-detail {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--card);
+    box-shadow: var(--shadow);
+    transition: all 0.15s ease;
+  }
+  .doc-head details.head-detail summary {
+    cursor: pointer;
     font-size: 11.5px;
+    font-weight: 560;
+    color: var(--ink-2);
+    padding: 2.5px 8px;
+    user-select: none;
+    outline: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    list-style: none;
+    border-radius: 5px;
+  }
+  .doc-head details.head-detail summary::-webkit-details-marker {
+    display: none;
+  }
+  .doc-head details.head-detail summary::before {
+    content: "▶";
+    font-size: 8.5px;
+    color: var(--ink-3);
+    transition: transform 0.15s ease;
+    display: inline-block;
+  }
+  .doc-head details.head-detail[open] summary::before {
+    transform: rotate(90deg);
+  }
+  .doc-head details.head-detail summary:hover {
+    color: var(--ink);
+    background: var(--bg-hover);
+    border-color: var(--line-strong);
+  }
+  .doc-head details.head-detail[open] {
+    width: 100%;
+    margin-top: 4px;
+    margin-bottom: 2px;
+    background: var(--bg-sunken);
+  }
+  .doc-head details.head-detail[open] summary {
+    border-bottom: 1px solid var(--line);
+    border-radius: 5px 5px 0 0;
+    color: var(--ink);
+    font-weight: 600;
+    background: var(--bg-hover);
+  }
+  .doc-head details.head-detail .head-detail-body {
+    padding: 8px 10px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--ink-2);
+    max-height: 240px;
+    overflow-y: auto;
+  }
+  .doc-head details.head-detail .synopsis-body {
+    font-size: 12.5px;
+    white-space: pre-wrap;
     color: var(--ink-2);
   }
-  .doc-head .resume code {
+  .doc-head details.head-detail .path-code {
     cursor: pointer;
+    overflow-wrap: anywhere;
+    word-break: break-all;
+    user-select: all;
+    display: inline-block;
+    padding: 3px 6px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: var(--mono, monospace);
   }
-  .doc-head .resume code:hover { border-color: var(--accent); color: var(--ink); }
+  .doc-head details.head-detail .path-code:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .doc-head details.head-detail .note-body {
+    white-space: pre-wrap;
+    font-size: 12px;
+  }
+  .doc-head details.head-detail ol.outline-ol {
+    margin: 0;
+    padding: 0 16px 4px 28px;
+    font-size: 12px;
+    color: var(--ink-2);
+  }
+  .doc-head details.head-detail ol.outline-ol li {
+    margin: 3px 0;
+    cursor: pointer;
+    line-height: 1.4;
+  }
+  .doc-head details.head-detail ol.outline-ol li:hover {
+    color: var(--accent);
+    text-decoration: underline;
+  }
   .doc-head .tags { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .tagchip {
     font-size: 11.5px;
@@ -2797,6 +2915,7 @@ const I18N = {
     phP1: "Все ваши диалоги с ИИ-агентами в одном месте. Поиск по всем инструментам сразу.",
     phP2: "Выполните `wikiagents list` или `search` в терминале для обновления индекса, затем обновите эту страницу.",
     messages: (n) => `Сообщений: ${n}`,
+    planLabel: "План", summaryLabel: "Саммари", pathLabel: "Путь", noteLabel: "Заметка", resumeBtn: "Терминал", subagentsLabel: "Подагенты",
     resumeLabel: "продолжить в терминале: ",
     copied: "скопировано",
     clickToCopy: "Нажмите для копирования",
@@ -2905,6 +3024,7 @@ const I18N = {
     phP1: "Everything your coding agents ever said, in one place. Search works across every tool at once - partial words and CJK included.",
     phP2: "The index updates when you run `wikiagents list` or `search` in a terminal; reload this page afterwards.",
     messages: (n) => `${n} messages`,
+    planLabel: "Plan", summaryLabel: "Summary", pathLabel: "Path", noteLabel: "Note", resumeBtn: "Resume", subagentsLabel: "Subagents",
     resumeLabel: "resume in terminal: ",
     copied: "copied",
     clickToCopy: "Click to copy",
@@ -4518,6 +4638,31 @@ function renderCurrentSession(keepScroll) {
   };
   actions.appendChild(exportBtn);
 
+  if (s.resume) {
+    const resumeBtn = el("button", "resume-btn");
+    resumeBtn.id = "session-resume-btn";
+    resumeBtn.title = `${L.resumeLabel || "Resume in terminal: "}${s.resume}\n${L.clickToCopy || "Click to copy"}`;
+    resumeBtn.innerHTML = `
+      <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="4 6 7 9 4 12"></polyline>
+        <line x1="9" y1="12" x2="13" y2="12"></line>
+      </svg>
+      <span>${L.resumeBtn || "Resume"}</span>
+    `;
+    resumeBtn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(s.resume);
+        const prevHtml = resumeBtn.innerHTML;
+        resumeBtn.innerHTML = `<span>✓</span><span>${L.copied || "Copied"}</span>`;
+        showToast(`✓ ${L.copied || "Copied"}: ${s.resume}`);
+        setTimeout(() => { resumeBtn.innerHTML = prevHtml; }, 1200);
+      } catch (e) {
+        showToast(`✓ ${s.resume}`);
+      }
+    };
+    actions.appendChild(resumeBtn);
+  }
+
   const isFav = favoriteSet.has(s.id) || !!s.favorite;
   if (isFav) favoriteSet.add(s.id);
   const favStarBtn = el("button", "fav-star-btn" + (isFav ? " active" : ""));
@@ -4554,61 +4699,72 @@ function renderCurrentSession(keepScroll) {
   chipsRow.appendChild(actions);
   head.appendChild(chipsRow);
 
-  if (s.subagents && s.subagents.length) {
-    const subDet = el("details", "subagents-details");
-    subDet.open = true;
-    const subSum = el("summary", "", `🤖 ${L.subagentsLabel || "Subagents"} (${s.subagents.length})`);
-    subDet.appendChild(subSum);
-    const subList = el("div", "subagents-list");
-    for (const sub of s.subagents) {
-      const item = el("div", "subagent-item");
-      const dot = el("span", "dot " + sub.tool);
-      const name = el("span", "subagent-name", sub.title || L.untitled);
-      const meta = el("span", "subagent-meta", `${fmtDate(sub.started)} · ${L.msgs(sub.msgs)}`);
-      item.appendChild(dot);
-      item.appendChild(name);
-      item.appendChild(meta);
-      item.onclick = () => openSession(sub.id);
-      subList.appendChild(item);
-    }
-    subDet.appendChild(subList);
-    head.appendChild(subDet);
-  }
-
   renderSessionTags(s, tagsList);
-  head.appendChild(el("div", "path", s.path));
+
+  const userTurns = s.outline || s.messages.flatMap((m, i) => {
+    const t = m.text.trimStart();
+    return m.role === "user" && !t.startsWith("<") && !t.startsWith("[Request interrupted")
+      ? [{ i, text: m.text.replace(/\s+/g, " ").slice(0, 110) }] : [];
+  });
+
+  const headBar = el("div", "doc-head-bar");
 
   if (s.summary) {
-    head.appendChild(el("div", "synopsis", s.summary));
+    const sumDet = el("details", "head-detail summary-detail");
+    sumDet.setAttribute("name", "head-info");
+    const sumTitle = el("summary", "", `📝 ${L.summaryLabel || "Summary"}`);
+    sumDet.appendChild(sumTitle);
+    const sumBody = el("div", "head-detail-body synopsis-body", s.summary);
+    sumDet.appendChild(sumBody);
+    headBar.appendChild(sumDet);
   }
 
+  if (userTurns.length >= 3) {
+    const planDet = el("details", "head-detail plan-detail");
+    planDet.setAttribute("name", "head-info");
+    const planSum = el("summary", "", `📋 ${L.planLabel || "Plan"} (${userTurns.length})`);
+    planSum.title = L.outline ? L.outline(userTurns.length) : `Plan (${userTurns.length})`;
+    planDet.appendChild(planSum);
+    const planBody = el("div", "head-detail-body");
+    const ol = el("ol", "outline-ol");
+    for (const ut of userTurns) {
+      const li = el("li", "", ut.text);
+      li.onclick = async () => {
+        const target = await loadThrough(ut.i);
+        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      };
+      ol.appendChild(li);
+    }
+    planBody.appendChild(ol);
+    planDet.appendChild(planBody);
+    headBar.appendChild(planDet);
+  }
 
-  // Collapsible files list (collapsed by default)
   if (s.touched && s.touched.length) {
-    const det = el("details", "files-details");
-    const sum = el("summary", "", `${L.filesLabel || "Files"} (${s.touched.length})`);
-    det.appendChild(sum);
-    const row = el("div", "files");
+    const filesDet = el("details", "head-detail files-detail");
+    filesDet.setAttribute("name", "head-info");
+    const filesSum = el("summary", "", `📁 ${L.filesLabel || "Files"} (${s.touched.length})`);
+    filesDet.appendChild(filesSum);
+    const filesBody = el("div", "head-detail-body files");
     for (const p of s.touched) {
       const parts = p.split(/[\/\\]/);
       const base = parts.pop() || p;
       const chip = el("span", "filechip", base);
       chip.title = p;
       chip.onclick = () => showFileHistory(p, chip);
-      row.appendChild(chip);
+      filesBody.appendChild(chip);
     }
-    det.appendChild(row);
-    head.appendChild(det);
+    filesDet.appendChild(filesBody);
+    headBar.appendChild(filesDet);
   }
 
-  // Related sessions (shared files, tags, project), filled in the background
-  // and shown only when there are any.
-  const relDet = el("details", "subagents-details related-details");
+  const relDet = el("details", "head-detail related-detail");
+  relDet.setAttribute("name", "head-info");
   relDet.style.display = "none";
   const relSum = el("summary", "", `🔗 ${L.seeAlso || "Related sessions"}`);
-  const relList = el("div", "subagents-list");
-  relDet.append(relSum, relList);
-  head.appendChild(relDet);
+  const relBody = el("div", "head-detail-body subagents-list");
+  relDet.append(relSum, relBody);
+  headBar.appendChild(relDet);
   jget("/api/related/" + encodeURIComponent(s.id)).then((rel) => {
     if (currentSession !== s || !rel || !rel.length) return;
     relSum.textContent = `🔗 ${L.seeAlso || "Related sessions"} (${rel.length})`;
@@ -4618,55 +4774,66 @@ function renderCurrentSession(keepScroll) {
       item.appendChild(el("span", "subagent-name", r.title || L.untitled));
       item.appendChild(el("span", "subagent-meta", `${r.tool} · ${fmtDate(r.started)} · ${L.msgs(r.msgs)}`));
       item.onclick = () => openSession(r.id);
-      relList.appendChild(item);
+      relBody.appendChild(item);
     }
     relDet.style.display = "";
   }).catch(() => {});
 
-  if (s.note) {
-    head.appendChild(el("div", "note", s.note));
+  if (s.subagents && s.subagents.length) {
+    const subDet = el("details", "head-detail subagents-detail");
+    subDet.setAttribute("name", "head-info");
+    const subSum = el("summary", "", `🤖 ${L.subagentsLabel || "Subagents"} (${s.subagents.length})`);
+    subDet.appendChild(subSum);
+    const subBody = el("div", "head-detail-body subagents-list");
+    for (const sub of s.subagents) {
+      const item = el("div", "subagent-item");
+      const dot = el("span", "dot " + sub.tool);
+      const name = el("span", "subagent-name", sub.title || L.untitled);
+      const meta = el("span", "subagent-meta", `${fmtDate(sub.started)} · ${L.msgs(sub.msgs)}`);
+      item.appendChild(dot);
+      item.appendChild(name);
+      item.appendChild(meta);
+      item.onclick = () => openSession(sub.id);
+      subBody.appendChild(item);
+    }
+    subDet.appendChild(subBody);
+    headBar.appendChild(subDet);
   }
-  if (s.resume) {
-    const row = el("div", "resume");
-    row.appendChild(document.createTextNode(L.resumeLabel));
-    const code = el("code", "", s.resume);
-    code.title = L.clickToCopy;
-    code.onclick = async () => {
+
+  if (s.path) {
+    const pathDet = el("details", "head-detail path-detail");
+    pathDet.setAttribute("name", "head-info");
+    const pathSum = el("summary", "", `ℹ️ ${L.pathLabel || "Path"}`);
+    pathDet.appendChild(pathSum);
+    const pathBody = el("div", "head-detail-body");
+    const pathCode = el("code", "path-code", s.path);
+    pathCode.title = L.clickToCopy || "Click to copy";
+    pathCode.onclick = async () => {
       try {
-        await navigator.clipboard.writeText(s.resume);
-        const prev = code.textContent;
-        code.textContent = L.copied;
-        setTimeout(() => { code.textContent = prev; }, 900);
-      } catch (e) { /* clipboard unavailable over plain http on some setups */ }
+        await navigator.clipboard.writeText(s.path);
+        showToast(`✓ ${L.copied || "Copied"}: ${s.path}`);
+      } catch (e) {}
     };
-    row.appendChild(code);
-    head.appendChild(row);
+    pathBody.appendChild(pathCode);
+    pathDet.appendChild(pathBody);
+    headBar.appendChild(pathDet);
+  }
+
+  if (s.note) {
+    const noteDet = el("details", "head-detail note-detail");
+    noteDet.setAttribute("name", "head-info");
+    const noteSum = el("summary", "", `📌 ${L.noteLabel || "Note"}`);
+    noteDet.appendChild(noteSum);
+    const noteBody = el("div", "head-detail-body note-body", s.note);
+    noteDet.appendChild(noteBody);
+    headBar.appendChild(noteDet);
+  }
+
+  if (headBar.children.length > 0) {
+    head.appendChild(headBar);
   }
 
   const doc = el("div", "doc");
-
-  // Outline: user turns. The server sends it for the whole session, so it is
-  // complete before every page has loaded; an entry not loaded yet loads first.
-  const userTurns = s.outline || s.messages.flatMap((m, i) => {
-    const t = m.text.trimStart();
-    return m.role === "user" && !t.startsWith("<") && !t.startsWith("[Request interrupted")
-      ? [{ i, text: m.text.replace(/\s+/g, " ").slice(0, 110) }] : [];
-  });
-  if (userTurns.length >= 3) {
-    const det = el("details", "outline");
-    det.appendChild(el("summary", "", L.outline(userTurns.length)));
-    const ol = el("ol");
-    for (const ut of userTurns) {
-      const li = el("li", "", ut.text);
-      li.onclick = async () => {
-        const target = await loadThrough(ut.i);
-        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
-      };
-      ol.appendChild(li);
-    }
-    det.appendChild(ol);
-    doc.appendChild(det);
-  }
 
   if (!s.messages.length) {
     doc.appendChild(el("div", "empty", L.noMessages || "No messages."));

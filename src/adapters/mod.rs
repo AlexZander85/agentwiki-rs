@@ -152,7 +152,7 @@ pub(crate) fn root_scope(root: Option<&Path>) -> Option<String> {
 }
 
 pub fn all() -> Vec<Box<dyn Adapter>> {
-    vec![
+    let mut adapters: Vec<Box<dyn Adapter>> = vec![
         Box::new(ClaudeCode::default()),
         Box::new(Codex::default()),
         Box::new(Codex::archived()),
@@ -174,7 +174,25 @@ pub fn all() -> Vec<Box<dyn Adapter>> {
         Box::new(deepseek::DeepSeek),
         Box::new(hermes::Hermes),
         Box::new(kimi::Kimi),
-    ]
+    ];
+
+    if let Some(home) = crate::util::home_dir() {
+        let accounts_dir = home.join(".claude-accounts");
+        if accounts_dir.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(accounts_dir) {
+                for entry in entries.flatten() {
+                    if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                        let projects = entry.path().join("projects");
+                        if projects.is_dir() {
+                            adapters.push(Box::new(ClaudeCode::in_home(entry.path())));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    adapters
 }
 
 pub fn by_name(name: &str) -> Option<Box<dyn Adapter>> {
