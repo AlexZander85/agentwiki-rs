@@ -833,6 +833,30 @@
     color: var(--ink-2); font-size: 12px;
   }
   .doc-head .chips .chip { display: inline-flex; align-items: center; gap: 5px; }
+  .doc-head .chips .chip.chip-clickable {
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 1px 5px;
+    margin: -1px -5px;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .doc-head .chips .chip.chip-clickable:hover {
+    background: var(--hover);
+    color: var(--ink);
+    text-decoration: underline;
+  }
+  .item-proj-link {
+    cursor: pointer;
+    border-radius: 3px;
+    padding: 0 2px;
+    margin: 0 -2px;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .item-proj-link:hover {
+    background: var(--hover);
+    color: var(--ink);
+    text-decoration: underline;
+  }
   .doc-head .path { color: var(--ink-3); font-size: 11.5px; margin-top: 4px; overflow-wrap: anywhere; }
   .doc-head-bar {
     display: flex;
@@ -2943,7 +2967,7 @@ const I18N = {
     lastActivePrefix: "посл.",
     searchInChat: "Поиск в чате...",
     copyCodeBtn: "📋 Копировать", copiedCode: "✓ Скопировано", copyCode: "Копировать код",
-    ctxFindSessions: "Найти все сессии", ctxCopyPath: "Копировать путь к файлу", copiedPath: "✓ Путь скопирован",
+    ctxFindSessions: "Найти все сессии", ctxFindProject: "Найти все сессии проекта", filterByProject: "Фильтровать сессии по проекту", ctxCopyPath: "Копировать путь к файлу", copiedPath: "✓ Путь скопирован",
     fileFilterChip: (f) => `файл: ${f}`, filterSidebarBtn: "Фильтровать список", filterSidebarTip: "Показать все сессии, изменявшие этот файл",
     favlabel: "Избранное", favAdded: "★ Добавлено в избранное", favRemoved: "☆ Удалено из избранного",
     addToFav: "Добавить в избранное", remFromFav: "Удалить из избранного",
@@ -3052,7 +3076,7 @@ const I18N = {
     lastActivePrefix: "last",
     searchInChat: "Search in chat...",
     copyCodeBtn: "📋 Copy", copiedCode: "✓ Copied", copyCode: "Copy code",
-    ctxFindSessions: "Find all sessions", ctxCopyPath: "Copy file path", copiedPath: "✓ Copied file path",
+    ctxFindSessions: "Find all sessions", ctxFindProject: "Find all project sessions", filterByProject: "Filter sessions by project", ctxCopyPath: "Copy file path", copiedPath: "✓ Copied file path",
     fileFilterChip: (f) => `file: ${f}`, filterSidebarBtn: "Filter list", filterSidebarTip: "Show all sessions touching this file in sidebar",
     favlabel: "Favorites", favAdded: "★ Added to favorites", favRemoved: "☆ Removed from favorites",
     addToFav: "Add to favorites", remFromFav: "Remove from favorites",
@@ -3163,7 +3187,7 @@ const I18N = {
     lastActivePrefix: "최근",
     searchInChat: "이 대화에서 검색...",
     copyCodeBtn: "📋 복사", copiedCode: "✓ 복사됨", copyCode: "코드 복사",
-    ctxFindSessions: "모든 세션 찾기", ctxCopyPath: "파일 경로 복사", copiedPath: "✓ 파일 경로가 복사되었습니다",
+    ctxFindSessions: "모든 세션 찾기", ctxFindProject: "프로젝트의 모든 세션 찾기", filterByProject: "프로젝트별 세션 필터링", ctxCopyPath: "파일 경로 복사", copiedPath: "✓ 파일 경로가 복사되었습니다",
     fileFilterChip: (f) => `파일: ${f}`, filterSidebarBtn: "목록 필터링", filterSidebarTip: "이 파일을 수정한 모든 세션을 사이드바에 표시",
     favlabel: "즐겨찾기", favAdded: "★ 즐겨찾기에 추가됨", favRemoved: "☆ 즐겨찾기에서 제거됨",
     addToFav: "즐겨찾기에 추가", remFromFav: "즐겨찾기에서 제거",
@@ -3255,7 +3279,7 @@ const I18N = {
     lastActivePrefix: "最終",
     searchInChat: "チャット内を検索...",
     copyCodeBtn: "📋 コピー", copiedCode: "✓ コピー完了", copyCode: "コードをコピー",
-    ctxFindSessions: "すべてのセッションを検索", ctxCopyPath: "ファイルパスをコピー", copiedPath: "✓ ファイルパスをコピーしました",
+    ctxFindSessions: "すべてのセッションを検索", ctxFindProject: "プロジェクトのすべてのセッションを検索", filterByProject: "プロジェクトでセッションを絞り込む", ctxCopyPath: "ファイルパスをコピー", copiedPath: "✓ ファイルパスをコピーしました",
     fileFilterChip: (f) => `ファイル: ${f}`, filterSidebarBtn: "一覧をフィルター", filterSidebarTip: "このファイルを変更したすべてのセッションをサイドバーに表示",
     favlabel: "お気に入り", favAdded: "★ お気に入りに追加しました", favRemoved: "☆ お気に入りから削除しました",
     addToFav: "お気に入りに追加", remFromFav: "お気に入りから削除",
@@ -3347,7 +3371,7 @@ const I18N = {
     lastActivePrefix: "最后",
     searchInChat: "在当前对话中搜索...",
     copyCodeBtn: "📋 复制", copiedCode: "✓ 已复制", copyCode: "复制代码",
-    ctxFindSessions: "查找所有会话", ctxCopyPath: "复制文件路径", copiedPath: "✓ 已复制文件路径",
+    ctxFindSessions: "查找所有会话", ctxFindProject: "查找项目的所有会话", filterByProject: "按项目筛选会话", ctxCopyPath: "复制文件路径", copiedPath: "✓ 已复制文件路径",
     fileFilterChip: (f) => `文件: ${f}`, filterSidebarBtn: "筛选列表", filterSidebarTip: "在侧栏显示修改过此文件的所有会话",
     favlabel: "收藏夹", favAdded: "★ 已添加到收藏", favRemoved: "☆ 已从收藏中移除",
     addToFav: "添加到收藏", remFromFav: "从收藏中移除",
@@ -3662,6 +3686,7 @@ function applyStaticStrings() {
   if ($("ctx-search-chat-label")) $("ctx-search-chat-label").textContent = L.ctxSearchChat || "Search in chat";
   if ($("ctx-search-google-label")) $("ctx-search-google-label").textContent = L.ctxSearchGoogle || "Search in Google";
   if ($("ctx-find-file-label")) $("ctx-find-file-label").textContent = L.ctxFindSessions || "Find all sessions";
+  if ($("ctx-find-project-label")) $("ctx-find-project-label").textContent = L.ctxFindProject || "Find all project sessions";
   if ($("ctx-copy-path-label")) $("ctx-copy-path-label").textContent = L.ctxCopyPath || "Copy file path";
   if ($("favlabel")) $("favlabel").textContent = L.favlabel || "Favorites";
   if ($("ctx-fav-session-label")) $("ctx-fav-session-label").textContent = L.addToFav || "Add to favorites";
@@ -3805,8 +3830,18 @@ function fmtDate(iso) {
 
 function cleanProjectPath(proj) {
   if (!proj || proj === "-" || proj === "null" || proj === "undefined") return "";
-  const p = proj.replace(/^["']|["']$/g, "").trim();
+  let p = proj.replace(/^["']+|["']+$/g, "").trim();
+  p = p.replace(/\\/g, "\\");
+  p = p.replace(/^["']+|["']+$/g, "").trim();
   return (p === "-" || p === "null" || p === "undefined") ? "" : p;
+}
+
+function normProjectPath(p) {
+  if (!p) return "";
+  let s = cleanProjectPath(p);
+  s = s.replace(/\\/g, "/");
+  s = s.replace(/\/+$/, "");
+  return s.toLowerCase().trim();
 }
 
 function dayGroup(iso) {
@@ -4320,6 +4355,7 @@ function renderItems(rows, isSearch) {
     }
     const item = el("div", "item");
     item.dataset.id = r.id;
+    if (r.project) item.dataset.project = r.project;
     const titleEl = el("div", "title");
     if (favoriteSet.has(r.id)) {
       const star = el("span", "item-fav-star", "★ ");
@@ -4331,12 +4367,21 @@ function renderItems(rows, isSearch) {
     const meta = el("div", "meta");
     meta.appendChild(el("span", "dot " + r.tool));
     const cleanProj = cleanProjectPath(r.project);
-    const projStr = cleanProj ? ` · ${cleanProj}` : "";
     const sub = r.kind === "sub" ? ` · ${L.subagent}` : "";
     const acct = r.account ? ` · @${r.account}` : ""; // swapdex account badge
     const lastStr = r.last_active ? ` · ${(L.lastActivePrefix || "last")} ${fmtDate(r.last_active)}` : "";
-    const metaSpan = el("span", "", `${r.tool}${projStr} · ${fmtDate(r.started)} · ${L.msgs(r.msgs)}${lastStr}${sub}${acct}`);
-    if (cleanProj) metaSpan.title = cleanProj;
+    const metaSpan = el("span", "", `${r.tool} · `);
+    if (cleanProj) {
+      const projSpan = el("span", "item-proj-link", cleanProj);
+      projSpan.title = `${L.filterByProject || "Filter sessions by project"}: ${cleanProj}`;
+      projSpan.onclick = (e) => {
+        e.stopPropagation();
+        filterByProject(r.project);
+      };
+      metaSpan.appendChild(projSpan);
+      metaSpan.appendChild(document.createTextNode(" · "));
+    }
+    metaSpan.appendChild(document.createTextNode(`${fmtDate(r.started)} · ${L.msgs(r.msgs)}${lastStr}${sub}${acct}`));
     meta.appendChild(metaSpan);
     item.appendChild(meta);
     if (isSearch && r.snippet) {
@@ -4515,7 +4560,16 @@ function renderCurrentSession(keepScroll) {
   toolChip.appendChild(el("span", "dot " + s.tool));
   toolChip.appendChild(document.createTextNode(s.tool));
   chips.appendChild(toolChip);
-  chips.appendChild(el("span", "chip", cleanProjectPath(s.project) || "-"));
+  const cleanProj = cleanProjectPath(s.project);
+  const projChip = el("span", "chip" + (cleanProj ? " chip-clickable" : ""), cleanProj || "-");
+  if (cleanProj) {
+    projChip.title = `${L.filterByProject || "Filter sessions by project"}: ${cleanProj}`;
+    projChip.onclick = (e) => {
+      e.stopPropagation();
+      filterByProject(s.project);
+    };
+  }
+  chips.appendChild(projChip);
   chips.appendChild(el("span", "chip", fmtDate(s.started)));
   if (s.ended) chips.appendChild(el("span", "chip", (L.lastActivePrefix || "last") + " " + fmtDate(s.ended)));
 
@@ -5370,6 +5424,15 @@ function filterByFile(filePath) {
   refresh();
 }
 
+function filterByProject(projPath) {
+  const p = cleanProjectPath(projPath);
+  if (!p) return;
+  if (typeof switchSidebarMode === "function") switchSidebarMode("sessions");
+  currentProject = p;
+  if ($("q")) $("q").value = "";
+  refresh();
+}
+
 // The list line under a title. An instant summary reads "request → result ·
 // counts"; when its request is what the title already says, show from the
 // result on, so the two preview lines carry news.
@@ -5399,7 +5462,12 @@ async function refresh() {
   const uParam = until ? `&until=${encodeURIComponent(until)}` : "";
   const subParam = $("show-subagents-cb") && $("show-subagents-cb").checked ? "&subagents=1" : "";
   const tagParam = currentTag ? `&tag=${encodeURIComponent(currentTag)}` : "";
-  const projParam = currentProject ? `&project=${encodeURIComponent(currentProject)}` : "";
+  let projParam = "";
+  if (currentProject) {
+    const folder = cleanProjectPath(currentProject).split(/[\\/]/).filter(Boolean).pop();
+    const queryTerm = (folder && folder.length >= 2) ? folder : cleanProjectPath(currentProject);
+    projParam = `&project=${encodeURIComponent(queryTerm)}`;
+  }
   // The listing is sorted by the server so "created" and "message count"
   // cover every session, not just the 500 most recently active.
   const sortMode = $("sort-mode") ? $("sort-mode").value : "last_active";
@@ -5447,9 +5515,13 @@ async function refresh() {
   if (currentOnlyFavorites) {
     items = items.filter((row) => favoriteSet.has(row.id));
   }
-  // The server matches projects by substring; keep the exact one.
+  // The server matches projects by substring; keep the exact one or matching root.
   if (currentProject !== null) {
-    items = items.filter((row) => row.project === currentProject);
+    const targetNorm = normProjectPath(currentProject);
+    items = items.filter((row) => {
+      const n = normProjectPath(row.project);
+      return n === targetNorm || n.startsWith(targetNorm + "/");
+    });
   }
 
   // Client-side date filter for the modes the server does not filter by date
@@ -6126,7 +6198,8 @@ function setupContextMenu() {
       activeFileTarget = null;
       activeSelectionText = "";
 
-      if ($("ctx-fav-session")) $("ctx-fav-session").style.display = "none";
+      if ($("ctx-find-project")) $("ctx-find-project").style.display = "none";
+    if ($("ctx-fav-session")) $("ctx-fav-session").style.display = "none";
       if ($("ctx-brief-session")) $("ctx-brief-session").style.display = "none";
       if ($("ctx-export-session")) $("ctx-export-session").style.display = "none";
       if ($("ctx-forget-session")) $("ctx-forget-session").style.display = "none";
@@ -6162,6 +6235,7 @@ function setupContextMenu() {
       return;
     }
 
+    if ($("ctx-find-project")) $("ctx-find-project").style.display = "none";
     if ($("ctx-rename-snippet")) $("ctx-rename-snippet").style.display = "none";
     if ($("ctx-copy-snippet-md")) $("ctx-copy-snippet-md").style.display = "none";
     if ($("ctx-export-snippet-md")) $("ctx-export-snippet-md").style.display = "none";
@@ -6169,11 +6243,15 @@ function setupContextMenu() {
 
 
     const sessionItem = e.target.closest(".item[data-id]");
-    if (sessionItem) {
+    const docHead = !sessionItem && e.target.closest(".doc-head");
+    if (sessionItem || (docHead && currentSession)) {
       e.preventDefault();
-      const sId = sessionItem.dataset.id;
-      const title = sessionItem.querySelector(".title")?.textContent.replace(/^★\s*/, "").trim() || "";
-      activeSessionTarget = { id: sId, title, element: sessionItem };
+      const sId = sessionItem ? sessionItem.dataset.id : currentSession.id;
+      const sProject = sessionItem ? (sessionItem.dataset.project || "") : (currentSession.project || "");
+      const title = sessionItem
+        ? (sessionItem.querySelector(".title")?.textContent.replace(/^★\s*/, "").trim() || "")
+        : (currentSession.title || "");
+      activeSessionTarget = { id: sId, title, project: sProject, element: sessionItem || docHead };
       activeFileTarget = null;
       activeSelectionText = "";
       activeSnippetTarget = null;
@@ -6201,6 +6279,17 @@ function setupContextMenu() {
       if ($("ctx-export-session")) {
         $("ctx-export-session").style.display = "flex";
         $("ctx-export-session-label").textContent = L.exportMdBtn || "Export .md";
+      }
+      if ($("ctx-find-project")) {
+        const cleanP = cleanProjectPath(sProject);
+        if (cleanP) {
+          $("ctx-find-project").style.display = "flex";
+          const projName = cleanP.split(/[\\/]/).filter(Boolean).pop() || cleanP;
+          $("ctx-find-project-label").textContent = `${L.ctxFindProject || "Find all project sessions"} (${projName})`;
+          $("ctx-find-project").title = cleanP;
+        } else {
+          $("ctx-find-project").style.display = "none";
+        }
       }
       if ($("ctx-forget-session")) {
         $("ctx-forget-session").style.display = "flex";
@@ -6401,6 +6490,14 @@ function setupContextMenu() {
       }
     }
     hideContextMenu();
+  });
+
+  // Find all project sessions context click
+  $("ctx-find-project")?.addEventListener("click", () => {
+    hideContextMenu();
+    if (activeSessionTarget && activeSessionTarget.project) {
+      filterByProject(activeSessionTarget.project);
+    }
   });
 
   // Find all sessions for file click
@@ -7905,6 +8002,10 @@ setupSnippetsControls();
 })();
 </script>
 <div id="custom-context-menu" class="custom-context-menu" style="display: none;">
+  <div class="menu-item" id="ctx-find-project" style="display: none;">
+    <span class="menu-icon">📁</span>
+    <span class="menu-label" id="ctx-find-project-label">Find all project sessions</span>
+  </div>
   <div class="menu-item" id="ctx-fav-session" style="display: none;">
     <span class="menu-icon">⭐</span>
     <span class="menu-label" id="ctx-fav-session-label">Add to favorites</span>
