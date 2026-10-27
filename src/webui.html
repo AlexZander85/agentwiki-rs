@@ -3830,16 +3830,25 @@ function fmtDate(iso) {
 
 function cleanProjectPath(proj) {
   if (!proj || proj === "-" || proj === "null" || proj === "undefined") return "";
-  let p = proj.replace(/^["']+|["']+$/g, "").trim();
-  p = p.replace(/\\/g, "\\");
+  let p = String(proj).replace(/^["']+|["']+$/g, "").trim();
+  while (p.includes("\\\\")) {
+    p = p.replaceAll("\\\\", "\\");
+  }
   p = p.replace(/^["']+|["']+$/g, "").trim();
+  if (/^[a-zA-Z]:/.test(p)) {
+    p = p[0].toUpperCase() + p.slice(1);
+    p = p.replaceAll("/", "\\");
+  }
   return (p === "-" || p === "null" || p === "undefined") ? "" : p;
 }
 
 function normProjectPath(p) {
   if (!p) return "";
   let s = cleanProjectPath(p);
-  s = s.replace(/\\/g, "/");
+  s = s.replaceAll("\\", "/");
+  while (s.includes("//")) {
+    s = s.replaceAll("//", "/");
+  }
   s = s.replace(/\/+$/, "");
   return s.toLowerCase().trim();
 }
@@ -5220,7 +5229,8 @@ function showRecentView() {
       card.appendChild(el("div", "rc-title", r.title || L.untitled));
       const meta = el("div", "rc-meta");
       meta.appendChild(el("span", "rc-tool", r.tool));
-      if (r.project && r.project !== "-") meta.appendChild(el("span", "rc-proj", r.project));
+      const rcProj1 = cleanProjectPath(r.project);
+      if (rcProj1) meta.appendChild(el("span", "rc-proj", rcProj1));
       if (r.started) meta.appendChild(el("span", "rc-date", fmtDate(r.started)));
       meta.appendChild(el("span", "rc-msgs", L.msgs(r.msgs || 0)));
       card.appendChild(meta);
@@ -5252,7 +5262,8 @@ function showRecentView() {
         card.appendChild(el("div", "rc-title", r.title || L.untitled));
         const meta = el("div", "rc-meta");
         meta.appendChild(el("span", "rc-tool", r.tool));
-        if (r.project) meta.appendChild(el("span", "rc-proj", r.project));
+        const rcProj2 = cleanProjectPath(r.project);
+        if (rcProj2) meta.appendChild(el("span", "rc-proj", rcProj2));
         if (r.started) meta.appendChild(el("span", "rc-date", fmtDate(r.started)));
         meta.appendChild(el("span", "rc-msgs", L.msgs(r.msgs || 0)));
         card.appendChild(meta);
@@ -7175,8 +7186,9 @@ function actFmtDur(ms) {
 
 function actProjectName(p) {
   if (!p) return L.actNoProject || "(no project)";
-  const parts = p.split(/[\\/]/).filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : p;
+  const clean = cleanProjectPath(p);
+  const parts = clean.split(/[\\/]/).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : (clean || L.actNoProject || "(no project)");
 }
 
 /** Time a session spent at work: whole if short, else first and last hour. */
