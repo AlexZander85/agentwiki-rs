@@ -3803,6 +3803,12 @@ function fmtDate(iso) {
   return iso.slice(0, 16).replace("T", " ");
 }
 
+function cleanProjectPath(proj) {
+  if (!proj || proj === "-" || proj === "null" || proj === "undefined") return "";
+  const p = proj.replace(/^["']|["']$/g, "").trim();
+  return (p === "-" || p === "null" || p === "undefined") ? "" : p;
+}
+
 function dayGroup(iso) {
   if (!iso) return "earlier";
   const d = new Date(iso);
@@ -4324,10 +4330,14 @@ function renderItems(rows, isSearch) {
     item.appendChild(titleEl);
     const meta = el("div", "meta");
     meta.appendChild(el("span", "dot " + r.tool));
+    const cleanProj = cleanProjectPath(r.project);
+    const projStr = cleanProj ? ` · ${cleanProj}` : "";
     const sub = r.kind === "sub" ? ` · ${L.subagent}` : "";
     const acct = r.account ? ` · @${r.account}` : ""; // swapdex account badge
     const lastStr = r.last_active ? ` · ${(L.lastActivePrefix || "last")} ${fmtDate(r.last_active)}` : "";
-    meta.appendChild(el("span", "", `${r.tool} · ${fmtDate(r.started)} · ${L.msgs(r.msgs)}${lastStr}${sub}${acct}`));
+    const metaSpan = el("span", "", `${r.tool}${projStr} · ${fmtDate(r.started)} · ${L.msgs(r.msgs)}${lastStr}${sub}${acct}`);
+    if (cleanProj) metaSpan.title = cleanProj;
+    meta.appendChild(metaSpan);
     item.appendChild(meta);
     if (isSearch && r.snippet) {
       const snip = el("div", "snip");
@@ -4505,7 +4515,7 @@ function renderCurrentSession(keepScroll) {
   toolChip.appendChild(el("span", "dot " + s.tool));
   toolChip.appendChild(document.createTextNode(s.tool));
   chips.appendChild(toolChip);
-  chips.appendChild(el("span", "chip", s.project || "-"));
+  chips.appendChild(el("span", "chip", cleanProjectPath(s.project) || "-"));
   chips.appendChild(el("span", "chip", fmtDate(s.started)));
   if (s.ended) chips.appendChild(el("span", "chip", (L.lastActivePrefix || "last") + " " + fmtDate(s.ended)));
 
