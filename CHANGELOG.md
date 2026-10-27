@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.1.1] - 2026-10-27 (WikiAgents)
+
+### Added & Enhanced
+- **Project Folder Navigation & Cross-Agent Filtering**:
+  - **Sidebar Session List Folder Visibility**: Displays the cleaned project path (e.g. `D:\game`, `D:\crypto`) directly in the metadata line of every session card in the left sidebar list.
+  - **One-Click Header Chip Filtering**: The project path badge in the active session header is now an interactive chip with hover effects (`.chip-clickable`). Clicking it instantly filters the sidebar list to all sessions belonging to that project folder.
+  - **Inline Sidebar Project Link**: Clicking the project folder inside any sidebar card (`.item-proj-link`) immediately filters the list by that project without opening the session.
+  - **Context Menu Integration**: Added `📁 Find all project sessions (<folder>)` (`📁 Найти все сессии проекта (<folder>)`) to the right-click context menu (accessible from both the session card in the sidebar and the session header bar).
+- **Universal Path Normalization & Multi-Agent Compatibility**:
+  - **Quote & Backslash Deserialization**: Automatically strips JSON-escaped quotes and unwraps escaped backslashes (e.g. converting Antigravity's `"d:\\crypto"` or `"d:\\\\crypto"` to clean `D:\crypto`).
+  - **Drive Letter & Slash Standardization**: Normalizes Windows drive letters to uppercase (`D:\`) and standardizes path separators.
+  - **Case-Insensitive & Slash-Agnostic Matching**: The `normProjectPath` algorithm normalizes `D:/crypto`, `D:\crypto`, `"d:\\crypto"`, etc. into an identical canonical key (`d:/crypto`). This unites sessions across different AI agents (Claude Code, OpenCode, Antigravity, Codex) under a single project filter, ensuring complete results across thousands of sessions.
+  - **Subdirectory Inheritance**: Filters match both the project root and nested subdirectories (e.g. `d:/crypto/new`).
+- **WebUI Header Polish**:
+  - **Compact Header Bar Layout**: Reorganized header bar with collapsible outline, summary, and metadata controls, chips row, smart actions (`AI Brief`, `.md export`, terminal toggle).
+  - Applied path normalization to Recent Sessions, Related Sessions cards, and Activity view.
+
 ## [1.1.0] - 2026-10-25 (WikiAgents)
 
 ### Added & Enhanced
