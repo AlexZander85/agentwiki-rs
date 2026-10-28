@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.1.2] - 2026-10-28 (WikiAgents)
+
+### Added & Enhanced
+- **Right-Side Vertical Timeline Navigation Rail & Scroll Spy**:
+  - Implemented an interactive right-side navigation rail in the open session view for instant visual overview and smooth jumping (matching Google Antigravity's session timeline design).
+  - Includes «Scroll to top» and «Scroll to bottom» quick-jump buttons with clean SVGs and smooth viewport scrolling.
+  - Dashed timeline track connecting interactive turn dots, with active pill indicator synced to current reading position via `requestAnimationFrame` scroll spy.
+  - One-click jump to any user turn with lazy body auto-loading.
+- **Turns Overview Popover Card (Antigravity-Matched UI)**:
+  - Header displays formatted date & time range (e.g. `сб, 24 окт., 16:41 – 20:58`) with total turn count (`18 turns`).
+  - Scrollable turn list with timestamps (`16:41`), turn numbers, and clean prompt excerpts.
+  - Active turn highlighting synchronized with rail dots and automatic scroll into view (`el.scrollIntoView({ block: "nearest" })`).
+  - One-click navigation to any message directly from the popover list rows.
+- **Zero-Latency Hover Architecture**:
+  - **Eliminated OS Tooltip Lag**: Completely removed native HTML `title` attributes on step dots, bypassing Windows/Chromium's mandatory 700–1000ms tooltip delay.
+  - **Instant 0ms Appearance**: Configured instant visibility transitions on hover for crisp, immediate rendering.
+  - **Invisible Hover Bridge**: Added a 30px transparent bridge (`::after`) between track rail and card to prevent flicker when crossing mouse gap.
+  - **Hover Debounce**: Added a 140ms grace period on mouseleave to prevent accidental dismissals.
+  - **Stacking & Overflow Isolation**: Isolated `.session-timeline` from global `nav { overflow-y: auto }` clipping rules, ensuring popover always renders without horizontal clipping.
+
 ## [1.1.1] - 2026-10-27 (WikiAgents)
 
 ### Added & Enhanced
