@@ -1071,6 +1071,163 @@
   }
   .seealso .rel .editmore { font-size: 10.5px; color: var(--ink-3); margin-top: 1px; }
 
+  /* Session Right-Side Timeline Navigation */
+  .session-timeline {
+    position: fixed;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    user-select: none;
+    pointer-events: none;
+    opacity: 0.85;
+    transition: opacity 0.2s ease;
+  }
+  .session-timeline:hover {
+    opacity: 1;
+  }
+  .session-timeline * {
+    pointer-events: auto;
+  }
+  .timeline-nav-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    transition: all 0.15s ease;
+    margin: 3px 0;
+    padding: 0;
+    opacity: 0.6;
+  }
+  .timeline-nav-btn:hover {
+    opacity: 1;
+    color: var(--accent);
+    border-color: var(--accent);
+    transform: scale(1.15);
+  }
+  .timeline-track-wrap {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-height: min(70vh, 580px);
+    overflow-y: auto;
+    overflow-x: visible;
+    padding: 6px 10px;
+    scrollbar-width: none;
+  }
+  .timeline-track-wrap::-webkit-scrollbar {
+    display: none;
+  }
+  .timeline-track-line {
+    position: absolute;
+    top: 8px;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    border-left: 2px dashed var(--line-strong);
+    opacity: 0.4;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .timeline-track-wrap:hover .timeline-track-line {
+    opacity: 0.8;
+  }
+  .timeline-step {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 0;
+    cursor: pointer;
+    z-index: 2;
+  }
+  .timeline-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ink-3);
+    border: 1.5px solid var(--card);
+    box-shadow: 0 0 0 1px var(--line);
+    transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.18s ease, box-shadow 0.18s ease;
+  }
+  .timeline-step:hover .timeline-dot {
+    background: var(--accent);
+    transform: scale(1.5);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .timeline-step.active .timeline-dot {
+    background: var(--accent);
+    transform: scale(1.4);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .timeline-tooltip {
+    position: absolute;
+    right: calc(100% + 12px);
+    top: 50%;
+    transform: translateY(-50%) scale(0.95);
+    background: var(--card);
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+    border-radius: 8px;
+    padding: 6px 10px;
+    white-space: nowrap;
+    max-width: 260px;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+    z-index: 100;
+  }
+  .timeline-step:hover .timeline-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(-50%) scale(1);
+  }
+  .timeline-tooltip-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 2px;
+  }
+  .timeline-turn-num {
+    font-weight: 650;
+    color: var(--accent);
+    font-size: 11px;
+    letter-spacing: 0.02em;
+  }
+  .timeline-turn-time {
+    font-size: 10px;
+    color: var(--ink-3);
+  }
+  .timeline-turn-text {
+    color: var(--ink-2);
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 230px;
+    line-height: 1.3;
+  }
+  @media (max-width: 900px) {
+    .session-timeline {
+      display: none !important;
+    }
+  }
+
   /* Recent view & file history panel */
   .recent-view {
     max-width: 1400px;
@@ -4544,6 +4701,132 @@ async function openSession(id, opts = {}) {
   }
 }
 
+function removeSessionTimeline() {
+  const existing = document.getElementById("session-timeline");
+  if (existing) existing.remove();
+  if (window._timelineScrollHandler && $("main")) {
+    $("main").removeEventListener("scroll", window._timelineScrollHandler);
+    window._timelineScrollHandler = null;
+  }
+}
+
+function renderSessionTimeline(s, userTurns) {
+  removeSessionTimeline();
+  if (!s || !userTurns || userTurns.length < 2) return;
+
+  const timeline = el("nav", "session-timeline");
+  timeline.id = "session-timeline";
+  timeline.setAttribute("aria-label", "Session navigation timeline");
+
+  // Scroll to top
+  const btnTop = el("button", "timeline-nav-btn timeline-top");
+  btnTop.type = "button";
+  btnTop.title = L.scrollToTop || "Scroll to top";
+  btnTop.innerHTML = `<svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 10 8 5 13 10"/></svg>`;
+  btnTop.onclick = () => {
+    $("main").scrollTo({ top: 0, behavior: "smooth" });
+  };
+  timeline.appendChild(btnTop);
+
+  const trackWrap = el("div", "timeline-track-wrap");
+  const trackLine = el("div", "timeline-track-line");
+  trackWrap.appendChild(trackLine);
+
+  const stepPadding = userTurns.length > 30 ? "2px 0" : userTurns.length > 20 ? "3px 0" : "5px 0";
+  const stepEls = [];
+
+  for (let turnIdx = 0; turnIdx < userTurns.length; turnIdx++) {
+    const ut = userTurns[turnIdx];
+    const m = s.messages && s.messages[ut.i];
+    const timeStr = m && m.ts ? fmtDateTime(m.ts).slice(11, 16) : "";
+
+    const step = el("div", "timeline-step");
+    step.dataset.turnIdx = turnIdx;
+    step.dataset.msgIdx = ut.i;
+    step.style.padding = stepPadding;
+    if (turnIdx === 0) step.classList.add("active");
+
+    const dot = el("div", "timeline-dot");
+    const tooltip = el("div", "timeline-tooltip");
+
+    const header = el("div", "timeline-tooltip-header");
+    header.appendChild(el("span", "timeline-turn-num", `#${turnIdx + 1}`));
+    if (timeStr) {
+      header.appendChild(el("span", "timeline-turn-time", timeStr));
+    }
+    tooltip.appendChild(header);
+
+    const cleanText = (ut.text || "").replace(/\s+/g, " ").trim();
+    tooltip.appendChild(el("div", "timeline-turn-text", cleanText));
+
+    step.append(dot, tooltip);
+
+    step.onclick = async (e) => {
+      e.stopPropagation();
+      const target = await loadThrough(ut.i);
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        stepEls.forEach((el, idx) => el.classList.toggle("active", idx === turnIdx));
+      }
+    };
+
+    trackWrap.appendChild(step);
+    stepEls.push(step);
+  }
+
+  timeline.appendChild(trackWrap);
+
+  // Scroll to bottom
+  const btnBottom = el("button", "timeline-nav-btn timeline-bottom");
+  btnBottom.type = "button";
+  btnBottom.title = L.scrollToBottom || "Scroll to bottom";
+  btnBottom.innerHTML = `<svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 8 11 13 6"/></svg>`;
+  btnBottom.onclick = () => {
+    $("main").scrollTo({ top: $("main").scrollHeight, behavior: "smooth" });
+  };
+  timeline.appendChild(btnBottom);
+
+  document.body.appendChild(timeline);
+
+  // Active step scroll spy
+  let ticking = false;
+  const updateActiveStep = () => {
+    const mainEl = $("main");
+    if (!mainEl || !currentSession || !document.querySelector("#main .doc")) {
+      removeSessionTimeline();
+      return;
+    }
+    const scrollPos = mainEl.scrollTop + mainEl.clientHeight * 0.35;
+
+    let activeIdx = 0;
+    for (let i = 0; i < userTurns.length; i++) {
+      const row = document.getElementById("msg-" + userTurns[i].i);
+      if (row) {
+        if (row.offsetTop <= scrollPos) {
+          activeIdx = i;
+        } else {
+          break;
+        }
+      }
+    }
+    stepEls.forEach((el, idx) => {
+      el.classList.toggle("active", idx === activeIdx);
+    });
+  };
+
+  window._timelineScrollHandler = () => {
+    if (!ticking) {
+      requestAnimationFrame(() => {
+        updateActiveStep();
+        ticking = false;
+      });
+      ticking = true;
+    }
+  };
+
+  $("main").addEventListener("scroll", window._timelineScrollHandler, { passive: true });
+}
+
 function renderCurrentSession(keepScroll) {
   if (!currentSession) return;
   const s = currentSession;
@@ -5014,6 +5297,7 @@ function renderCurrentSession(keepScroll) {
   $("main").replaceChildren(head, doc);
   applyMessageFilters();
   $("main").scrollTop = prevScroll;
+  renderSessionTimeline(s, userTurns);
 }
 
 const EAGER_MSG_COUNT = 30; // First 30 messages render eagerly for instant zero-lag open
@@ -5178,6 +5462,7 @@ function showRecentView() {
     return;
   }
   btn.classList.add("on");
+  removeSessionTimeline();
   main.replaceChildren();
 
   const rv = el("div", "recent-view");
