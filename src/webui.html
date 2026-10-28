@@ -1174,10 +1174,10 @@
 
   /* Turns Overview Popover (exact match to user reference) */
   .timeline-popover {
-    position: absolute;
-    right: calc(100% + 14px);
+    position: fixed;
+    right: 44px;
     top: 50%;
-    transform: translateY(-50%) scale(0.96);
+    transform: translateY(-50%);
     background: var(--card);
     color: var(--ink);
     border: 1px solid var(--line-strong);
@@ -1188,10 +1188,10 @@
     max-height: 420px;
     display: flex;
     flex-direction: column;
-    pointer-events: auto;
+    pointer-events: none;
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+    transition: opacity 0.08s ease, visibility 0.08s ease;
     z-index: 100;
   }
   .session-timeline:hover .timeline-popover,
@@ -1199,7 +1199,18 @@
   .timeline-popover.visible {
     opacity: 1;
     visibility: visible;
-    transform: translateY(-50%) scale(1);
+    pointer-events: auto;
+    transition: none;
+  }
+  /* Invisible hover bridge to eliminate gap between rail and popover */
+  .timeline-popover::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: -24px;
+    width: 30px;
+    pointer-events: auto;
   }
   .timeline-popover-header {
     border-bottom: 1px solid var(--line);
@@ -4818,7 +4829,21 @@ function renderSessionTimeline(s, userTurns) {
 
   const popList = el("div", "timeline-popover-list");
 
-  const highlightTurn = (activeIdx) => {
+  const positionPopoverAt = (stepEl) => {
+    if (!stepEl || !popover) return;
+    const rect = stepEl.getBoundingClientRect();
+    const popHeight = popover.offsetHeight || 380;
+    const winHeight = window.innerHeight;
+    let targetTop = rect.top + (rect.height / 2) - (popHeight / 2);
+    const minTop = 16;
+    const maxTop = Math.max(minTop, winHeight - popHeight - 16);
+    if (targetTop < minTop) targetTop = minTop;
+    if (targetTop > maxTop) targetTop = maxTop;
+    popover.style.top = `${Math.round(targetTop)}px`;
+    popover.style.transform = "none";
+  };
+
+  const highlightTurn = (activeIdx, shouldPosition = false) => {
     stepEls.forEach((el, idx) => el.classList.toggle("active", idx === activeIdx));
     popItems.forEach((el, idx) => {
       const isAct = idx === activeIdx;
@@ -4827,6 +4852,18 @@ function renderSessionTimeline(s, userTurns) {
         el.scrollIntoView({ block: "nearest" });
       }
     });
+    if (shouldPosition && stepEls[activeIdx]) {
+      positionPopoverAt(stepEls[activeIdx]);
+    }
+  };
+
+  timeline.onmouseenter = () => {
+    popover.classList.add("visible");
+    const activeStep = stepEls.find(el => el.classList.contains("active")) || stepEls[0];
+    if (activeStep) positionPopoverAt(activeStep);
+  };
+  timeline.onmouseleave = () => {
+    popover.classList.remove("visible");
   };
 
   for (let turnIdx = 0; turnIdx < userTurns.length; turnIdx++) {
@@ -4835,12 +4872,11 @@ function renderSessionTimeline(s, userTurns) {
     const timeStr = m && m.ts ? fmtDateTime(m.ts).slice(11, 16) : "";
     const cleanText = (ut.text || "").replace(/\s+/g, " ").trim();
 
-    // 1. Dot step on rail
+    // 1. Dot step on rail (NO step.title attribute to prevent slow 700ms OS tooltip delay)
     const step = el("div", "timeline-step");
     step.dataset.turnIdx = turnIdx;
     step.dataset.msgIdx = ut.i;
     step.style.padding = stepPadding;
-    step.title = `#${turnIdx + 1}${timeStr ? ' (' + timeStr + ')' : ''}: ${cleanText}`;
     if (turnIdx === 0) step.classList.add("active");
 
     const dot = el("div", "timeline-dot");
@@ -4851,12 +4887,12 @@ function renderSessionTimeline(s, userTurns) {
       const target = await loadThrough(ut.i);
       if (target) {
         target.scrollIntoView({ behavior: "smooth", block: "start" });
-        highlightTurn(turnIdx);
+        highlightTurn(turnIdx, true);
       }
     };
 
     step.onmouseenter = () => {
-      highlightTurn(turnIdx);
+      highlightTurn(turnIdx, true);
     };
 
     trackWrap.appendChild(step);
@@ -4879,8 +4915,12 @@ function renderSessionTimeline(s, userTurns) {
       const target = await loadThrough(ut.i);
       if (target) {
         target.scrollIntoView({ behavior: "smooth", block: "start" });
-        highlightTurn(turnIdx);
+        highlightTurn(turnIdx, false);
       }
+    };
+
+    pItem.onmouseenter = () => {
+      highlightTurn(turnIdx, false);
     };
 
     popList.appendChild(pItem);
