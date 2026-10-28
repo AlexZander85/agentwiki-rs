@@ -1174,8 +1174,8 @@
 
   /* Turns Overview Popover (exact match to user reference) */
   .timeline-popover {
-    position: fixed;
-    right: 44px;
+    position: absolute;
+    right: calc(100% + 12px);
     top: 50%;
     transform: translateY(-50%);
     background: var(--card);
@@ -1191,7 +1191,6 @@
     pointer-events: none;
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.08s ease, visibility 0.08s ease;
     z-index: 100;
   }
   .session-timeline:hover .timeline-popover,
@@ -1200,7 +1199,6 @@
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
-    transition: none;
   }
   /* Invisible hover bridge to eliminate gap between rail and popover */
   .timeline-popover::after {
@@ -4829,21 +4827,27 @@ function renderSessionTimeline(s, userTurns) {
 
   const popList = el("div", "timeline-popover-list");
 
-  const positionPopoverAt = (stepEl) => {
-    if (!stepEl || !popover) return;
-    const rect = stepEl.getBoundingClientRect();
-    const popHeight = popover.offsetHeight || 380;
-    const winHeight = window.innerHeight;
-    let targetTop = rect.top + (rect.height / 2) - (popHeight / 2);
-    const minTop = 16;
-    const maxTop = Math.max(minTop, winHeight - popHeight - 16);
-    if (targetTop < minTop) targetTop = minTop;
-    if (targetTop > maxTop) targetTop = maxTop;
-    popover.style.top = `${Math.round(targetTop)}px`;
-    popover.style.transform = "none";
+  let hideTimer = null;
+  const showPopover = () => {
+    if (hideTimer) {
+      clearTimeout(hideTimer);
+      hideTimer = null;
+    }
+    popover.classList.add("visible");
+  };
+  const hidePopover = () => {
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      popover.classList.remove("visible");
+    }, 140);
   };
 
-  const highlightTurn = (activeIdx, shouldPosition = false) => {
+  timeline.onmouseenter = showPopover;
+  timeline.onmouseleave = hidePopover;
+  popover.onmouseenter = showPopover;
+  popover.onmouseleave = hidePopover;
+
+  const highlightTurn = (activeIdx) => {
     stepEls.forEach((el, idx) => el.classList.toggle("active", idx === activeIdx));
     popItems.forEach((el, idx) => {
       const isAct = idx === activeIdx;
@@ -4852,18 +4856,6 @@ function renderSessionTimeline(s, userTurns) {
         el.scrollIntoView({ block: "nearest" });
       }
     });
-    if (shouldPosition && stepEls[activeIdx]) {
-      positionPopoverAt(stepEls[activeIdx]);
-    }
-  };
-
-  timeline.onmouseenter = () => {
-    popover.classList.add("visible");
-    const activeStep = stepEls.find(el => el.classList.contains("active")) || stepEls[0];
-    if (activeStep) positionPopoverAt(activeStep);
-  };
-  timeline.onmouseleave = () => {
-    popover.classList.remove("visible");
   };
 
   for (let turnIdx = 0; turnIdx < userTurns.length; turnIdx++) {
@@ -4887,12 +4879,13 @@ function renderSessionTimeline(s, userTurns) {
       const target = await loadThrough(ut.i);
       if (target) {
         target.scrollIntoView({ behavior: "smooth", block: "start" });
-        highlightTurn(turnIdx, true);
+        highlightTurn(turnIdx);
       }
     };
 
     step.onmouseenter = () => {
-      highlightTurn(turnIdx, true);
+      showPopover();
+      highlightTurn(turnIdx);
     };
 
     trackWrap.appendChild(step);
@@ -4915,12 +4908,13 @@ function renderSessionTimeline(s, userTurns) {
       const target = await loadThrough(ut.i);
       if (target) {
         target.scrollIntoView({ behavior: "smooth", block: "start" });
-        highlightTurn(turnIdx, false);
+        highlightTurn(turnIdx);
       }
     };
 
     pItem.onmouseenter = () => {
-      highlightTurn(turnIdx, false);
+      showPopover();
+      highlightTurn(turnIdx);
     };
 
     popList.appendChild(pItem);
