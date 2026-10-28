@@ -1084,6 +1084,7 @@
     user-select: none;
     opacity: 0.88;
     transition: opacity 0.2s ease;
+    overflow: visible !important;
   }
   .session-timeline:hover {
     opacity: 1;
@@ -4791,7 +4792,8 @@ function renderSessionTimeline(s, userTurns) {
   removeSessionTimeline();
   if (!s || !userTurns || userTurns.length < 2) return;
 
-  const timeline = el("nav", "session-timeline");
+  const timeline = el("div", "session-timeline");
+  timeline.setAttribute("role", "navigation");
   timeline.id = "session-timeline";
   timeline.setAttribute("aria-label", "Session navigation timeline");
 
