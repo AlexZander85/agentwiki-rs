@@ -5,6 +5,8 @@ mod cline;
 mod codex;
 mod continue_dev;
 mod deepseek;
+mod free_pi;
+mod freebuff;
 mod gajae;
 mod gemini;
 mod hermes;
@@ -22,6 +24,8 @@ pub use codex::{Codex, CodexHistory};
 pub(crate) use gemini::project_root as gemini_project_root;
 pub use prodex::thread_url_for_task as prodex_thread_url;
 pub use deepseek::DeepSeek;
+pub use free_pi::{FreePiCli, Pi};
+pub use freebuff::Freebuff;
 pub use hermes::Hermes;
 pub use kimi::Kimi;
 pub use qoder::Qoder;
@@ -174,6 +178,9 @@ pub fn all() -> Vec<Box<dyn Adapter>> {
         Box::new(deepseek::DeepSeek),
         Box::new(hermes::Hermes),
         Box::new(kimi::Kimi),
+        Box::new(freebuff::Freebuff),
+        Box::new(free_pi::FreePiCli),
+        Box::new(free_pi::Pi),
     ];
 
     if let Some(home) = crate::util::home_dir() {
@@ -196,7 +203,11 @@ pub fn all() -> Vec<Box<dyn Adapter>> {
 }
 
 pub fn by_name(name: &str) -> Option<Box<dyn Adapter>> {
-    all().into_iter().find(|a| a.name() == name)
+    let canonical = match name {
+        "free-pi" => "free-pi-cli",
+        other => other,
+    };
+    all().into_iter().find(|a| a.name() == canonical)
 }
 
 /// Every registered store of one tool. Codex has three: its rollouts, its

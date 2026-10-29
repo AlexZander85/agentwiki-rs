@@ -63,7 +63,7 @@ jobs:
             umask 077
             printf '%s\n' "$SIGNING_KEY_PEM" > "$RUNNER_TEMP/key.pem"
             printf '%s\n' "$SIGNING_CERT_PEM" > "$RUNNER_TEMP/cert.pem"
-            for b in sessionwiki sessionwiki-app; do
+            for b in sessionwiki sessionwiki-app agentwiki agentwiki-app wikiagents wikiagents-app; do
               bin="target/${{ matrix.target }}/release/$b"
               if [ -f "$bin" ]; then
                 "./$a/rcodesign" sign --pem-source "$RUNNER_TEMP/key.pem" --pem-source "$RUNNER_TEMP/cert.pem" \
@@ -89,16 +89,23 @@ jobs:
           # CLI binary
           cp "$target_dir/sessionwiki" "$dist/agentwiki"
           cp "$target_dir/sessionwiki" "$dist/sessionwiki"
+          cp "$target_dir/sessionwiki" "$dist/wikiagents"
           
           # GUI binary if present
           if [ -f "$target_dir/sessionwiki-app" ]; then
             cp "$target_dir/sessionwiki-app" "$dist/agentwiki-app"
             cp "$target_dir/sessionwiki-app" "$dist/sessionwiki-app"
+            cp "$target_dir/sessionwiki-app" "$dist/wikiagents-app"
           fi
           
           cp README.md README.ru.md LICENSE "$dist/"
           tar czf "$dist.tar.gz" "$dist"
           shasum -a 256 "$dist.tar.gz" > "$dist.tar.gz.sha256"
+
+          dist_wa="wikiagents-${tag}-${{ matrix.target }}"
+          cp -r "$dist" "$dist_wa"
+          tar czf "$dist_wa.tar.gz" "$dist_wa"
+          shasum -a 256 "$dist_wa.tar.gz" > "$dist_wa.tar.gz.sha256"
 
       - name: Package (windows)
         if: runner.os == 'Windows'
@@ -113,16 +120,23 @@ jobs:
           # CLI binary
           cp "$target_dir/sessionwiki.exe" "$dist/agentwiki.exe"
           cp "$target_dir/sessionwiki.exe" "$dist/sessionwiki.exe"
+          cp "$target_dir/sessionwiki.exe" "$dist/wikiagents.exe"
           
           # GUI binary
           if [ -f "$target_dir/sessionwiki-app.exe" ]; then
             cp "$target_dir/sessionwiki-app.exe" "$dist/agentwiki-app.exe"
             cp "$target_dir/sessionwiki-app.exe" "$dist/sessionwiki-app.exe"
+            cp "$target_dir/sessionwiki-app.exe" "$dist/wikiagents-app.exe"
           fi
           
           cp README.md README.ru.md LICENSE "$dist/"
           7z a "$dist.zip" "$dist" >/dev/null
           certutil -hashfile "$dist.zip" SHA256 | sed -n 2p > "$dist.zip.sha256"
+
+          dist_wa="wikiagents-${tag}-${{ matrix.target }}"
+          cp -r "$dist" "$dist_wa"
+          7z a "$dist_wa.zip" "$dist_wa" >/dev/null
+          certutil -hashfile "$dist_wa.zip" SHA256 | sed -n 2p > "$dist_wa.zip.sha256"
 
       - name: Build the release notes
         shell: bash
@@ -146,4 +160,8 @@ jobs:
             agentwiki-*.tar.gz.sha256
             agentwiki-*.zip
             agentwiki-*.zip.sha256
+            wikiagents-*.tar.gz
+            wikiagents-*.tar.gz.sha256
+            wikiagents-*.zip
+            wikiagents-*.zip.sha256
           fail_on_unmatched_files: false

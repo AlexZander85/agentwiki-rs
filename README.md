@@ -105,6 +105,8 @@ Automatically locates and indexes sessions from all major coding agents:
 - **DeepSeek Harness** (`~/.dsh/sessions`)
 - **Kimi Code** (`~/.kimi-code/sessions`)
 - **Hermes Agent** (`~/.hermes/state.db`)
+- **Freebuff Desktop** (`~/.config/freebuff-desktop/projects`)
+- **free-pi-cli & Pi** (`~/.free-pi/agent/sessions` & `~/.pi/agent/sessions`)
 - **Cline, Roo Code, Kilo Code, Gajae Code** (`globalStorage`)
 - **Aider, Continue.dev, Gemini CLI, Prodex, gptme**, and more (21 adapter configurations in total).
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.3] - 2026-10-29 (WikiAgents)
+
+### Added
+- **Freebuff Desktop Adapter (`freebuff`)**:
+  - Automatically discovers and indexes sessions from Freebuff Desktop SQLite databases located in `~/.config/freebuff-desktop/projects/<project-slug>/desktop-v2.db` (and `%APPDATA%\freebuff-desktop`).
+  - Reads threads, messages, role turns, tool calls, and file edit events (`write_file`, `str_replace`).
+  - Correctly attributes project folders from `threads` or `project.json` and parses timestamps into UTC.
+- **free-pi-cli & Pi Harness Adapters (`free-pi-cli`, `pi`)**:
+  - Adds native JSONL transcript parsing for `free-pi-cli` (`~/.free-pi/agent/sessions/`) and upstream Pi (`~/.pi/agent/sessions/`).
+  - Extracts full conversation turns (`user`, `assistant`, `toolResult`), tool calls, and code editing operations (`write`, `edit`, `apply_patch`, `ast_edit`) with snippet diffs and touched file tracking.
+- **Full UI & MCP Integration**:
+  - `freebuff`, `free-pi-cli`, and `pi` are fully integrated into the Desktop GUI tool picker, CLI `scan`, `list`, `show`, `search`, and the MCP long-term memory server.
+
 ## [1.1.2] - 2026-10-28 (WikiAgents)
 
 ### Added & Enhanced

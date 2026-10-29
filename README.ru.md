@@ -105,6 +105,8 @@
 - **DeepSeek Harness** (`~/.dsh/sessions`)
 - **Kimi Code** (`~/.kimi-code/sessions`)
 - **Hermes Agent** (`~/.hermes/state.db`)
+- **Freebuff Desktop** (`~/.config/freebuff-desktop/projects`)
+- **free-pi-cli и Pi** (`~/.free-pi/agent/sessions` и `~/.pi/agent/sessions`)
 - **Cline, Roo Code, Kilo Code, Gajae Code** (`globalStorage`)
 - **Aider, Continue.dev, Gemini CLI, Prodex, gptme** и другие (всего 21 конфигурация адаптеров).
 
