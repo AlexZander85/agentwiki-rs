@@ -12,6 +12,8 @@ index.db
 index.db.bak-*
 /sessionwiki/
 /data/
+/web_session/
+/backup/
 
 # Editor / IDE
 .vscode/

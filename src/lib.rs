@@ -10,6 +10,7 @@ pub mod account_link;
 pub mod adapters;
 #[cfg(feature = "gui")]
 pub mod app;
+pub mod backup;
 pub mod blame;
 pub mod brief;
 pub mod commands;

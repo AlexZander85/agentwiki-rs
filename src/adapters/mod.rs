@@ -16,7 +16,7 @@ pub mod harness;
 mod opencode;
 mod prodex;
 mod qoder;
-mod web_chat;
+pub mod web_chat;
 mod zcode;
 pub use antigravity::Antigravity;
 pub use claude_code::ClaudeCode;

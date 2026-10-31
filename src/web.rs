@@ -186,6 +186,10 @@ fn handle_request(
         "/api/analytics" => api_analytics(&conn),
         "/api/analytics/files" => api_analytics_files(&conn, query),
         "/api/analytics/langs" => api_analytics_langs(&conn, query),
+        "/api/backup/status" => api_backup_status(&conn),
+        "/api/backup/config" => api_backup_config(&conn, &mut request, query),
+        "/api/backup/test" => api_backup_test(&mut request, query),
+        "/api/backup/run" => api_backup_run(&conn, &mut request, query),
         p if p.starts_with("/api/related/") => {
             api_related(&conn, p.trim_start_matches("/api/related/"))
         }
@@ -1181,4 +1185,75 @@ fn language_of(path: &str) -> &'static str {
         "txt" | "log" => "Text",
         _ => "Other",
     }
+}
+
+
+fn api_backup_status(conn: &Connection) -> Result<Boxed> {
+    let cfg = crate::backup::get_backup_config(conn)?;
+    let total: i64 = conn.query_row("SELECT count(*) FROM files", [], |r| r.get(0)).unwrap_or(0);
+    json_response(json!({
+        "ok": true,
+        "repo_url": cfg.repo_url,
+        "last_backup_at": cfg.last_backup_at,
+        "last_commit": cfg.last_commit,
+        "last_status": cfg.last_status,
+        "total_sessions": total,
+    }))
+}
+
+fn api_backup_config(conn: &Connection, req: &mut tiny_http::Request, query: &str) -> Result<Boxed> {
+    let mut body = String::new();
+    let _ = req.as_reader().read_to_string(&mut body);
+    let json_body: Option<serde_json::Value> = serde_json::from_str(&body).ok();
+    let repo_url = json_body.as_ref()
+        .and_then(|v| v.get("repo_url").and_then(|s| s.as_str()).map(String::from))
+        .or_else(|| param(query, "repo_url"))
+        .context("missing repo_url")?;
+
+    crate::backup::set_backup_config(conn, &repo_url)?;
+    json_response(json!({ "ok": true, "repo_url": repo_url }))
+}
+
+fn api_backup_test(req: &mut tiny_http::Request, query: &str) -> Result<Boxed> {
+    let mut body = String::new();
+    let _ = req.as_reader().read_to_string(&mut body);
+    let json_body: Option<serde_json::Value> = serde_json::from_str(&body).ok();
+    let repo_url = json_body.as_ref()
+        .and_then(|v| v.get("repo_url").and_then(|s| s.as_str()).map(String::from))
+        .or_else(|| param(query, "repo_url"))
+        .unwrap_or_default();
+
+    let res = crate::backup::test_connection(&repo_url);
+    json_response(json!({
+        "ok": res.ok,
+        "message": res.message,
+        "git_version": res.git_version,
+        "git_user": res.git_user,
+    }))
+}
+
+fn api_backup_run(conn: &Connection, req: &mut tiny_http::Request, query: &str) -> Result<Boxed> {
+    let mut body = String::new();
+    let _ = req.as_reader().read_to_string(&mut body);
+    let json_body: Option<serde_json::Value> = serde_json::from_str(&body).ok();
+    let explicit_url = json_body.as_ref()
+        .and_then(|v| v.get("repo_url").and_then(|s| s.as_str()).map(String::from))
+        .or_else(|| param(query, "repo_url"));
+
+    let repo_url = match explicit_url {
+        Some(u) if !u.trim().is_empty() => u,
+        _ => {
+            let cfg = crate::backup::get_backup_config(conn)?;
+            if cfg.repo_url.trim().is_empty() {
+                anyhow::bail!("Репозиторий не настроен. Укажите URL GitHub репозитория.");
+            }
+            cfg.repo_url
+        }
+    };
+
+    let report = crate::backup::run_backup(conn, &repo_url)?;
+    json_response(json!({
+        "ok": report.success,
+        "report": report,
+    }))
 }

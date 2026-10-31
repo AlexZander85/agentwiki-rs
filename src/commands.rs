@@ -2358,3 +2358,68 @@ mod tests {
         assert!(!without_tools.contains("patch output"));
     }
 }
+
+
+pub fn backup_cmd(repo: Option<&str>, test: bool, status: bool, push: bool) -> Result<()> {
+    let conn = index::open()?;
+    if test {
+        let repo_url = repo
+            .map(String::from)
+            .or_else(|| crate::backup::get_backup_config(&conn).ok().map(|c| c.repo_url))
+            .unwrap_or_default();
+        let res = crate::backup::test_connection(&repo_url);
+        println!("Git: {}", res.git_version);
+        if let Some(user) = res.git_user {
+            println!("User: {}", user);
+        }
+        if res.ok {
+            println!("✓ {}", res.message);
+        } else {
+            eprintln!("✗ {}", res.message);
+        }
+        return Ok(());
+    }
+
+    if let Some(r) = repo {
+        crate::backup::set_backup_config(&conn, r)?;
+        println!("Repository URL saved: {}", r);
+        if !push && !status {
+            return Ok(());
+        }
+    }
+
+    if status || (!push && repo.is_none()) {
+        let cfg = crate::backup::get_backup_config(&conn)?;
+        println!("GitHub Backup Configuration:");
+        println!("  Repository: {}", if cfg.repo_url.is_empty() { "Not configured" } else { &cfg.repo_url });
+        if let Some(ts) = cfg.last_backup_at {
+            let dt = chrono::DateTime::from_timestamp(ts, 0)
+                .map(|d| d.format("%Y-%m-%d %H:%M:%S UTC").to_string())
+                .unwrap_or_else(|| ts.to_string());
+            println!("  Last backup: {}", dt);
+        }
+        if let Some(commit) = cfg.last_commit {
+            println!("  Last commit: {}", commit);
+        }
+        if let Some(status) = cfg.last_status {
+            println!("  Status: {}", status);
+        }
+        return Ok(());
+    }
+
+    if push {
+        let cfg = crate::backup::get_backup_config(&conn)?;
+        if cfg.repo_url.is_empty() {
+            anyhow::bail!("Repository URL not configured. Run: wikiagents backup --repo <url> --push");
+        }
+        println!("Starting backup to {}...", cfg.repo_url);
+        let report = crate::backup::run_backup(&conn, &cfg.repo_url)?;
+        println!("✓ {}", report.message);
+        if let Some(commit) = report.commit_hash {
+            println!("  Commit: {}", commit);
+        }
+        println!("  Total sessions: {}", report.total_sessions);
+    }
+
+    Ok(())
+}

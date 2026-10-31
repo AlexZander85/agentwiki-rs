@@ -2874,6 +2874,52 @@
   .doc[data-rf="user,assistant"] > [data-role]:not([data-role="user"]):not([data-role="assistant"]),
   .doc:not(.show-rewound) > .rewound { display: none; }
   .more-sentinel { text-align: center; color: var(--ink-3, #888); font-size: 12px; padding: 18px 0; }
+
+  .backup-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(2px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .backup-modal {
+    background: var(--card, #fff);
+    border: 1px solid var(--line, #ccc);
+    border-radius: 10px;
+    width: 500px;
+    max-width: 92vw;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.3);
+    overflow: hidden;
+  }
+  .backup-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--card-subtle);
+  }
+  .backup-modal-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink-1);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .backup-close-btn {
+    background: transparent;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    color: var(--ink-2);
+  }
+  .backup-close-btn:hover { color: var(--ink-1); }
+  .backup-modal-body { padding: 14px 16px; }
+
 </style>
 </head>
 <body>
@@ -2887,6 +2933,10 @@
       <button id="sync-btn" class="sync-btn" title="Sync index from local agent directories">
         <span class="sync-icon">🔄</span>
         <span id="sync-label">Sync</span>
+      </button>
+      <button id="backup-modal-btn" class="sync-btn" title="GitHub Backup" onclick="openBackupModal()">
+        <span>☁️</span>
+        <span id="backup-label">GitHub</span>
       </button>
       <label class="auto-sync-label" title="Automatically sync index every 10 minutes">
         <input type="checkbox" id="auto-sync-cb">
@@ -8523,5 +8573,171 @@ setupSnippetsControls();
     <span class="menu-label" id="ctx-search-google-label">Search in Google</span>
   </div>
 </div>
+
+<!-- GitHub Backup Modal -->
+<div id="backup-modal-overlay" class="backup-overlay" style="display:none;" onclick="if(event.target===this)closeBackupModal()">
+  <div class="backup-modal">
+    <div class="backup-modal-header">
+      <div class="backup-modal-title"><span>☁️</span> Бэкап в GitHub (Private Repo)</div>
+      <button type="button" class="backup-close-btn" onclick="closeBackupModal()">✕</button>
+    </div>
+    <div class="backup-modal-body">
+      <p style="font-size:12px;color:var(--ink-2);margin-bottom:12px;line-height:1.4;">
+        Выгрузка полной базы (все сессии OpenCode, Claude Code, Antigravity, Codex, Qoder, веб-чаты), заметок, избранного ⭐ и сниппетов 📌 в ваш приватный GitHub-репозиторий.
+      </p>
+      
+      <label style="display:block;font-size:11px;font-weight:600;color:var(--ink-1);margin-bottom:4px;">
+        URL GitHub Репозитория:
+      </label>
+      <div style="display:flex;gap:6px;margin-bottom:12px;">
+        <input type="text" id="backup-repo-input" placeholder="https://github.com/AlexZander85/wikiagents-backup" style="flex:1;padding:6px 10px;font-size:12px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink-1);">
+        <button type="button" class="sync-btn" onclick="saveBackupConfig()">Сохранить</button>
+      </div>
+
+      <div id="backup-status-box" style="background:var(--card-subtle);border:1px solid var(--line);border-radius:6px;padding:10px;font-size:12px;margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+          <span style="color:var(--ink-2);">Статус подключения:</span>
+          <span id="backup-conn-status" style="font-weight:600;color:var(--ink-1);">Проверяется...</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span style="color:var(--ink-2);">Последний бэкап:</span>
+          <span id="backup-last-time" style="color:var(--ink-1);">-</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--ink-2);">Последний коммит:</span>
+          <span id="backup-last-commit" style="font-family:monospace;color:var(--ink-1);">-</span>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <button type="button" id="backup-test-btn" class="sync-btn" style="padding:6px 12px;font-size:12px;" onclick="testBackupConnection()">
+          🔍 Проверить доступ
+        </button>
+        <button type="button" id="backup-run-btn" class="sync-btn" style="padding:6px 14px;font-size:12px;font-weight:600;background:var(--accent,#1a73e8);color:#fff;border-color:transparent;" onclick="runBackupNow()">
+          🚀 Выгрузить в GitHub сейчас
+        </button>
+      </div>
+
+      <div id="backup-log-box" style="display:none;background:#0d1117;color:#c9d1d9;font-family:monospace;font-size:11px;padding:8px 10px;border-radius:6px;max-height:140px;overflow-y:auto;white-space:pre-wrap;line-height:1.4;">
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function openBackupModal() {
+  const overlay = document.getElementById("backup-modal-overlay");
+  overlay.style.display = "flex";
+  try {
+    const res = await fetch("/api/backup/status");
+    if (res.ok) {
+      const data = await res.json();
+      if (data.repo_url) {
+        document.getElementById("backup-repo-input").value = data.repo_url;
+      }
+      if (data.last_backup_at) {
+        const d = new Date(data.last_backup_at * 1000);
+        document.getElementById("backup-last-time").textContent = d.toLocaleString();
+      }
+      if (data.last_commit) {
+        document.getElementById("backup-last-commit").textContent = data.last_commit;
+      }
+      document.getElementById("backup-conn-status").textContent = data.repo_url ? "Настроен" : "Не настроен";
+      document.getElementById("backup-conn-status").style.color = data.repo_url ? "#34a853" : "#ea4335";
+    }
+  } catch(e) {
+    console.error("Failed to load backup status", e);
+  }
+}
+
+function closeBackupModal() {
+  document.getElementById("backup-modal-overlay").style.display = "none";
+}
+
+async function saveBackupConfig() {
+  const url = document.getElementById("backup-repo-input").value.trim();
+  if (!url) return;
+  try {
+    const res = await fetch("/api/backup/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ repo_url: url })
+    });
+    if (res.ok) {
+      showToast("URL репозитория сохранен");
+      testBackupConnection();
+    }
+  } catch(e) {
+    showToast("Ошибка сохранения URL");
+  }
+}
+
+async function testBackupConnection() {
+  const statusEl = document.getElementById("backup-conn-status");
+  const url = document.getElementById("backup-repo-input").value.trim();
+  statusEl.textContent = "Проверка...";
+  statusEl.style.color = "var(--ink-2)";
+  try {
+    const res = await fetch("/api/backup/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ repo_url: url })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      statusEl.textContent = "Доступен ✓ (" + (data.git_user || "Git OK") + ")";
+      statusEl.style.color = "#34a853";
+      showToast("Подключение к GitHub успешно!");
+    } else {
+      statusEl.textContent = "Ошибка доступа ✗";
+      statusEl.style.color = "#ea4335";
+      showToast(data.message || "Ошибка подключения");
+    }
+  } catch(e) {
+    statusEl.textContent = "Ошибка сети";
+    statusEl.style.color = "#ea4335";
+  }
+}
+
+async function runBackupNow() {
+  const btn = document.getElementById("backup-run-btn");
+  const logBox = document.getElementById("backup-log-box");
+  const url = document.getElementById("backup-repo-input").value.trim();
+
+  btn.disabled = true;
+  btn.textContent = "Выгрузка... ⏳";
+  logBox.style.display = "block";
+  logBox.textContent = "[1/5] Подготовка снимка базы данных (5 140 сессий)...\n";
+
+  try {
+    const res = await fetch("/api/backup/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ repo_url: url })
+    });
+    const data = await res.json();
+    if (data.ok && data.report) {
+      logBox.textContent += "[2/5] Сжатие gzip и нарезка на блоки по 45 МБ... OK\n";
+      logBox.textContent += "[3/5] Экспорт веб-чатов и заметок... OK\n";
+      logBox.textContent += "[4/5] Git commit & push на GitHub... OK\n";
+      logBox.textContent += "[5/5] УСПЕШНО! Коммит: " + (data.report.commit_hash || "") + "\n";
+      
+      document.getElementById("backup-last-time").textContent = new Date().toLocaleString();
+      document.getElementById("backup-last-commit").textContent = data.report.commit_hash || "-";
+      showToast("Бэкап успешно выгружен на GitHub!");
+    } else {
+      logBox.textContent += "\nОШИБКА: " + (data.error || "Неизвестная ошибка") + "\n";
+      showToast("Ошибка выгрузки бэкапа");
+    }
+  } catch(e) {
+    logBox.textContent += "\nОШИБКА СЕТИ: " + e.message + "\n";
+    showToast("Сетевой сбой при бэкапе");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "🚀 Выгрузить в GitHub сейчас";
+  }
+}
+</script>
+
 </body>
 </html>

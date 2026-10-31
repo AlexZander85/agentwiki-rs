@@ -373,6 +373,21 @@ enum Command {
         #[command(subcommand)]
         cmd: HookCmd,
     },
+    /// Backup sessions and curated knowledge to a private GitHub repository
+    Backup {
+        /// Configure or override GitHub repository URL (e.g. https://github.com/AlexZander85/wikiagents-backup.git)
+        #[arg(long)]
+        repo: Option<String>,
+        /// Test connection to the configured repository
+        #[arg(long)]
+        test: bool,
+        /// Show backup status and configuration
+        #[arg(long)]
+        status: bool,
+        /// Push backup to GitHub
+        #[arg(long)]
+        push: bool,
+    },
     /// Run as an MCP server over stdio (register: claude mcp add wikiagents -- wikiagents mcp)
     Mcp,
 }
@@ -566,6 +581,9 @@ fn main() {
             // Always exit 0 with whatever was printed; never the exit(1) path.
             sessionwiki::hook::session_start();
             return;
+        }
+        Command::Backup { repo, test, status, push } => {
+            commands::backup_cmd(repo.as_deref(), test, status, push)
         }
         Command::Mcp => {
             sessionwiki::mcp::serve();
