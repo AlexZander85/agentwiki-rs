@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.2.1] - 2026-10-31 (WikiAgents)
+
+### Fixed & Enhanced
+- **Universal Windows Path Separators & Case-Insensitive Matching**:
+  - `trace`, `blame`, `edits_for`, and `touched_paths_matching` normalize Windows forward `/` and backslash `\` separators on the fly and match file paths with `COLLATE NOCASE`. Files are reliably found regardless of slash orientation or case differences.
+- **Windows `\\?\` Extended Path Sanitization & Claude Code Session Resume**:
+  - Added `canonicalize_as_recorded` in `src/util.rs` to strip extended length prefixes (`\\?\` and `\\?\UNC\`), matching CLI agent path conventions.
+  - Hardened `relativize` in `src/hook.rs` to compare path components using standard `Path` traversal on Windows without breaking session start hooks.
+  - Added `claude_cwd` in `src/resume.rs` to restore the original folder case when resuming Claude Code sessions.
+  - Updated `migrate_cmd` in `src/commands.rs` to use `canonicalize_as_recorded`.
+- **Literal Project Scope Filter (`--project`)**:
+  - SQL project scope searches now escape wildcard characters (`_` and `%`) via `escape_like`. Searching for `zapret_gui` no longer erroneously matches `zapret-gui`.
+- **Precise Session Relatedness Resolution**:
+  - Session relatedness matching resolves relative Codex paths against the session's workspace root before comparing with absolute Claude Code paths, preventing false-positive links between unrelated files sharing generic names.
+- **Vacuum WAL Checkpoint Polish (Upstream PR #87)**:
+  - Added `busy: bool` flag to `CompactReport` to signal when active SQLite readers hold locks preventing full `wal_checkpoint(TRUNCATE)`.
+  - Polished CLI output to distinguish between database shrunk, unchanged, or grown scenarios with actionable status messages.
+
 ## [1.2.0] - 2026-10-31 (WikiAgents)
 
 ### Added

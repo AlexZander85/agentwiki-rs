@@ -37,3 +37,4 @@ npm/README.md
 *.WebView2/
 *.zip
 *.sha256
+/research/
