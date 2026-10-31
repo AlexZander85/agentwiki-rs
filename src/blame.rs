@@ -6,6 +6,11 @@ use anyhow::{bail, Context, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct LineBlame {
     pub line: usize,
@@ -191,6 +196,8 @@ fn git_command(repo: &Path) -> Command {
             "-c",
             "core.hooksPath=/dev/null",
         ]);
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
     cmd
 }
 

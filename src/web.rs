@@ -1314,6 +1314,7 @@ fn language_of(path: &str) -> &'static str {
 fn api_backup_status(conn: &Connection) -> Result<Boxed> {
     let cfg = crate::backup::get_backup_config(conn)?;
     let total: i64 = conn.query_row("SELECT count(*) FROM files", [], |r| r.get(0)).unwrap_or(0);
+    let progress = crate::backup::get_progress();
     json_response(json!({
         "ok": true,
         "repo_url": cfg.repo_url,
@@ -1321,6 +1322,7 @@ fn api_backup_status(conn: &Connection) -> Result<Boxed> {
         "last_commit": cfg.last_commit,
         "last_status": cfg.last_status,
         "total_sessions": total,
+        "progress": progress,
     }))
 }
 
@@ -1374,10 +1376,38 @@ fn api_backup_run(conn: &Connection, req: &mut tiny_http::Request, query: &str) 
         }
     };
 
-    let report = crate::backup::run_backup(conn, &repo_url)?;
+    if crate::backup::is_running() {
+        return json_response(json!({
+            "ok": true,
+            "started": true,
+            "already_running": true,
+            "progress": crate::backup::get_progress(),
+        }));
+    }
+
+    let repo_url_clone = repo_url.clone();
+    std::thread::spawn(move || {
+        let db_p = match crate::index::db_path() {
+            Ok(p) => p,
+            Err(e) => {
+                crate::backup::set_error(&format!("Database path error: {e}"));
+                return;
+            }
+        };
+        let conn = match rusqlite::Connection::open(&db_p) {
+            Ok(c) => c,
+            Err(e) => {
+                crate::backup::set_error(&format!("Database open error: {e}"));
+                return;
+            }
+        };
+        let _ = crate::backup::run_backup(&conn, &repo_url_clone);
+    });
+
     json_response(json!({
-        "ok": report.success,
-        "report": report,
+        "ok": true,
+        "started": true,
+        "progress": crate::backup::get_progress(),
     }))
 }
 

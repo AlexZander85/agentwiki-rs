@@ -13,6 +13,20 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+/// Create a Command for `git` that never opens a console window on Windows.
+pub fn new_git_cmd() -> Command {
+    let mut cmd = Command::new("git");
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd
+}
+
 pub const MAX_CHUNK_BYTES: u64 = 45 * 1024 * 1024; // 45 MB chunks (safely under GitHub's 100 MB hard limit)
 pub const REPO_URL_KEY: &str = "github_backup_repo";
 pub const LAST_BACKUP_KEY: &str = "github_backup_last_at";
@@ -35,6 +49,66 @@ pub struct BackupReport {
     pub total_files_backed_up: usize,
     pub message: String,
     pub timestamp: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackupProgress {
+    pub is_running: bool,
+    pub step: u8,
+    pub total_steps: u8,
+    pub stage: String,
+    pub log_messages: Vec<String>,
+    pub error: Option<String>,
+    pub last_report: Option<BackupReport>,
+}
+
+impl BackupProgress {
+    pub const fn new() -> Self {
+        Self {
+            is_running: false,
+            step: 0,
+            total_steps: 5,
+            stage: String::new(),
+            log_messages: Vec::new(),
+            error: None,
+            last_report: None,
+        }
+    }
+}
+
+static BACKUP_PROGRESS: std::sync::Mutex<BackupProgress> =
+    std::sync::Mutex::new(BackupProgress::new());
+
+pub fn get_progress() -> BackupProgress {
+    BACKUP_PROGRESS.lock().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
+pub fn is_running() -> bool {
+    BACKUP_PROGRESS.lock().unwrap_or_else(|e| e.into_inner()).is_running
+}
+
+pub fn set_progress<F>(f: F)
+where
+    F: FnOnce(&mut BackupProgress),
+{
+    let mut p = BACKUP_PROGRESS.lock().unwrap_or_else(|e| e.into_inner());
+    f(&mut p);
+}
+
+pub fn log_step(step: u8, stage: &str, message: &str) {
+    set_progress(|p| {
+        p.step = step;
+        p.stage = stage.to_string();
+        p.log_messages.push(message.to_string());
+    });
+}
+
+pub fn set_error(err: &str) {
+    set_progress(|p| {
+        p.is_running = false;
+        p.error = Some(err.to_string());
+        p.log_messages.push(format!("ОШИБКА: {err}"));
+    });
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,13 +142,13 @@ pub fn set_backup_config(conn: &Connection, repo_url: &str) -> Result<()> {
 
 /// Test connection to the remote repository using `git ls-remote`.
 pub fn test_connection(repo_url: &str) -> ConnectionTestResult {
-    let git_version = Command::new("git")
+    let git_version = new_git_cmd()
         .arg("--version")
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
         .unwrap_or_else(|_| "git not found".to_string());
 
-    let git_user = Command::new("git")
+    let git_user = new_git_cmd()
         .args(["config", "--get", "user.name"])
         .output()
         .ok()
@@ -96,7 +170,7 @@ pub fn test_connection(repo_url: &str) -> ConnectionTestResult {
         };
     }
 
-    match Command::new("git")
+    match new_git_cmd()
         .args(["ls-remote", repo_url.trim()])
         .output()
     {
@@ -155,96 +229,135 @@ pub fn resolve_backup_dir() -> Result<PathBuf> {
 pub fn run_backup(conn: &Connection, repo_url: &str) -> Result<BackupReport> {
     let repo_url = repo_url.trim();
     if repo_url.is_empty() {
-        anyhow::bail!("GitHub repository URL is empty");
+        let err = "GitHub repository URL is empty".to_string();
+        set_error(&err);
+        anyhow::bail!(err);
     }
 
-    let backup_dir = resolve_backup_dir()?;
-    let now = Utc::now();
-    let timestamp = now.timestamp();
+    set_progress(|p| {
+        p.is_running = true;
+        p.step = 1;
+        p.total_steps = 5;
+        p.stage = "Проверка Git-репозитория...".to_string();
+        p.error = None;
+        p.last_report = None;
+        p.log_messages = vec!["[1/5] Проверка и подготовка Git-репозитория...".to_string()];
+    });
 
-    // 1. Initialize or configure git repo in backup_dir
-    ensure_git_repo(&backup_dir, repo_url)?;
+    let res = (|| -> Result<BackupReport> {
+        let backup_dir = resolve_backup_dir()?;
+        let now = Utc::now();
+        let timestamp = now.timestamp();
 
-    // 2. Export curated tables
-    let curated_dir = backup_dir.join("curated");
-    fs::create_dir_all(&curated_dir)?;
-    export_curated_tables(conn, &curated_dir)?;
+        // 1. Initialize or configure git repo in backup_dir
+        ensure_git_repo(&backup_dir, repo_url)?;
+        log_step(1, "Git-репозиторий настроен", "[1/5] Проверка Git-репозитория... OK");
 
-    // 3. Export web session files (with 45MB chunking)
-    let web_dir = backup_dir.join("web_session");
-    fs::create_dir_all(&web_dir)?;
-    export_web_session_files(&web_dir)?;
+        // 2. Export curated tables
+        log_step(2, "Экспорт метаданных и заметок...", "[2/5] Экспорт избранного, заметок, тегов и сниппетов...");
+        let curated_dir = backup_dir.join("curated");
+        fs::create_dir_all(&curated_dir)?;
+        let curated_count = export_curated_tables(conn, &curated_dir)?;
+        log_step(2, "Метаданные экспортированы", &format!("[2/5] Экспорт метаданных и сниппетов ({} записей)... OK", curated_count));
 
-    // 4. Export database snapshot (vacuum -> gzip -> 45MB chunking)
-    let db_dir = backup_dir.join("database");
-    fs::create_dir_all(&db_dir)?;
-    export_database_snapshot(conn, &db_dir)?;
+        // 3. Export web session files (with 45MB chunking)
+        log_step(3, "Экспорт веб-чатов...", "[3/5] Экспорт веб-чатов (Claude, DeepSeek, Gemini, Qwen, GLM)...");
+        let web_dir = backup_dir.join("web_session");
+        fs::create_dir_all(&web_dir)?;
+        let web_count = export_web_session_files(&web_dir)?;
+        log_step(3, "Веб-чаты экспортированы", &format!("[3/5] Экспорт веб-чатов ({} файлов)... OK", web_count));
 
-    // 5. Generate manifest and README
-    let (total_sessions, tool_stats) = query_session_stats(conn)?;
-    write_manifest_and_readme(&backup_dir, repo_url, total_sessions, &tool_stats)?;
+        // 4. Export database snapshot (vacuum -> gzip -> 45MB chunking)
+        log_step(4, "Снимок SQLite базы (VACUUM)...", "[4/5] Подготовка снимка базы SQLite (VACUUM INTO)...");
+        let db_dir = backup_dir.join("database");
+        fs::create_dir_all(&db_dir)?;
+        let parts = export_database_snapshot(conn, &db_dir)?;
+        log_step(4, "База упакована", &format!("[4/5] Быстрое сжатие gzip и нарезка по 45 МБ... OK ({} блоков)", parts));
 
-    // 6. Git commit and push
-    run_git_cmd(&backup_dir, &["add", "-A"])?;
+        // 5. Generate manifest and README
+        let (total_sessions, tool_stats) = query_session_stats(conn)?;
+        write_manifest_and_readme(&backup_dir, repo_url, total_sessions, &tool_stats)?;
 
-    let status = run_git_cmd(&backup_dir, &["status", "--porcelain"])?;
-    let commit_hash;
-    let message;
+        // 6. Git commit and push
+        log_step(5, "Отправка на GitHub (git push)...", "[5/5] Подготовка коммита и отправка в GitHub (git push)...");
+        run_git_cmd(&backup_dir, &["add", "-A"])?;
 
-    if status.is_empty() {
-        commit_hash = run_git_cmd(&backup_dir, &["rev-parse", "--short", "HEAD"]).ok();
-        let _ = run_git_cmd(&backup_dir, &["push", "-u", "origin", "main"]);
-        message = "Данные уже синхронизированы с GitHub, изменений нет.".to_string();
-    } else {
-        let commit_msg = format!(
-            "wikiagents backup: {} ({} sessions across {} tools)",
-            now.format("%Y-%m-%d %H:%M:%S UTC"),
-            total_sessions,
-            tool_stats.len()
-        );
-        run_git_cmd(&backup_dir, &["commit", "-m", &commit_msg])?;
-        commit_hash = Some(run_git_cmd(&backup_dir, &["rev-parse", "--short", "HEAD"])?);
+        let status = run_git_cmd(&backup_dir, &["status", "--porcelain"])?;
+        let commit_hash;
+        let message;
 
-        // Push to origin main with retries and force fallback if history diverged
-        let mut push_res = run_git_cmd(&backup_dir, &["push", "-u", "origin", "main"]);
-        if push_res.is_err() {
-            push_res = run_git_cmd(&backup_dir, &["push", "-u", "origin", "main", "--force"]);
+        if status.is_empty() {
+            commit_hash = run_git_cmd(&backup_dir, &["rev-parse", "--short", "HEAD"]).ok();
+            let _ = run_git_cmd(&backup_dir, &["push", "-u", "origin", "main"]);
+            message = "Данные уже синхронизированы с GitHub, изменений нет.".to_string();
+        } else {
+            let commit_msg = format!(
+                "wikiagents backup: {} ({} sessions across {} tools)",
+                now.format("%Y-%m-%d %H:%M:%S UTC"),
+                total_sessions,
+                tool_stats.len()
+            );
+            run_git_cmd(&backup_dir, &["commit", "-m", &commit_msg])?;
+            commit_hash = Some(run_git_cmd(&backup_dir, &["rev-parse", "--short", "HEAD"])?);
+
+            // Push to origin main with retries and force fallback if history diverged
+            let mut push_res = run_git_cmd(&backup_dir, &["push", "-u", "origin", "main"]);
             if push_res.is_err() {
-                for attempt in 1..=3 {
-                    std::thread::sleep(std::time::Duration::from_secs(2 * attempt));
-                    push_res = run_git_cmd(&backup_dir, &["push", "-u", "origin", "main", "--force"]);
-                    if push_res.is_ok() {
-                        break;
+                push_res = run_git_cmd(&backup_dir, &["push", "-u", "origin", "main", "--force"]);
+                if push_res.is_err() {
+                    for attempt in 1..=3 {
+                        std::thread::sleep(std::time::Duration::from_secs(2 * attempt));
+                        push_res = run_git_cmd(&backup_dir, &["push", "-u", "origin", "main", "--force"]);
+                        if push_res.is_ok() {
+                            break;
+                        }
                     }
                 }
             }
+            push_res?;
+            message = format!(
+                "Успешно выгружено в GitHub! Коммит: {}, всего сессий: {}",
+                commit_hash.as_deref().unwrap_or(""),
+                total_sessions
+            );
         }
-        push_res?;
-        message = format!(
-            "Успешно выгружено в GitHub! Коммит: {}, всего сессий: {}",
-            commit_hash.as_deref().unwrap_or(""),
-            total_sessions
-        );
+
+        // 7. Save metadata in index
+        set_meta(conn, REPO_URL_KEY, repo_url)?;
+        set_meta(conn, LAST_BACKUP_KEY, &timestamp.to_string())?;
+        if let Some(ref h) = commit_hash {
+            set_meta(conn, LAST_COMMIT_KEY, h)?;
+        }
+        set_meta(conn, LAST_STATUS_KEY, "ok")?;
+
+        let total_files = count_files_in_dir(&backup_dir)?;
+        let hash_str = commit_hash.as_deref().unwrap_or("");
+        log_step(5, "Готово", &format!("[5/5] УСПЕШНО! Выгружено в GitHub! Коммит: {}", hash_str));
+
+        Ok(BackupReport {
+            success: true,
+            commit_hash,
+            total_sessions,
+            total_files_backed_up: total_files,
+            message,
+            timestamp,
+        })
+    })();
+
+    match res {
+        Ok(report) => {
+            set_progress(|p| {
+                p.is_running = false;
+                p.stage = "Завершено успешно".to_string();
+                p.last_report = Some(report.clone());
+            });
+            Ok(report)
+        }
+        Err(e) => {
+            set_error(&e.to_string());
+            Err(e)
+        }
     }
-
-    // 7. Save metadata in index
-    set_meta(conn, REPO_URL_KEY, repo_url)?;
-    set_meta(conn, LAST_BACKUP_KEY, &timestamp.to_string())?;
-    if let Some(ref h) = commit_hash {
-        set_meta(conn, LAST_COMMIT_KEY, h)?;
-    }
-    set_meta(conn, LAST_STATUS_KEY, "ok")?;
-
-    let total_files = count_files_in_dir(&backup_dir)?;
-
-    Ok(BackupReport {
-        success: true,
-        commit_hash,
-        total_sessions,
-        total_files_backed_up: total_files,
-        message,
-        timestamp,
-    })
 }
 
 // ---------------------------------------------------------------------------
@@ -264,11 +377,12 @@ fn ensure_git_repo(dir: &Path, repo_url: &str) -> Result<()> {
 
     // Configure sensible git repo settings for backup
     let _ = run_git_cmd(dir, &["config", "core.autocrlf", "false"]);
+    let _ = run_git_cmd(dir, &["config", "http.postBuffer", "524288000"]);
     Ok(())
 }
 
 fn run_git_cmd(dir: &Path, args: &[&str]) -> Result<String> {
-    let output = Command::new("git")
+    let output = new_git_cmd()
         .current_dir(dir)
         .args(args)
         .output()
@@ -286,7 +400,7 @@ fn run_git_cmd(dir: &Path, args: &[&str]) -> Result<String> {
 // Helpers: Curated Data Export
 // ---------------------------------------------------------------------------
 
-fn export_curated_tables(conn: &Connection, dest_dir: &Path) -> Result<()> {
+fn export_curated_tables(conn: &Connection, dest_dir: &Path) -> Result<usize> {
     // 1. Favorites
     let mut fav_stmt = conn.prepare(
         "SELECT session_id, created_at FROM favorites ORDER BY created_at DESC",
@@ -387,14 +501,15 @@ fn export_curated_tables(conn: &Connection, dest_dir: &Path) -> Result<()> {
         serde_json::to_string_pretty(&sum_rows)?,
     )?;
 
-    Ok(())
+    let total = fav_rows.len() + tag_rows.len() + note_rows.len() + snip_rows.len() + sum_rows.len();
+    Ok(total)
 }
 
 // ---------------------------------------------------------------------------
 // Helpers: Web Sessions Export with 45 MB Chunking
 // ---------------------------------------------------------------------------
 
-fn export_web_session_files(dest_dir: &Path) -> Result<()> {
+fn export_web_session_files(dest_dir: &Path) -> Result<usize> {
     let roots = crate::adapters::web_chat::web_session_roots();
     let mut copied_files = Vec::new();
 
@@ -433,7 +548,7 @@ fn export_web_session_files(dest_dir: &Path) -> Result<()> {
     // Write recombine helper scripts
     write_recombine_helpers(dest_dir)?;
 
-    Ok(())
+    Ok(copied_files.len())
 }
 
 fn split_file(src_path: &Path, dest_dir: &Path, base_name: &str) -> Result<usize> {
@@ -502,7 +617,7 @@ Get-ChildItem -Filter "*.part00" | ForEach-Object {
 // Helpers: Database Snapshot Export with Compression & Chunking
 // ---------------------------------------------------------------------------
 
-fn export_database_snapshot(conn: &Connection, dest_dir: &Path) -> Result<()> {
+fn export_database_snapshot(conn: &Connection, dest_dir: &Path) -> Result<usize> {
     let temp_db = dest_dir.join("temp_snapshot.db");
     if temp_db.exists() {
         let _ = fs::remove_file(&temp_db);
@@ -513,12 +628,12 @@ fn export_database_snapshot(conn: &Connection, dest_dir: &Path) -> Result<()> {
     conn.execute(&format!("VACUUM INTO '{temp_db_str}'"), [])
         .context("VACUUM INTO failed")?;
 
-    // 2. Compress the snapshot with gzip
+    // 2. Fast compress the snapshot with gzip
     let gz_path = dest_dir.join("index.db.gz");
     {
         let mut src_file = File::open(&temp_db)?;
         let dst_file = File::create(&gz_path)?;
-        let mut encoder = GzEncoder::new(dst_file, Compression::default());
+        let mut encoder = GzEncoder::new(dst_file, Compression::fast());
         std::io::copy(&mut src_file, &mut encoder)?;
         encoder.finish()?;
     }
@@ -528,11 +643,14 @@ fn export_database_snapshot(conn: &Connection, dest_dir: &Path) -> Result<()> {
 
     // 3. If compressed file > 45 MB, split into chunks for GitHub
     let gz_size = fs::metadata(&gz_path)?.len();
-    if gz_size > MAX_CHUNK_BYTES {
-        split_file(&gz_path, dest_dir, "index.db.gz")?;
+    let parts_count = if gz_size > MAX_CHUNK_BYTES {
+        let count = split_file(&gz_path, dest_dir, "index.db.gz")?;
         // Remove the giant .gz file so only the chunks are kept for Git
         let _ = fs::remove_file(&gz_path);
-    }
+        count
+    } else {
+        1
+    };
 
     // 4. Write restore scripts for the database
     let py_restore = r#"#!/usr/bin/env python3
@@ -591,7 +709,7 @@ if (Test-Path $gzName) {
 "#;
     fs::write(dest_dir.join("restore.ps1"), ps_restore)?;
 
-    Ok(())
+    Ok(parts_count)
 }
 
 // ---------------------------------------------------------------------------
