@@ -804,3 +804,42 @@ fn favorites_lifecycle_and_table_ensure() {
     assert!(!index::is_favorite(&conn, "sess1").unwrap());
     assert_eq!(index::list_favorites(&conn).unwrap(), vec!["sess2"]);
 }
+
+
+/// Codex records a path relative to the folder it ran in, Claude Code a full
+/// one: `src/auth.rs` from `/proj/api` and `/proj/api/src/auth.rs` are one
+/// file, while `src/auth.rs` from `/proj/web` is another.
+#[test]
+fn shared_file_relatedness_reads_relative_paths_against_their_folder() {
+    let _g = LOCK.lock().unwrap();
+    let conn = fresh_index();
+    let t = "2026-06-10T10:00:00+00:00";
+    seed(&conn, "full", "claude-code", "/proj", "full path", t);
+    seed(&conn, "rel", "codex", "/proj/api", "relative path", t);
+    seed(&conn, "cased", "claude-code", "/elsewhere", "other case", t);
+    seed(&conn, "web", "codex", "/proj/web", "another file", t);
+    touch(&conn, "full", "/proj/api/src/auth.rs");
+    touch(&conn, "rel", "src/auth.rs");
+    touch(&conn, "cased", "/proj/API/src/auth.rs");
+    touch(&conn, "web", "src/auth.rs");
+    let ids = |id: &str| -> Vec<String> {
+        let mut v: Vec<String> = index::related(&conn, id, 10)
+            .unwrap()
+            .into_iter()
+            .map(|r| r.session_id)
+            .collect();
+        v.sort();
+        v
+    };
+    assert_eq!(ids("rel"), ["cased", "full"]);
+    assert_eq!(ids("full"), ["cased", "rel"]);
+    assert_eq!(ids("web"), Vec::<String>::new());
+
+    // Windows paths are not read against a folder: the same full path recorded
+    // from two folders is still one file.
+    seed(&conn, "win1", "codex", "C:\\repo", "windows", t);
+    seed(&conn, "win2", "codex", "C:\\repo\\src", "windows", t);
+    touch(&conn, "win1", "C:\\repo\\src\\auth.rs");
+    touch(&conn, "win2", "C:\\repo\\src\\auth.rs");
+    assert_eq!(ids("win1"), ["win2"]);
+}

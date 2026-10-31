@@ -96,12 +96,11 @@ pub fn for_session(tool: &str, path: &Path, project: &str) -> Option<ResumeInfo>
 /// actually lives in (the folder name encodes the cwd), which a planted file in
 /// some other folder cannot fake.
 fn safe_cwd(tool: &str, path: &Path, project: &str) -> (Option<PathBuf>, bool) {
-    let is_abs = std::path::Path::new(project).is_absolute() || project.starts_with('/') || project.starts_with('\\');
-    if project.is_empty() || !is_abs {
+    if project.is_empty() || !Path::new(project).is_absolute() {
         // No directory claim; resuming in the user's own shell cwd is fine.
         return (None, true);
     }
-    let Ok(canon) = std::fs::canonicalize(project) else {
+    let Ok(canon) = crate::util::canonicalize_as_recorded(project) else {
         // Recorded directory does not resolve on this machine. Keep the claimed
         // path so the caller can show "run it where the project lives", but it
         // is not verified, so the caller must not auto-launch into it.
@@ -110,21 +109,72 @@ fn safe_cwd(tool: &str, path: &Path, project: &str) -> (Option<PathBuf>, bool) {
     if !canon.is_dir() {
         return (Some(canon), false);
     }
-    let verified = if tool == "claude-code" {
+    if tool == "claude-code" {
         let folder = path
             .parent()
             .and_then(|p| p.file_name())
             .map(|n| n.to_string_lossy().into_owned());
-        folder.as_deref()
-            == Some(crate::migrate::claude_project_folder(&canon.to_string_lossy()).as_str())
-    } else {
-        // Codex / Gemini are not folder-scoped, so the recorded cwd cannot be
-        // tied to this session at all - a planted session can name any directory
-        // (with an attacker-planted AGENTS.md / .codex there). Never auto-launch
-        // into it; resume prints the command for the user to run after a look.
-        false
-    };
-    (Some(canon), verified)
+        if let Some(cwd) = folder.and_then(|f| claude_cwd(&canon, &f)) {
+            return (Some(cwd), true);
+        }
+    }
+    // Codex / Gemini are not folder-scoped, so the recorded cwd cannot be tied
+    // to this session at all - a planted session can name any directory (with
+    // an attacker-planted AGENTS.md / .codex there). Never auto-launch into it;
+    // resume prints the command for the user to run after a look.
+    (Some(canon), false)
+}
+
+/// The directory a Claude Code session filed under `folder` was started in,
+/// if it is `canon` - spelled as it was started. The index spells a project as
+/// it is on disk, but on a case-insensitive filesystem a session started in
+/// `.../brain` is filed under `-...-brain`, and Claude Code finds it only from
+/// a directory spelled that way: from `.../Brain` it reports no conversation
+/// with that id. The folder keeps every ASCII letter's case, so the spelling
+/// can be read back from it, and it is trusted only when it reaches the same
+/// directory.
+fn claude_cwd(canon: &Path, folder: &str) -> Option<PathBuf> {
+    let on_disk = canon.to_string_lossy();
+    if crate::migrate::claude_project_folder(&on_disk) == folder {
+        return Some(canon.to_path_buf());
+    }
+    let units: Vec<u16> = on_disk.encode_utf16().collect();
+    // A name past 200 characters is cut and hashed, and holds no spelling.
+    if units.len() != folder.len() || !folder.is_ascii() {
+        return None;
+    }
+    let mut typed = Vec::with_capacity(units.len());
+    for (&unit, letter) in units.iter().zip(folder.bytes()) {
+        match u8::try_from(unit) {
+            Ok(c) if c.is_ascii_alphanumeric() => {
+                if !c.eq_ignore_ascii_case(&letter) {
+                    return None;
+                }
+                typed.push(u16::from(letter));
+            }
+            _ if letter == b'-' => typed.push(unit),
+            _ => return None,
+        }
+    }
+    let typed = PathBuf::from(String::from_utf16(&typed).ok()?);
+    same_dir(&typed, canon).then_some(typed)
+}
+
+#[cfg(unix)]
+fn same_dir(a: &Path, b: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    match (std::fs::metadata(a), std::fs::metadata(b)) {
+        (Ok(a), Ok(b)) => a.is_dir() && a.dev() == b.dev() && a.ino() == b.ino(),
+        _ => false,
+    }
+}
+
+#[cfg(not(unix))]
+fn same_dir(a: &Path, b: &Path) -> bool {
+    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
 }
 
 fn looks_like_uuid(s: &str) -> bool {
@@ -141,12 +191,52 @@ mod tests {
 
     const ID: &str = "0a000000-0000-4000-8000-000000000001.jsonl";
 
+    /// On a case-insensitive filesystem (WSL's /mnt/<drive>, macOS by default)
+    /// a session started in `.../brain` is filed under `-...-brain`, while the
+    /// index spells its project as on disk, `.../Brain`. Claude Code finds the
+    /// session only from the directory spelled as it was, so resume runs there.
+    /// On a case-sensitive filesystem the two are different directories.
+    /// SESSIONWIKI_CASE_DIR points a Linux run at a drvfs mount.
+    #[test]
+    fn resume_runs_where_the_session_started_spelled_as_it_was() {
+        let root = match std::env::var_os("SESSIONWIKI_CASE_DIR") {
+            Some(dir) => tempfile::tempdir_in(dir).unwrap(),
+            None => tempfile::tempdir().unwrap(),
+        };
+        let base = crate::util::canonicalize_as_recorded(root.path()).unwrap();
+        let on_disk = base.join("Brain");
+        std::fs::create_dir_all(&on_disk).unwrap();
+        let typed = base.join("brain");
+        let insensitive = typed.exists();
+        let folder = crate::migrate::claude_project_folder(&typed.to_string_lossy());
+        let file = base.join("store").join(folder).join(ID);
+        if !insensitive {
+            // Two real directories that differ only in case are two directories.
+            std::fs::create_dir_all(&typed).unwrap();
+        }
+        let info = for_session("claude-code", &file, &on_disk.to_string_lossy()).unwrap();
+        if insensitive {
+            assert!(
+                info.verified_cwd,
+                "the same directory, spelled as it was typed"
+            );
+            assert_eq!(info.cwd.as_deref(), Some(typed.as_path()));
+        } else {
+            assert!(
+                !info.verified_cwd,
+                "another directory is not this session's"
+            );
+            assert_eq!(info.cwd.as_deref(), Some(on_disk.as_path()));
+        }
+    }
+
     #[test]
     fn resume_only_trusts_a_cwd_it_can_verify() {
         let base = std::env::temp_dir().join(format!("sw-resume-{}", std::process::id()));
         let proj = base.join("realproj");
         std::fs::create_dir_all(&proj).unwrap();
-        let canon = std::fs::canonicalize(&proj)
+        // As the tool records it: on Windows `C:\...`, not `\\?\C:\...`.
+        let canon = crate::util::canonicalize_as_recorded(&proj)
             .unwrap()
             .to_string_lossy()
             .to_string();
@@ -155,11 +245,9 @@ mod tests {
         let good = base
             .join(crate::migrate::claude_project_folder(&canon))
             .join(ID);
-        assert!(
-            for_session("claude-code", &good, &canon)
-                .unwrap()
-                .verified_cwd
-        );
+        let info = for_session("claude-code", &good, &canon).unwrap();
+        assert!(info.verified_cwd);
+        assert_eq!(info.cwd.as_deref(), Some(Path::new(&canon)));
 
         // Same cwd claim, but the file lives under a different folder (a planted
         // session pointing at someone else's directory) -> not trusted.
@@ -173,11 +261,8 @@ mod tests {
         // A recorded directory that doesn't exist on this machine -> not trusted,
         // so resume won't auto-launch into it.
         let cdx = Path::new("/x/rollout-1-0a000000-0000-4000-8000-000000000001.jsonl");
-        assert!(
-            !for_session("codex", cdx, "/no/such/dir/here")
-                .unwrap()
-                .verified_cwd
-        );
+        let gone = base.join("no-such-dir").to_string_lossy().to_string();
+        assert!(!for_session("codex", cdx, &gone).unwrap().verified_cwd);
 
         // Codex/Gemini are never auto-trusted, even for an existing directory:
         // their cwd can't be tied to the session, so a planted one can't make

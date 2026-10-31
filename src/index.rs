@@ -5,7 +5,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::io::{IsTerminal, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Where a legacy index would sit, given where this one is going.
 ///
@@ -1987,6 +1987,7 @@ fn maintain(conn: &Connection) {
 pub struct CompactReport {
     pub before: u64,
     pub after: u64,
+    pub busy: bool,
 }
 
 /// Meta keys recording the last full compaction: when, and the size it left.
@@ -2038,7 +2039,11 @@ pub fn compact(conn: &Connection, path: &std::path::Path) -> Result<CompactRepor
     };
     set(COMPACT_AT_KEY, chrono::Utc::now().timestamp().to_string())?;
     set(COMPACT_SIZE_KEY, after.to_string())?;
-    Ok(CompactReport { before, after })
+    Ok(CompactReport {
+        before,
+        after,
+        busy: busy != 0,
+    })
 }
 
 /// Below this a full compaction is never worth interrupting anyone for.
@@ -2536,8 +2541,8 @@ fn push_session_scope(
         args.push(Box::new(t.to_string()));
     }
     if let Some(p) = filters.project {
-        sql.push_str(" AND f.project LIKE ?");
-        args.push(Box::new(format!("%{}%", crate::util::nfc(p))));
+        sql.push_str(" AND f.project LIKE ? ESCAPE '\\'");
+        args.push(Box::new(format!("%{}%", escape_like(&crate::util::nfc(p)))));
     }
     if let Some(t) = filters.tag {
         sql.push_str(
@@ -3224,6 +3229,28 @@ fn snippet_around(text: &str, terms: &[SearchTerm]) -> String {
     out.replace('\n', " ")
 }
 
+/// A path as the path lookups compare it. On Windows `\` cannot be part of a
+/// name and tools record `C:\x\y` and `C:/x/y` alike, so it reads as `/`;
+/// elsewhere it is an ordinary character in a name.
+fn path_query(query: &str) -> String {
+    let q = crate::util::nfc(query.trim());
+    let q = if cfg!(windows) {
+        q.replace('\\', "/")
+    } else {
+        q
+    };
+    q.trim_start_matches("./").to_owned()
+}
+
+/// A stored path column, read the way [`path_query`] reads a query.
+fn path_col(col: &str) -> String {
+    if cfg!(windows) {
+        format!("replace({col}, char(92), '/')")
+    } else {
+        col.to_owned()
+    }
+}
+
 /// Escape LIKE metacharacters ('\' first) so an id/path fragment like "%" or
 /// "_" can't turn a prefix match into a wildcard that resolves every session.
 fn escape_like(s: &str) -> String {
@@ -3774,22 +3801,23 @@ fn sql_limit(n: usize) -> i64 {
 }
 
 pub fn edits_for(conn: &Connection, query: &str, limit: usize) -> Result<Vec<FileEdit>> {
-    let q = crate::util::nfc(query.trim().trim_start_matches("./"));
+    let q = path_query(query);
     // Escape LIKE metacharacters so a caller-supplied `%`/`_` matches literally.
     let esc = q
         .replace('\\', "\\\\")
         .replace('%', "\\%")
         .replace('_', "\\_");
     let suffix = format!("%/{esc}");
-    let mut stmt = conn.prepare(
+    let p = path_col("path");
+    let mut stmt = conn.prepare(&format!(
         "SELECT session_id, kind, ts, snippet, path
          FROM edits
-         WHERE path = ?1 OR path LIKE ?2 ESCAPE '\\'
+         WHERE {p} = ?1 OR {p} LIKE ?2 ESCAPE '\\'
             OR (length(?1) > length(path)
-                AND substr(?1, -length(path)) = path
+                AND substr(?1, -length(path)) = {p}
                 AND substr(?1, -length(path)-1, 1) = '/')
-         ORDER BY ts DESC, rowid DESC LIMIT ?3",
-    )?;
+         ORDER BY ts DESC, rowid DESC LIMIT ?3"
+    ))?;
     let rows = stmt.query_map(params![q, suffix, sql_limit(limit)], |r| {
         Ok(FileEdit {
             session_id: r.get(0)?,
@@ -3813,31 +3841,38 @@ pub fn edits_for_session(
     query: &str,
     limit: usize,
 ) -> Result<Vec<FileEdit>> {
-    let q = crate::util::nfc(query.trim().trim_start_matches("./"));
+    let q = path_query(query);
     let esc = q
         .replace('\\', "\\\\")
         .replace('%', "\\%")
         .replace('_', "\\_");
     let suffix = format!("%/{esc}");
-    let mut stmt = conn.prepare(
-        "SELECT session_id, kind, ts, snippet, path
-         FROM edits
-         WHERE session_id = ?1
-           AND (path = ?2 OR path LIKE ?3 ESCAPE '\\'
-                OR (length(?2) > length(path)
-                    AND substr(?2, -length(path)) = path
-                    AND substr(?2, -length(path)-1, 1) = '/'))
-         ORDER BY ts DESC, rowid DESC LIMIT ?4",
+    let rooted = Path::new(&q).has_root();
+    let (ep, fp) = (path_col("e.path"), path_col("f.project"));
+    let mut stmt = conn.prepare(&format!(
+        "SELECT e.session_id, e.kind, e.ts, e.snippet, e.path
+         FROM edits e LEFT JOIN files f ON f.session_id = e.session_id
+         WHERE e.session_id = ?1
+           AND ({ep} = ?2 COLLATE NOCASE OR {ep} LIKE ?3 ESCAPE '\\'
+                OR (length(?2) > length(e.path)
+                    AND substr(?2, -length(e.path)) = {ep} COLLATE NOCASE
+                    AND substr(?2, -length(e.path)-1, 1) = '/'
+                    AND (NOT ?5
+                         OR rtrim({fp}, '/') || '/' || {ep} = ?2 COLLATE NOCASE)))
+         ORDER BY e.ts DESC, e.rowid DESC LIMIT ?4"
+    ))?;
+    let rows = stmt.query_map(
+        params![session_id, q, suffix, sql_limit(limit), rooted],
+        |r| {
+            Ok(FileEdit {
+                session_id: r.get(0)?,
+                kind: r.get(1)?,
+                ts: r.get(2)?,
+                snippet: r.get(3)?,
+                matched_path: r.get(4)?,
+            })
+        },
     )?;
-    let rows = stmt.query_map(params![session_id, q, suffix, sql_limit(limit)], |r| {
-        Ok(FileEdit {
-            session_id: r.get(0)?,
-            kind: r.get(1)?,
-            ts: r.get(2)?,
-            snippet: r.get(3)?,
-            matched_path: r.get(4)?,
-        })
-    })?;
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }
 
@@ -3908,42 +3943,28 @@ pub fn sessions_for_file(
     query: &str,
     limit: usize,
 ) -> Result<Vec<(SessionRow, String)>> {
-    let raw = query.trim().trim_matches('"');
-    let q = crate::util::nfc(raw.trim_start_matches("./"));
-    let q_slash = q.replace('\\', "/");
-    let q_backslash = q.replace('/', "\\");
-
-    // Escape LIKE metacharacters: '\' first, then '%' and '_'
-    let esc_slash = q_slash
+    let q = path_query(query.trim().trim_matches('"'));
+    let esc = q
         .replace('\\', "\\\\")
         .replace('%', "\\%")
         .replace('_', "\\_");
-    let esc_backslash = q_backslash
-        .replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_");
-
-    let suffix_slash = format!("%/{esc_slash}");
-    let suffix_backslash = format!("%\\\\{esc_backslash}");
-
+    let suffix = format!("%/{esc}");
+    let rooted = Path::new(&q).has_root();
+    let (tp, fp) = (path_col("t.path"), path_col("f.project"));
     let mut stmt = conn.prepare(&format!(
         "SELECT f.session_id, f.tool, f.path, f.project, f.title, f.started, f.msg_count, f.kind,
                 {SUMMARY_SQL}, {TAGS_SQL}, t.path, (f.archived_at IS NOT NULL)
          FROM touched t JOIN files f ON f.session_id = t.session_id
-         WHERE t.path = ?1 OR t.path = ?2
-            OR t.path LIKE ?3 ESCAPE '\\'
-            OR t.path LIKE ?4 ESCAPE '\\'
-            OR trim(t.path, char(34)) = ?1 OR trim(t.path, char(34)) = ?2
+         WHERE {tp} = ?1 COLLATE NOCASE OR {tp} LIKE ?2 ESCAPE '\\'
             OR (length(?1) > length(t.path)
-                AND (substr(?1, -length(t.path)) = t.path OR substr(?2, -length(t.path)) = t.path)
-                AND (substr(?1, -length(t.path)-1, 1) = '/' OR substr(?1, -length(t.path)-1, 1) = '\\'))
-            OR (length(?2) > length(t.path)
-                AND (substr(?2, -length(t.path)) = t.path OR substr(?1, -length(t.path)) = t.path)
-                AND (substr(?2, -length(t.path)-1, 1) = '/' OR substr(?2, -length(t.path)-1, 1) = '\\'))
+                AND substr(?1, -length(t.path)) = {tp} COLLATE NOCASE
+                AND substr(?1, -length(t.path)-1, 1) = '/'
+                AND (NOT ?4
+                     OR rtrim({fp}, '/') || '/' || {tp} = ?1 COLLATE NOCASE))
          GROUP BY f.session_id
-         ORDER BY f.started DESC, f.session_id LIMIT ?5"
+         ORDER BY f.started DESC, f.session_id LIMIT ?3"
     ))?;
-    let rows = stmt.query_map(params![q_slash, q_backslash, suffix_slash, suffix_backslash, sql_limit(limit)], |r| {
+    let rows = stmt.query_map(params![q, suffix, sql_limit(limit), rooted], |r| {
         Ok((
             SessionRow {
                 last_active: None,
@@ -3979,14 +4000,18 @@ pub fn sessions_touching(
     conn: &Connection,
     query: &str,
 ) -> Result<Vec<crate::blame::TouchingSession>> {
-    let q = crate::util::nfc(query.trim().trim_start_matches("./"));
+    let q = path_query(query);
     let suffix = format!("%/{}", escape_like(&q));
-    let mut stmt = conn.prepare(
+    let tp = path_col("t.path");
+    let mut stmt = conn.prepare(&format!(
         "SELECT f.session_id, f.tool, f.title, f.project, f.started, f.ended, (f.archived_at IS NOT NULL)
          FROM touched t JOIN files f ON f.session_id = t.session_id
-         WHERE t.path = ?1 OR t.path LIKE ?2 ESCAPE '\\'
-         GROUP BY f.session_id",
-    )?;
+         WHERE {tp} = ?1 OR {tp} LIKE ?2 ESCAPE '\\'
+            OR (length(?1) > length(t.path)
+                AND substr(?1, -length(t.path)) = {tp}
+                AND substr(?1, -length(t.path)-1, 1) = '/')
+         GROUP BY f.session_id"
+    ))?;
     let rows = stmt.query_map(params![q, suffix], |r| {
         let started: Option<String> = r.get(4)?;
         let ended: Option<String> = r.get(5)?;
@@ -4001,6 +4026,26 @@ pub fn sessions_touching(
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+pub fn touched_paths_matching(
+    conn: &Connection,
+    session_id: &str,
+    query: &str,
+) -> Result<Vec<String>> {
+    let q = path_query(query);
+    let suffix = format!("%/{}", escape_like(&q));
+    let p = path_col("path");
+    let mut stmt = conn.prepare(&format!(
+        "SELECT path FROM touched
+         WHERE session_id = ?1
+           AND ({p} = ?2 OR {p} LIKE ?3 ESCAPE '\\'
+                OR (length(?2) > length(path)
+                    AND substr(?2, -length(path)) = {p}
+                    AND substr(?2, -length(path)-1, 1) = '/'))"
+    ))?;
+    let rows = stmt.query_map(params![session_id, q, suffix], |r| r.get(0))?;
+    Ok(rows.collect::<rusqlite::Result<Vec<String>>>()?)
 }
 
 /// Parse a stored timestamp (RFC3339) to epoch seconds; None if unparseable.
@@ -4371,13 +4416,23 @@ pub fn related(conn: &Connection, session_id: &str, limit: usize) -> Result<Vec<
     //    signal that two sessions are about the same work, and one no other
     //    session viewer has, since it comes from the provenance link.
     if out.len() < limit {
+        // Compare files, not spellings: a relative path is read against its
+        // session's folder (`src/auth.rs` from `/proj/api` is the full path
+        // another tool recorded; from `/proj/web` it is another file), and
+        // case is ignored as `trace` ignores it. Only a Unix folder is joined:
+        // a Windows path (`C:\repo\src\a.rs`) is compared as recorded.
+        let full = "CASE WHEN s.project LIKE '/%' AND t.path NOT LIKE '/%'
+                         THEN rtrim(s.project, '/') || '/' || t.path ELSE t.path END";
         let sql = format!(
             "SELECT DISTINCT f.session_id, f.tool, f.path, f.project, f.title, f.started,
                     f.msg_count, f.kind, {PREVIEW_SQL}, {SUMMARY_SQL}, {TAGS_SQL}, (f.archived_at IS NOT NULL)
-             FROM touched a
-             JOIN touched b ON a.path = b.path AND b.session_id != a.session_id
-             JOIN files f ON f.session_id = b.session_id
-             WHERE a.session_id = ?1 AND f.kind = 'main'
+             FROM touched t
+             JOIN files s ON s.session_id = t.session_id
+             JOIN files f ON f.session_id = t.session_id
+             WHERE t.session_id != ?1 AND f.kind = 'main'
+               AND ({full}) COLLATE NOCASE IN (
+                   SELECT {full} FROM touched t JOIN files s ON s.session_id = t.session_id
+                   WHERE t.session_id = ?1)
              ORDER BY f.started DESC LIMIT 50"
         );
         let mut stmt = conn.prepare(&sql)?;
@@ -4952,7 +5007,8 @@ mod edits_tests {
         c.execute_batch(
             "CREATE TABLE edits(session_id TEXT NOT NULL, path TEXT NOT NULL,
                  kind TEXT NOT NULL, ts TEXT, snippet TEXT NOT NULL);
-             CREATE INDEX idx_edits_path ON edits(path);",
+             CREATE INDEX idx_edits_path ON edits(path);
+             CREATE TABLE files(session_id TEXT, project TEXT);",
         )
         .unwrap();
         c
@@ -5106,6 +5162,27 @@ mod edits_tests {
         let hits = edits_for_session(&c, "s1", "/p/a.rs", 10).unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].snippet, "s1-edit");
+    }
+
+
+    #[test]
+    fn edits_for_session_reads_a_relative_path_against_the_session_folder() {
+        let c = conn_with_edits();
+        c.execute("INSERT INTO files VALUES ('s1', '/proj/api')", [])
+            .unwrap();
+        let ts = "2026-01-01T00:00:00Z";
+        add(&c, "s1", "/proj/other/README.md", "edit", ts, "other");
+        add(&c, "s1", "README.md", "edit", ts, "own");
+        let snips = |q: &str| -> Vec<String> {
+            edits_for_session(&c, "s1", q, 10)
+                .unwrap()
+                .into_iter()
+                .map(|e| e.snippet)
+                .collect()
+        };
+        assert_eq!(snips("/proj/other/README.md"), ["other"]);
+        assert_eq!(snips("/proj/api/README.md"), ["own"]);
+        assert_eq!(snips("api/README.md"), ["own"]);
     }
 
     #[test]
@@ -6050,5 +6127,98 @@ mod tool_output_tests {
             )
             .unwrap();
         assert_eq!(full_text.as_deref(), Some(OUTPUT));
+    }
+}
+
+#[cfg(test)]
+mod separator_tests {
+    use super::*;
+
+    /// What each path lookup finds for `q`: sessions_for_file, edits_for,
+    /// edits_for_session, sessions_touching, touched_paths_matching.
+    fn found(c: &Connection, sid: &str, q: &str) -> [bool; 5] {
+        [
+            sessions_for_file(c, q, 10)
+                .unwrap()
+                .iter()
+                .any(|(s, _)| s.session_id == sid),
+            edits_for(c, q, 10)
+                .unwrap()
+                .iter()
+                .any(|e| e.session_id == sid),
+            !edits_for_session(c, sid, q, 10).unwrap().is_empty(),
+            sessions_touching(c, q)
+                .unwrap()
+                .iter()
+                .any(|s| s.session_id == sid),
+            !touched_paths_matching(c, sid, q).unwrap().is_empty(),
+        ]
+    }
+
+    /// A Windows tool records `D:\p\src\a.rs` or `D:/p/src/b.rs`, and Codex a
+    /// path relative to its folder. `\` cannot be part of a name on Windows,
+    /// so there a path typed with either separator finds them; elsewhere `\`
+    /// is an ordinary character and only the stored spelling matches it.
+    #[test]
+    fn a_windows_path_is_found_by_either_separator() {
+        let c = Connection::open_in_memory().unwrap();
+        create_cache_schema(&c).unwrap();
+        for (sid, project, path) in [
+            ("s1", r"D:\p", r"D:\p\src\a.rs"),
+            ("s1", r"D:\p", "D:/p/src/b.rs"),
+            ("s2", r"D:\q", "src/c.rs"),
+        ] {
+            c.execute(
+                "INSERT OR IGNORE INTO files(path, mtime, size, session_id, tool, project, title,
+                                             started, ended, msg_count, kind)
+                 VALUES (?1, 0, 0, ?1, 'claude-code', ?2, 't', '2026-10-01T10:00:00Z',
+                         '2026-10-01T11:00:00Z', 1, 'main')",
+                [sid, project],
+            )
+            .unwrap();
+            c.execute(
+                "INSERT INTO touched(session_id, path) VALUES (?1, ?2)",
+                [sid, path],
+            )
+            .unwrap();
+            c.execute(
+                "INSERT INTO edits(session_id, path, kind, ts, snippet)
+                 VALUES (?1, ?2, 'edit', '2026-10-01T10:30:00Z', 'x')",
+                [sid, path],
+            )
+            .unwrap();
+        }
+        let windows = cfg!(windows);
+        let cases: &[(&str, &str, bool)] = &[
+            ("s1", r"D:\p\src\a.rs", true),
+            ("s1", "D:/p/src/a.rs", windows),
+            ("s1", r"src\a.rs", windows),
+            ("s1", "src/a.rs", windows),
+            ("s1", r".\src\a.rs", windows),
+            ("s1", "a.rs", windows),
+            ("s1", r"p\src\a.rs", windows),
+            ("s1", r"D:\p\src\b.rs", windows),
+            ("s1", r"src\b.rs", windows),
+            ("s1", "src/b.rs", true),
+            ("s1", "b.rs", true),
+            // not a whole name, another folder, another drive
+            ("s1", r"rc\a.rs", false),
+            ("s1", r"x\a.rs", false),
+            ("s1", r"E:\p\src\a.rs", false),
+        ];
+        for &(sid, q, want) in cases {
+            assert_eq!(found(&c, sid, q), [want; 5], "{q}");
+        }
+        // A relative stored path is read against its session's folder when the
+        // query is a full path (edits_for and sessions_touching match by name).
+        let c2 = [true, true, true, true, true];
+        assert_eq!(found(&c, "s2", r"src\c.rs"), [windows; 5]);
+        if windows {
+            assert_eq!(found(&c, "s2", r"D:\q\src\c.rs"), c2);
+            assert_eq!(
+                found(&c, "s2", r"D:\other\src\c.rs"),
+                [false, true, false, true, true]
+            );
+        }
     }
 }

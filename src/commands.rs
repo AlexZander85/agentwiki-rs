@@ -691,7 +691,7 @@ pub fn migrate_cmd(
     let mut conn = index::open()?;
     let row = resolve_lazy(&mut conn, id, no_sync)?;
 
-    let target = std::fs::canonicalize(target_dir).with_context(|| {
+    let target = crate::util::canonicalize_as_recorded(target_dir).with_context(|| {
         format!("target directory not found: {target_dir} (it must exist - you resume by cd-ing into it)")
     })?;
     if !target.is_dir() {
@@ -2198,8 +2198,18 @@ pub fn vacuum() -> Result<()> {
             human_size(report.after),
             human_size(report.before - report.after),
         );
-    } else {
+    } else if report.after == report.before {
         println!("Database is already compact ({}).", human_size(report.after));
+    } else {
+        println!(
+            "Vacuum complete: {} -> {} (grew by {})",
+            human_size(report.before),
+            human_size(report.after),
+            human_size(report.after - report.before),
+        );
+    }
+    if report.busy {
+        eprintln!("Note: an active reader prevented truncating the write-ahead log.");
     }
     Ok(())
 }

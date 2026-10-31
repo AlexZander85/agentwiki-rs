@@ -203,3 +203,45 @@ fn trace_matches_absolute_query_against_relative_stored_path() {
     let none = index::sessions_for_file(&conn, "/home/dev/b-pool.ts", 10).unwrap();
     assert!(none.is_empty(), "substring-without-boundary must not match");
 }
+
+
+// On a case-insensitive filesystem (WSL's /mnt/<drive>, macOS by default) a
+// tool records a path in whatever case it was typed, and the editor shows the
+// on-disk case. A full path traces the same way a relative one already does.
+#[test]
+fn a_full_path_traces_a_path_recorded_in_another_case() {
+    let _g = LOCK.lock().unwrap();
+    let conn = fresh("case");
+    let t = chrono::DateTime::from_timestamp(1500, 0)
+        .unwrap()
+        .to_rfc3339();
+    seed(&conn, "abs", "claude-code", &t);
+    seed(&conn, "rel", "codex", &t);
+    for (id, p) in [("abs", "/proj/api/scripts/a.py"), ("rel", "scripts/a.py")] {
+        conn.execute(
+            "INSERT INTO touched(session_id, path) VALUES (?1, ?2)",
+            params![id, p],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO edits(session_id, path, kind, ts, snippet) VALUES (?1, ?2, 'edit', ?3, 'x')",
+            params![id, p, t],
+        )
+        .unwrap();
+    }
+    let q = "/proj/api/Scripts/a.py";
+    let mut ids: Vec<String> = index::sessions_for_file(&conn, q, 10)
+        .unwrap()
+        .into_iter()
+        .map(|(r, _)| r.session_id)
+        .collect();
+    ids.sort();
+    assert_eq!(ids, ["abs", "rel"]);
+    for id in ["abs", "rel"] {
+        assert_eq!(
+            index::edits_for_session(&conn, id, q, 10).unwrap().len(),
+            1,
+            "{id}"
+        );
+    }
+}

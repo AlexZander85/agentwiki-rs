@@ -316,6 +316,23 @@ pub fn short_id(s: &str) -> String {
     format!("{hash:016x}")[..12].to_string()
 }
 
+/// `std::fs::canonicalize`, spelled as tools record a folder. On Windows it
+/// answers `\\?\C:\...`, a spelling no tool records, so it never matched a
+/// recorded project or the folder a session is filed under.
+pub fn canonicalize_as_recorded(path: impl AsRef<Path>) -> std::io::Result<std::path::PathBuf> {
+    let canon = std::fs::canonicalize(path)?;
+    if cfg!(windows) {
+        let s = canon.to_string_lossy();
+        if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+            return Ok(format!(r"\\{rest}").into());
+        }
+        if let Some(rest) = s.strip_prefix(r"\\?\") {
+            return Ok(rest.into());
+        }
+    }
+    Ok(canon)
+}
+
 /// Normalize text to Unicode NFC before it enters or queries the index.
 ///
 /// The FTS5 trigram tokenizer windows over raw bytes, so the same grapheme in
@@ -513,6 +530,17 @@ pub fn green(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{decoded_lines_windowed, lines_keeping, session_lines_windowed, truncate};
+
+    #[test]
+    fn a_canonical_folder_is_spelled_as_tools_record_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let got = super::canonicalize_as_recorded(dir.path()).unwrap();
+        assert!(!got.to_string_lossy().starts_with(r"\\?\"), "{got:?}");
+        assert_eq!(
+            std::fs::canonicalize(&got).unwrap(),
+            std::fs::canonicalize(dir.path()).unwrap()
+        );
+    }
 
     #[test]
     fn truncate_strips_control_characters() {
@@ -750,7 +778,9 @@ pub fn available_space(path: &Path) -> Result<u64> {
         ));
     }
     let stat = unsafe { stat.assume_init() };
+    #[allow(clippy::unnecessary_cast)]
     let bsize = if stat.f_frsize > 0 { stat.f_frsize as u64 } else { stat.f_bsize as u64 };
+    #[allow(clippy::unnecessary_cast)]
     Ok(stat.f_bavail as u64 * bsize)
 }
 
