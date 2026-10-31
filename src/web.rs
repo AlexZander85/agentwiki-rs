@@ -1218,76 +1218,6 @@ pub(crate) fn open_browser(url: &str) {
 
 const INDEX_HTML: &str = include_str!("webui.html");
 
-#[cfg(test)]
-mod tests {
-    use super::{host_matches, origin_ok, should_open_browser};
-
-    #[test]
-    fn wsl_never_auto_opens_a_browser() {
-        // Native (not WSL): open unless the user said --no-open.
-        assert!(should_open_browser(false, false));
-        assert!(!should_open_browser(true, false));
-        // WSL: never auto-open, so `web` stops popping a stray Chrome/WSLg
-        // window on every start - the URL is printed instead.
-        assert!(!should_open_browser(false, true));
-        assert!(!should_open_browser(true, true));
-    }
-
-    #[test]
-    fn host_matches_only_loopback() {
-        assert!(host_matches(Some("127.0.0.1:7575"), 7575));
-        assert!(host_matches(Some("localhost:7575"), 7575));
-        assert!(host_matches(Some("[::1]:7575"), 7575));
-        // DNS-rebinding and cross-origin attempts:
-        assert!(!host_matches(Some("evil.com:7575"), 7575));
-        assert!(!host_matches(Some("127.0.0.1:7575"), 7576)); // wrong port
-        assert!(!host_matches(Some("127.0.0.1"), 7575)); // no port
-        assert!(!host_matches(None, 7575)); // missing Host
-    }
-
-    #[test]
-    fn origin_ok_rejects_cross_origin() {
-        assert!(origin_ok(None, 7575)); // same-origin GET / navigation
-        assert!(origin_ok(Some("http://127.0.0.1:7575"), 7575));
-        assert!(origin_ok(Some("http://localhost:7575"), 7575));
-        assert!(!origin_ok(Some("http://evil.com"), 7575)); // cross-origin fetch
-        assert!(!origin_ok(Some("https://127.0.0.1:7575"), 7575)); // wrong scheme
-        assert!(!origin_ok(Some("http://127.0.0.1:7576"), 7575)); // wrong port
-    }
-
-    #[test]
-    fn test_normalize_git_web_urls() {
-        use super::normalize_git_web_url;
-        assert_eq!(
-            normalize_git_web_url("git@github.com:AlexZander85/wikiagents.git"),
-            Some("https://github.com/AlexZander85/wikiagents".into())
-        );
-        assert_eq!(
-            normalize_git_web_url("https://github.com/AlexZander85/wikiagents.git"),
-            Some("https://github.com/AlexZander85/wikiagents".into())
-        );
-        assert_eq!(
-            normalize_git_web_url("https://token@gitlab.com/org/project.git"),
-            Some("https://gitlab.com/org/project".into())
-        );
-        assert_eq!(
-            normalize_git_web_url("ssh://git@github.com/org/repo.git"),
-            Some("https://github.com/org/repo".into())
-        );
-    }
-
-    #[test]
-    fn test_detect_git_remote_and_branch_self() {
-        use super::detect_git_remote_and_branch;
-        use std::path::Path;
-        let (remote, branch) = detect_git_remote_and_branch(Path::new("."));
-        assert!(remote.is_some(), "detects git remote for current repo");
-        let r = remote.unwrap();
-        assert!(r.contains("wikiagents"), "remote URL contains wikiagents: {}", r);
-        assert!(branch.is_some(), "detects git branch");
-    }
-}
-
 /// Languages of the files touched by the main sessions active in
 /// `since`..`until`, by extension: distinct files and sessions per language.
 fn api_analytics_langs(conn: &Connection, query: &str) -> Result<Boxed> {
@@ -1439,4 +1369,74 @@ fn api_backup_run(conn: &Connection, req: &mut tiny_http::Request, query: &str) 
         "ok": report.success,
         "report": report,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{host_matches, origin_ok, should_open_browser};
+
+    #[test]
+    fn wsl_never_auto_opens_a_browser() {
+        // Native (not WSL): open unless the user said --no-open.
+        assert!(should_open_browser(false, false));
+        assert!(!should_open_browser(true, false));
+        // WSL: never auto-open, so `web` stops popping a stray Chrome/WSLg
+        // window on every start - the URL is printed instead.
+        assert!(!should_open_browser(false, true));
+        assert!(!should_open_browser(true, true));
+    }
+
+    #[test]
+    fn host_matches_only_loopback() {
+        assert!(host_matches(Some("127.0.0.1:7575"), 7575));
+        assert!(host_matches(Some("localhost:7575"), 7575));
+        assert!(host_matches(Some("[::1]:7575"), 7575));
+        // DNS-rebinding and cross-origin attempts:
+        assert!(!host_matches(Some("evil.com:7575"), 7575));
+        assert!(!host_matches(Some("127.0.0.1:7575"), 7576)); // wrong port
+        assert!(!host_matches(Some("127.0.0.1"), 7575)); // no port
+        assert!(!host_matches(None, 7575)); // missing Host
+    }
+
+    #[test]
+    fn origin_ok_rejects_cross_origin() {
+        assert!(origin_ok(None, 7575)); // same-origin GET / navigation
+        assert!(origin_ok(Some("http://127.0.0.1:7575"), 7575));
+        assert!(origin_ok(Some("http://localhost:7575"), 7575));
+        assert!(!origin_ok(Some("http://evil.com"), 7575)); // cross-origin fetch
+        assert!(!origin_ok(Some("https://127.0.0.1:7575"), 7575)); // wrong scheme
+        assert!(!origin_ok(Some("http://127.0.0.1:7576"), 7575)); // wrong port
+    }
+
+    #[test]
+    fn test_normalize_git_web_urls() {
+        use super::normalize_git_web_url;
+        assert_eq!(
+            normalize_git_web_url("git@github.com:AlexZander85/wikiagents.git"),
+            Some("https://github.com/AlexZander85/wikiagents".into())
+        );
+        assert_eq!(
+            normalize_git_web_url("https://github.com/AlexZander85/wikiagents.git"),
+            Some("https://github.com/AlexZander85/wikiagents".into())
+        );
+        assert_eq!(
+            normalize_git_web_url("https://token@gitlab.com/org/project.git"),
+            Some("https://gitlab.com/org/project".into())
+        );
+        assert_eq!(
+            normalize_git_web_url("ssh://git@github.com/org/repo.git"),
+            Some("https://github.com/org/repo".into())
+        );
+    }
+
+    #[test]
+    fn test_detect_git_remote_and_branch_self() {
+        use super::detect_git_remote_and_branch;
+        use std::path::Path;
+        let (remote, branch) = detect_git_remote_and_branch(Path::new("."));
+        assert!(remote.is_some(), "detects git remote for current repo");
+        let r = remote.unwrap();
+        assert!(r.contains("wikiagents"), "remote URL contains wikiagents: {}", r);
+        assert!(branch.is_some(), "detects git branch");
+    }
 }

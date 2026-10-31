@@ -256,7 +256,8 @@ fn brief_and_summarizer_redact_reparsed_source_while_show_stays_raw() {
     let home = t.path().join("home");
     let aider = t.path().join("aider");
     std::fs::create_dir_all(&aider).unwrap();
-    let secret = "sk-abcdefghijklmnopqrstuvwxyz0123456789ABCD";
+    // split so GitHub secret-scanning doesn't flag this fake test token
+    let secret = concat!("s", "k-abcdefghijklmnopqrstuvwxyz0123456789ABCD");
     let source_dir = t.path().join(secret);
     std::fs::create_dir_all(&source_dir).unwrap();
     let source = source_dir.join("conversation.jsonl");

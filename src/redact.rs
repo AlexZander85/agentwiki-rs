@@ -197,10 +197,10 @@ mod tests {
     #[test]
     fn redacts_prefixed_api_tokens() {
         for (raw, kind) in [
-            ("sk-abcdef012345678901234567890123", "openai"),
+            // split so GitHub secret-scanning doesn't flag these fake test tokens
+            (concat!("s", "k-abcdef012345678901234567890123"), "openai"),
             ("AKIAIOSFODNN7EXAMPLE", "aws"),
-            ("ghp_016C7f9aBcDeFgHiJkLmNoPqRsTuVwXyZ012", "github"),
-            // split so GitHub secret-scanning doesn't flag this fake test token
+            (concat!("gh", "p_016C7f9aBcDeFgHiJkLmNoPqRsTuVwXyZ012"), "github"),
             (concat!("xox", "b-1234567890-abcdefghijklmnop"), "slack"),
         ] {
             let s = format!("key={raw} rest");
@@ -241,9 +241,10 @@ mod tests {
     #[test]
     fn redacts_more_provider_tokens() {
         for raw in [
-            "AIzaSyA1234567890abcdefghijklmnopqrstuvw",
-            "sk_live_0123456789abcdefghijklmnop",
-            "github_pat_11ABCDE0000abcdefghij_0123456789abcdefghijklmnopqrstuvwxyzABCD",
+            // split so GitHub secret-scanning doesn't flag these fake test tokens
+            concat!("AIza", "SyA1234567890abcdefghijklmnopqrstuvw"),
+            concat!("sk_live", "_0123456789abcdefghijklmnop"),
+            concat!("github_pat", "_11ABCDE0000abcdefghij_0123456789abcdefghijklmnopqrstuvwxyzABCD"),
         ] {
             let s = format!("k={raw} z");
             let out = redact(&s);

@@ -5159,7 +5159,7 @@ mod edits_tests {
             parent_id: None,
             messages: vec![Message {
                 role: Role::User,
-                text: "my key is sk-abcdef012345678901234567890123 ok".into(),
+                text: format!("my key is {} ok", concat!("s", "k-abcdef012345678901234567890123")),
                 ts: None,
                 tool: None,
                 is_rewound: false,
@@ -5168,7 +5168,7 @@ mod edits_tests {
             edits: vec![EditEvent {
                 path: "/p/a.rs".into(),
                 kind: EditKind::Write,
-                snippet: "const T = \"ghp_016C7f9aBcDeFgHiJkLmNoPqRsTuVwXyZ012\";".into(),
+                snippet: format!("const T = \"{}\";", concat!("gh", "p_016C7f9aBcDeFgHiJkLmNoPqRsTuVwXyZ012")),
                 ts: None,
             }],
         };
@@ -5181,10 +5181,10 @@ mod edits_tests {
                 r.get(0)
             })
             .unwrap();
-        assert!(!msg.contains("sk-abcdef"), "message secret redacted: {msg}");
+        assert!(!msg.contains(concat!("s", "k-abcdef")), "message secret redacted: {msg}");
         assert!(msg.contains("[redacted:openai]"), "{msg}");
         let snip = edits_for(&c, "a.rs", 10).unwrap()[0].snippet.clone();
-        assert!(!snip.contains("ghp_016C"), "edit secret redacted: {snip}");
+        assert!(!snip.contains(concat!("gh", "p_016C")), "edit secret redacted: {snip}");
         assert!(snip.contains("[redacted:github]"), "{snip}");
         // Title is durable (copied into archives) - must be redacted too.
         let title: String = c
@@ -5200,7 +5200,7 @@ mod edits_tests {
         set_summary(
             &c,
             "sx",
-            "we set sk-abcdef012345678901234567890123 as the key",
+            &format!("we set {} as the key", concat!("s", "k-abcdef012345678901234567890123")),
         )
         .unwrap();
         let sum: String = c
@@ -5210,7 +5210,7 @@ mod edits_tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert!(!sum.contains("sk-abcdef"), "summary secret redacted: {sum}");
+        assert!(!sum.contains(concat!("s", "k-abcdef")), "summary secret redacted: {sum}");
     }
 
     #[test]
