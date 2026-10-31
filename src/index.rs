@@ -710,6 +710,18 @@ fn create_cache_schema_with_tokenizer(conn: &Connection, tokenizer: &str) -> Res
         );
         CREATE INDEX IF NOT EXISTS idx_edits_path ON edits(path);
         CREATE INDEX IF NOT EXISTS idx_edits_session ON edits(session_id);
+        -- Commits: passively extracted Git commits executed or referenced inside
+        -- AI sessions. Enables instant commit SHA -> session lookup without altering
+        -- git commit messages or hooks (non-invasive).
+        CREATE TABLE IF NOT EXISTS session_commits(
+            session_id TEXT NOT NULL,
+            commit_sha TEXT NOT NULL,
+            message    TEXT,
+            timestamp  INTEGER,
+            PRIMARY KEY (session_id, commit_sha)
+        );
+        CREATE INDEX IF NOT EXISTS idx_session_commits_sha ON session_commits(commit_sha);
+        CREATE INDEX IF NOT EXISTS idx_session_commits_session ON session_commits(session_id);
         ",
     )?;
     if !files_has_reader(conn)? {
@@ -736,6 +748,7 @@ fn cache_schema_needs_work(conn: &Connection) -> Result<bool> {
         "archive",
         "touched",
         "edits",
+        "session_commits",
         "msgs",
     ] {
         let exists: bool = conn.query_row(
@@ -881,7 +894,8 @@ pub fn open() -> Result<Connection> {
                          DROP TABLE IF EXISTS messages;
                          DROP TABLE IF EXISTS touched;
                          DROP TABLE IF EXISTS files;
-                         DROP TABLE IF EXISTS edits;",
+                         DROP TABLE IF EXISTS edits;
+                         DROP TABLE IF EXISTS session_commits;",
                     )?;
                     conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
                     // Rebuilt rows restart at rowid 1; the fix-ups start over.
@@ -934,6 +948,7 @@ pub fn open() -> Result<Connection> {
     reparse_codex_for_mcp_errors(&conn)?;
     reparse_large_for_provenance(&conn)?;
     reparse_after_reader_fixes(&conn)?;
+    backfill_session_commits_if_needed(&conn)?;
     Ok(conn)
 }
 
@@ -1297,6 +1312,15 @@ fn rehydrate_archive(conn: &Connection) -> Result<()> {
         for p in &paths {
             ins_touched.execute(params![a.session_id, crate::util::nfc(p)])?;
         }
+        let mut ins_commit = conn.prepare_cached(
+            "INSERT OR IGNORE INTO session_commits(session_id, commit_sha, message, timestamp) VALUES (?1,?2,?3,?4)",
+        )?;
+        for message in &msgs {
+            let commits = extract_commits_from_text(&message.text);
+            for (sha, msg) in commits {
+                ins_commit.execute(params![a.session_id, sha, msg, None::<i64>])?;
+            }
+        }
     }
     Ok(())
 }
@@ -1407,6 +1431,27 @@ fn index_one(
                 e.ts.map(|t| t.to_rfc3339()),
                 crate::redact::redact(&e.snippet).as_ref(),
             ])?;
+        }
+        // Commit tracking: extract any Git commits created or referenced in this session
+        let mut ins_commit = tx.prepare_cached(
+            "INSERT OR IGNORE INTO session_commits(session_id, commit_sha, message, timestamp) VALUES (?1,?2,?3,?4)",
+        )?;
+        for m in &session.messages {
+            let mut commits = extract_commits_from_text(&m.text);
+            if let Some(crate::model::ToolEvent::Summary(summary)) = &m.tool {
+                if let Some(output) = &summary.output {
+                    commits.extend(extract_commits_from_text(output));
+                }
+            }
+            let ts = m.ts.map(|t| t.timestamp());
+            for (sha, msg) in commits {
+                ins_commit.execute(params![
+                    session.id,
+                    sha,
+                    msg,
+                    ts,
+                ])?;
+            }
         }
     }
     // Tag sessions an oh-my-* harness drove (it wraps Claude Code / Codex /
@@ -2109,6 +2154,10 @@ fn delete_session_provenance(conn: &Connection, session_id: &str) -> Result<()> 
     )?;
     conn.execute(
         "DELETE FROM edits WHERE session_id = ?1",
+        params![session_id],
+    )?;
+    conn.execute(
+        "DELETE FROM session_commits WHERE session_id = ?1",
         params![session_id],
     )?;
     Ok(())
@@ -3961,6 +4010,196 @@ fn to_epoch(s: &str) -> Option<i64> {
         .map(|d| d.timestamp())
 }
 
+// --- commit tracking: passive commit SHA -> session linking (AI Git Blame) ---
+
+/// Validate whether a token looks like a Git commit hash:
+/// - length between 7 and 40 characters
+/// - all ASCII hex digits
+/// - contains at least one letter 'a'-'f' (or length 40) to prevent false positives from pure numbers
+pub fn is_hex_sha(s: &str) -> bool {
+    let bytes = s.as_bytes();
+    if bytes.len() < 7 || bytes.len() > 40 {
+        return false;
+    }
+    let mut has_hex_letter = false;
+    for &b in bytes {
+        if b.is_ascii_hexdigit() {
+            if b.is_ascii_alphabetic() {
+                has_hex_letter = true;
+            }
+        } else {
+            return false;
+        }
+    }
+    has_hex_letter || bytes.len() == 40
+}
+
+/// Passively extract Git commit hashes and commit messages from conversation text and tool outputs.
+pub fn extract_commits_from_text(text: &str) -> Vec<(String, Option<String>)> {
+    let mut results = Vec::new();
+    let lines: Vec<&str> = text.lines().collect();
+    for (i, raw_line) in lines.iter().enumerate() {
+        let trimmed = raw_line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        // Pattern 1: Terminal git commit output: "[<branch> <sha>] <subject>"
+        // Must start with '[' or whitespace+'[' (not '[[' or '([')
+        if trimmed.starts_with('[') && !trimmed.starts_with("[[") {
+            if let Some(close_idx) = trimmed.find(']') {
+                let inner = trimmed[1..close_idx].trim();
+                let parts: Vec<&str> = inner.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    let candidate = parts[parts.len() - 1];
+                    if is_hex_sha(candidate) {
+                        let mut subj = trimmed[close_idx + 1..].trim();
+                        // If subject was not on the same line, check next line
+                        if subj.is_empty() && i + 1 < lines.len() {
+                            let next = lines[i + 1].trim();
+                            if !next.is_empty()
+                                && !next.starts_with('[')
+                                && !next.starts_with("```")
+                                && !next.ends_with("changed")
+                                && !next.contains("files changed")
+                                && !next.contains("file changed")
+                            {
+                                subj = next;
+                            }
+                        }
+                        let subj_opt = if subj.is_empty() {
+                            None
+                        } else {
+                            Some(subj.to_string())
+                        };
+                        results.push((candidate.to_ascii_lowercase(), subj_opt));
+                    }
+                }
+            }
+        }
+
+        // Pattern 2: Commit URLs: ".../commit/<sha>..."
+        let mut cur = trimmed;
+        while let Some(pos) = cur.find("/commit/") {
+            let after = &cur[pos + 8..];
+            let hex_len = after
+                .bytes()
+                .take_while(|b| b.is_ascii_hexdigit())
+                .count();
+            if hex_len >= 7 && hex_len <= 40 {
+                let candidate = &after[..hex_len];
+                if is_hex_sha(candidate) {
+                    results.push((candidate.to_ascii_lowercase(), None));
+                }
+            }
+            cur = &after[hex_len..];
+        }
+
+        // Pattern 3: git log output: "commit <40-hex-sha>"
+        if let Some(rest) = trimmed.strip_prefix("commit ").or_else(|| trimmed.strip_prefix("Commit ")) {
+            let candidate = rest.split_whitespace().next().unwrap_or("");
+            if candidate.len() == 40 && is_hex_sha(candidate) {
+                results.push((candidate.to_ascii_lowercase(), None));
+            }
+        }
+    }
+    // Deduplicate preserving order
+    let mut deduped = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for (sha, msg) in results {
+        if seen.insert(sha.clone()) {
+            deduped.push((sha, msg));
+        }
+    }
+    deduped
+}
+
+/// Look up a session by an exact or prefix match on its commit SHA.
+pub fn find_session_by_commit(conn: &Connection, sha: &str) -> Result<Option<SessionRow>> {
+    let clean = sha.trim().to_ascii_lowercase();
+    if clean.len() < 7 {
+        return Ok(None);
+    }
+    let mut stmt = conn.prepare_cached(
+        "SELECT session_id, commit_sha, message, timestamp 
+         FROM session_commits 
+         WHERE commit_sha LIKE ?1 || '%' 
+            OR (?1 LIKE commit_sha || '%' AND length(commit_sha) >= 7)
+         LIMIT 1",
+    )?;
+    let found: Option<(String, String, Option<String>, Option<i64>)> = stmt
+        .query_row(params![clean], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+        })
+        .optional()?;
+    if let Some((sid, _csha, _msg, _ts)) = found {
+        let matches = resolve(conn, &sid)?;
+        return Ok(matches.into_iter().next());
+    }
+    Ok(None)
+}
+
+/// Retrieve all commits recorded for a session.
+pub fn get_session_commits(
+    conn: &Connection,
+    session_id: &str,
+) -> Result<Vec<(String, Option<String>, Option<i64>)>> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT commit_sha, message, timestamp FROM session_commits WHERE session_id = ?1 ORDER BY rowid ASC",
+    )?;
+    let rows = stmt
+        .query_map(params![session_id], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(rows)
+}
+
+/// Check and perform a one-time backfill if `session_commits` is empty while `messages` has rows.
+pub fn backfill_session_commits_if_needed(conn: &Connection) -> Result<usize> {
+    let count: i64 = conn
+        .query_row("SELECT count(*) FROM session_commits", [], |r| r.get(0))
+        .unwrap_or(0);
+    if count > 0 {
+        return Ok(0);
+    }
+    let msg_count: i64 = conn
+        .query_row("SELECT count(*) FROM messages", [], |r| r.get(0))
+        .unwrap_or(0);
+    if msg_count == 0 {
+        return Ok(0);
+    }
+    backfill_session_commits(conn)
+}
+
+/// Run backfill of `session_commits` from indexed `messages`.
+pub fn backfill_session_commits(conn: &Connection) -> Result<usize> {
+    let mut stmt = conn.prepare(
+        "SELECT session_id, text, full_text FROM messages 
+         WHERE text LIKE '%[%' OR text LIKE '%/commit/%' OR text LIKE '%commit %'
+            OR full_text LIKE '%[%' OR full_text LIKE '%/commit/%' OR full_text LIKE '%commit %'",
+    )?;
+    let mut rows = stmt.query([])?;
+    let mut ins = conn.prepare_cached(
+        "INSERT OR IGNORE INTO session_commits(session_id, commit_sha, message, timestamp) VALUES (?1, ?2, ?3, ?4)",
+    )?;
+    let mut inserted = 0usize;
+    while let Some(row) = rows.next()? {
+        let sid: String = row.get(0)?;
+        let text: String = row.get(1)?;
+        let full_text: Option<String> = row.get(2)?;
+        let mut commits = extract_commits_from_text(&text);
+        if let Some(ft) = full_text {
+            commits.extend(extract_commits_from_text(&ft));
+        }
+        for (sha, msg) in commits {
+            ins.execute(params![sid, sha, msg, None::<i64>])?;
+            inserted += 1;
+        }
+    }
+    Ok(inserted)
+}
+
 // --- archive: serving and forgetting sessions whose originals are gone ---
 
 /// The display name for a tool this binary's adapter registry does not know.
@@ -5033,6 +5272,96 @@ mod edits_tests {
         assert_eq!(hist.sessions[0].edits.len(), 1);
         assert_eq!(hist.sessions[0].edits[0].snippet, "v2");
         assert_eq!(hist.sessions[1].session.session_id, "old");
+    }
+}
+
+#[cfg(test)]
+mod commit_tests {
+    use super::*;
+
+    #[test]
+    fn test_is_hex_sha_rules() {
+        assert!(is_hex_sha("7f2a1b9"));
+        assert!(is_hex_sha("ca54746"));
+        assert!(is_hex_sha("0feb3fdd929bcd6649e0e7c5a688cf7dd012ef21"));
+        assert!(!is_hex_sha("123456")); // too short (<7)
+        assert!(!is_hex_sha("33843667")); // pure numbers < 40 chars
+        assert!(!is_hex_sha("5221473")); // pure numbers < 40 chars
+        assert!(!is_hex_sha("7f2a1b9z")); // invalid hex character 'z'
+    }
+
+    #[test]
+    fn test_extract_commits_from_various_formats() {
+        let text = r#"
+I made the commit:
+[main 7f2a1b9] fix: resolve race condition in token refresh
+ 2 files changed, 10 insertions(+)
+
+Also see https://github.com/AlexZander85/crypto/commit/0623bd8 for details.
+Next is another commit:
+[feat/auth ca54746]
+feat: implement oauth token exchange
+1 file changed, 50 insertions(+)
+
+And a git log output:
+commit 0feb3fdd929bcd6649e0e7c5a688cf7dd012ef21
+Author: Test <test@example.com>
+Date:   Sat Oct 31 12:00:00 2026
+
+Random numbers: [4844312, 5221473] and [[PubMed 33843667]] should be ignored.
+"#;
+        let commits = extract_commits_from_text(text);
+        assert_eq!(commits.len(), 4);
+        assert_eq!(commits[0].0, "7f2a1b9");
+        assert_eq!(commits[0].1.as_deref(), Some("fix: resolve race condition in token refresh"));
+        assert_eq!(commits[1].0, "0623bd8");
+        assert_eq!(commits[1].1, None);
+        assert_eq!(commits[2].0, "ca54746");
+        assert_eq!(commits[2].1.as_deref(), Some("feat: implement oauth token exchange"));
+        assert_eq!(commits[3].0, "0feb3fdd929bcd6649e0e7c5a688cf7dd012ef21");
+    }
+
+    #[test]
+    fn test_session_commit_lookup_and_prefix() {
+        let conn = Connection::open_in_memory().unwrap();
+        create_cache_schema(&conn).unwrap();
+
+        conn.execute(
+            "INSERT INTO files(path, mtime, size, session_id, tool, project, title, msg_count, kind, reader)
+             VALUES('p1', 1, 1, 's1', 'claude-code', '/proj', 'Fix auth', 5, 'main', 0)",
+            []
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO session_commits(session_id, commit_sha, message, timestamp) VALUES('s1', '7f2a1b9c8d0e1f', 'fix auth token', 1700000000)",
+            []
+        ).unwrap();
+
+        // 1. Exact match
+        let res = find_session_by_commit(&conn, "7f2a1b9c8d0e1f").unwrap();
+        assert!(res.is_some());
+        assert_eq!(res.unwrap().session_id, "s1");
+
+        // 2. Short SHA prefix of full SHA
+        let res = find_session_by_commit(&conn, "7f2a1b9").unwrap();
+        assert!(res.is_some());
+        assert_eq!(res.unwrap().session_id, "s1");
+
+        // 3. Stored is short SHA, query is full SHA
+        conn.execute(
+            "INSERT INTO session_commits(session_id, commit_sha, message, timestamp) VALUES('s1', 'ca54746', 'batch fix', 1700000000)",
+            []
+        ).unwrap();
+        let res = find_session_by_commit(&conn, "ca547461234567890abcdef").unwrap();
+        assert!(res.is_some());
+        assert_eq!(res.unwrap().session_id, "s1");
+
+        // 4. Unknown SHA
+        let res = find_session_by_commit(&conn, "fffffff").unwrap();
+        assert!(res.is_none());
+
+        // 5. Get all commits for session
+        let list = get_session_commits(&conn, "s1").unwrap();
+        assert_eq!(list.len(), 2);
     }
 }
 

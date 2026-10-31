@@ -2,8 +2,8 @@
 
 ## Commands & Build
 - Build: `cargo build` / `cargo build --release --bin wikiagents`
-- Test: `cargo test --lib` (214+ tests)
-- CLI run: `cargo run --bin wikiagents -- scan`
+- Test: `cargo test --lib` (227+ tests)
+- CLI run: `cargo run --bin wikiagents -- scan` / `wikiagents commit <sha>`
 
 ## Invariants & Conventions
 - All adapters implement `Adapter` trait in `src/adapters/` and register in `adapters::all()`.

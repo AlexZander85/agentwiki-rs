@@ -847,6 +847,82 @@
     color: var(--ink);
     text-decoration: underline;
   }
+  .doc-head .chips .chip.chip-commit {
+    background: rgba(35, 134, 54, 0.15);
+    color: #3fb950;
+    border: 1px solid rgba(63, 185, 80, 0.35);
+    cursor: pointer;
+    font-family: var(--font-mono, monospace);
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+  }
+  .doc-head .chips .chip.chip-commit:hover {
+    background: rgba(35, 134, 54, 0.3);
+    border-color: #3fb950;
+  }
+  .doc-head .chips .chip.chip-git-remote {
+    background: var(--surface-2, rgba(255,255,255,0.06));
+    color: var(--ink);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    text-decoration: none;
+    padding: 1px 6px;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+  }
+  .doc-head .chips .chip.chip-git-remote:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--hover);
+  }
+  .item-commit-badge {
+    display: inline-block;
+    background: rgba(35, 134, 54, 0.2);
+    color: #3fb950;
+    border: 1px solid rgba(63, 185, 80, 0.4);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 10.5px;
+    font-family: var(--font-mono, monospace);
+    margin-right: 6px;
+    font-weight: 600;
+    vertical-align: middle;
+  }
+  .file-link-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    vertical-align: baseline;
+    margin: 0 1px;
+  }
+  .file-web-link {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .file-web-link:hover code {
+    text-decoration: underline;
+    color: var(--accent);
+  }
+  .file-editor-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    color: var(--ink-3);
+    opacity: 0.6;
+    text-decoration: none;
+    transition: opacity 0.15s, color 0.15s;
+    cursor: pointer;
+  }
+  .file-editor-btn:hover {
+    opacity: 1;
+    color: var(--accent);
+    background: var(--hover);
+  }
   .item-proj-link {
     cursor: pointer;
     border-radius: 3px;
@@ -4386,6 +4462,101 @@ function postProcessMarkdown(container) {
     a.target = "_blank";
     a.rel = "noopener noreferrer";
   });
+
+  // Turn local file paths into clickable GitHub/GitLab and IDE links
+  linkifyFileReferences(container, currentSession);
+}
+
+function linkifyFileReferences(container, s) {
+  if (!container || !s) return;
+  const gitRemote = s.git_remote;
+  const gitBranch = s.git_branch || "main";
+  const projectRoot = s.project_root || s.project || "";
+
+  // 1. Process existing links: convert local file links or relative links to GitHub/GitLab
+  container.querySelectorAll("a").forEach((a) => {
+    const href = a.getAttribute("href");
+    if (!href) return;
+    if (href.startsWith("http://") || href.startsWith("https://") || href.startsWith("mailto:") || href.startsWith("#") || href.startsWith("vscode:") || href.startsWith("cursor:")) {
+      return;
+    }
+    let filePath = href;
+    let lineFrag = "";
+    if (filePath.includes("#")) {
+      const parts = filePath.split("#");
+      filePath = parts[0];
+      lineFrag = "#" + parts[1];
+    }
+    if (filePath.startsWith("file:///")) {
+      filePath = decodeURIComponent(filePath.slice(8));
+      if (/^[a-zA-Z]:\//.test(filePath)) {
+        filePath = filePath.replace(/\//g, "\\");
+      }
+    }
+    let relPath = null;
+    if (projectRoot && filePath.toLowerCase().startsWith(projectRoot.toLowerCase())) {
+      relPath = filePath.slice(projectRoot.length).replace(/^[\\\/]/, "").replace(/\\/g, "/");
+    } else if (!/^[a-zA-Z]:\\/.test(filePath) && !filePath.startsWith("/")) {
+      relPath = filePath.replace(/\\/g, "/");
+    }
+    if (relPath && gitRemote) {
+      a.href = `${gitRemote}/blob/${gitBranch}/${encodeURI(relPath)}${lineFrag}`;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.classList.add("file-web-link");
+      a.title = `Open on GitHub (${gitBranch}): ${relPath}`;
+    }
+  });
+
+  // 2. Scan inline code blocks: e.g. `src/auth.rs:40-52` or `src/web.rs#L120`
+  const FILE_REGEX = /^([a-zA-Z0-9_\.\-\/]+\.(?:rs|ts|js|jsx|tsx|py|go|c|cpp|h|hpp|java|kt|rb|php|html|css|scss|json|toml|yaml|yml|md|sql|sh|bash|ps1|bat|proto))(?::([0-9]+)(?:-([0-9]+))?|#L([0-9]+)(?:-L([0-9]+))?)?$/i;
+  container.querySelectorAll("code").forEach((codeEl) => {
+    if (codeEl.closest("pre") || codeEl.closest("a") || codeEl.parentElement?.classList.contains("file-link-wrap")) return;
+    const txt = codeEl.textContent.trim();
+    const m = txt.match(FILE_REGEX);
+    if (!m) return;
+    const relFile = m[1];
+    const lineStart = m[2] || m[4];
+    const lineEnd = m[3] || m[5];
+
+    let lineHash = "";
+    if (lineStart && lineEnd) {
+      lineHash = `#L${lineStart}-L${lineEnd}`;
+    } else if (lineStart) {
+      lineHash = `#L${lineStart}`;
+    }
+
+    const normRel = relFile.replace(/\\/g, "/");
+    const webUrl = gitRemote ? `${gitRemote}/blob/${gitBranch}/${normRel}${lineHash}` : null;
+    const fullLocalPath = projectRoot ? (projectRoot.replace(/[\/\\]$/, "") + "/" + normRel) : normRel;
+    const editorLine = lineStart ? `:${lineStart}` : "";
+    const vscodeUrl = `vscode://file/${fullLocalPath}${editorLine}`;
+
+    const wrapper = document.createElement("span");
+    wrapper.className = "file-link-wrap";
+
+    if (webUrl) {
+      const link = document.createElement("a");
+      link.className = "file-web-link";
+      link.href = webUrl;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.title = `Open on GitHub (${gitBranch}): ${normRel}${lineHash}`;
+      codeEl.parentNode.insertBefore(wrapper, codeEl);
+      link.appendChild(codeEl);
+      wrapper.appendChild(link);
+    } else {
+      codeEl.parentNode.insertBefore(wrapper, codeEl);
+      wrapper.appendChild(codeEl);
+    }
+
+    const editBtn = document.createElement("a");
+    editBtn.className = "file-editor-btn";
+    editBtn.href = vscodeUrl;
+    editBtn.title = `Open in VS Code / Cursor: ${fullLocalPath}${editorLine}`;
+    editBtn.innerHTML = `<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor"><path d="M11.5 0a1.5 1.5 0 0 1 1.06.44l3 3a1.5 1.5 0 0 1 0 2.12l-9.5 9.5a1.5 1.5 0 0 1-.7.4l-4.5 1a.5.5 0 0 1-.6-.6l1-4.5a1.5 1.5 0 0 1 .4-.7l9.5-9.5A1.5 1.5 0 0 1 11.5 0zm-1 2L2.5 10l-.7 3.2 3.2-.7L13 4.5 10.5 2z"/></svg>`;
+    wrapper.appendChild(editBtn);
+  });
 }
 
 const mdCache = new Map();
@@ -4632,6 +4803,11 @@ function renderItems(rows, isSearch) {
     item.dataset.id = r.id;
     if (r.project) item.dataset.project = r.project;
     const titleEl = el("div", "title");
+    if (r._commitMatch) {
+      const cBadge = el("span", "item-commit-badge", `✓ commit ${r._commitMatch.slice(0, 7)}`);
+      cBadge.title = `Exact AI Git Blame match for commit ${r._commitMatch}`;
+      titleEl.appendChild(cBadge);
+    }
     if (favoriteSet.has(r.id)) {
       const star = el("span", "item-fav-star", "★ ");
       star.title = L.favlabel || "Favorite";
@@ -5071,6 +5247,38 @@ function renderCurrentSession(keepScroll) {
   const countChip = el("span", "chip", "");
   countChip.id = "msg-count-chip";
   chips.appendChild(countChip);
+
+  if (s.git_remote) {
+    const ghChip = el("a", "chip chip-clickable chip-git-remote");
+    ghChip.href = s.git_remote;
+    ghChip.target = "_blank";
+    ghChip.rel = "noopener noreferrer";
+    ghChip.title = `${L.openGitRepo || "Open repository on GitHub/GitLab"}: ${s.git_remote}`;
+    const cleanRepo = s.git_remote.replace(/^https?:\/\/[^\/]+\//, "").replace(/\.git$/, "");
+    ghChip.innerHTML = `<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" style="vertical-align:-2px;margin-right:4px;"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>${escapeHtml(cleanRepo)}`;
+    chips.appendChild(ghChip);
+  }
+
+  if (s.commits && s.commits.length > 0) {
+    s.commits.forEach((c) => {
+      const commitChip = el("span", "chip chip-commit");
+      const shortSha = c.sha.slice(0, 7);
+      const commitTitle = c.message ? `${shortSha}: ${c.message}` : `Commit ${shortSha}`;
+      commitChip.title = `${commitTitle} (click to view commit on GitHub / copy SHA)`;
+      const commitUrl = s.git_remote ? `${s.git_remote}/commit/${c.sha}` : null;
+      commitChip.innerHTML = `<svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:3px;"><circle cx="8" cy="8" r="3"/><line x1="1" y1="8" x2="5" y2="8"/><line x1="11" y1="8" x2="15" y2="8"/></svg>${shortSha}`;
+      commitChip.onclick = (e) => {
+        e.stopPropagation();
+        if (commitUrl) {
+          window.open(commitUrl, "_blank");
+        } else {
+          navigator.clipboard?.writeText(c.sha);
+          showToast(`✓ Commit SHA copied: ${c.sha}`);
+        }
+      };
+      chips.appendChild(commitChip);
+    });
+  }
 
   if (s.parent || s.parent_id) {
     const pId = s.parent ? s.parent.id : s.parent_id;
@@ -6002,8 +6210,23 @@ async function refresh() {
     const qParam = inputVal ? `&q=${encodeURIComponent(inputVal)}` : "";
     items = await jget(`/api/search?limit=500${sessionTermsParam}${qParam}${t}${r}${tagParam}${projParam}${sParam}${uParam}`);
   } else if (inputVal.length >= 2) {
-    // Mode 1 & 2: Search bar input -> strictly within one message!
-    items = await jget(`/api/search?q=${encodeURIComponent(inputVal)}${t}${r}${tagParam}${projParam}${sParam}${uParam}`);
+    const commitPrefixMatch = inputVal.match(/^(?:commit|sha):([0-9a-f]{7,40})$/i);
+    const isDirectCommitSha = /^[0-9a-f]{7,40}$/i.test(inputVal) && /[a-f]/i.test(inputVal);
+    const commitSha = commitPrefixMatch ? commitPrefixMatch[1] : (isDirectCommitSha ? inputVal : null);
+
+    if (commitSha) {
+      try {
+        const commitSess = await jget(`/api/commit?sha=${encodeURIComponent(commitSha)}`);
+        if (commitSess && commitSess.id) {
+          commitSess._commitMatch = commitSha;
+          items = [commitSess];
+        }
+      } catch (err) {}
+    }
+    if (items.length === 0) {
+      // Mode 1 & 2: Search bar input -> strictly within one message!
+      items = await jget(`/api/search?q=${encodeURIComponent(inputVal)}${t}${r}${tagParam}${projParam}${sParam}${uParam}`);
+    }
   } else if (currentTag) {
     items = await jget(`/api/sessions?limit=500${t}${tagParam}${projParam}${sParam}${uParam}${subParam}${sortParam}`);
   } else {

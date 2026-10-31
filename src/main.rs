@@ -327,6 +327,17 @@ enum Command {
         #[arg(long)]
         no_sync: bool,
     },
+    /// Find the AI session responsible for a Git commit hash (AI Git Blame)
+    Commit {
+        /// Git commit hash (short prefix or full 40-char SHA)
+        sha: String,
+        /// Emit a JSON object instead of human output
+        #[arg(long)]
+        json: bool,
+        /// Skip the index sync before querying
+        #[arg(long)]
+        no_sync: bool,
+    },
     /// Permanently drop an archived (or any) session from the index
     Forget {
         /// Session id (prefix is enough), from list/search output
@@ -562,6 +573,9 @@ fn main() {
             json,
             no_sync,
         } => commands::blame(&file, range, json, no_sync),
+        Command::Commit { sha, json, no_sync } => {
+            commands::commit_cmd(&sha, json, no_sync)
+        }
         Command::Forget { id } => commands::forget(&id),
         Command::Sync { tool } => commands::sync_cmd(tool.as_deref()),
         Command::Digest {

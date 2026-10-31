@@ -95,6 +95,7 @@ pub struct TouchingSession {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Attribution {
+    Exact(TouchingSession),
     Confident(TouchingSession),
     Ambiguous(Vec<TouchingSession>),
     Unattributed,

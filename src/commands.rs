@@ -1915,6 +1915,19 @@ pub fn blame_runs(
         let attr = memo
             .entry(r.commit.clone())
             .or_insert_with(|| {
+                // Check exact commit attribution first: was this commit generated inside an AI session?
+                if let Ok(Some(srow)) = index::find_session_by_commit(conn, &r.commit) {
+                    let sess = crate::blame::TouchingSession {
+                        session_id: srow.session_id,
+                        tool: srow.tool,
+                        title: srow.title,
+                        project: srow.project,
+                        started: srow.started.as_deref().and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok()).map(|d| d.timestamp()),
+                        ended: srow.last_active.as_deref().and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok()).map(|d| d.timestamp()),
+                        archived: srow.archived,
+                    };
+                    return crate::blame::Attribution::Exact(sess);
+                }
                 crate::blame::attribute_commit(r.author_time, repo_path, &candidates)
             })
             .clone();
@@ -1990,6 +2003,7 @@ fn print_blame_json(runs: &[BlameRun]) -> Result<()> {
         .iter()
         .map(|r| {
             let (status, session, candidates) = match &r.attribution {
+                Attribution::Exact(s) => ("exact", Some(sess_json(s)), vec![]),
                 Attribution::Confident(s) => ("confident", Some(sess_json(s)), vec![]),
                 Attribution::Ambiguous(v) => ("ambiguous", None, v.iter().map(sess_json).collect()),
                 Attribution::Unattributed => ("unattributed", None, vec![]),
@@ -2031,6 +2045,16 @@ fn print_blame_human(
         let loc = yellow(&format!("L{}-{}", r.start, r.end));
         let date = dim(&fmt_date(when));
         match &r.attribution {
+            Attribution::Exact(s) => {
+                let arch = if s.archived { " [archived]" } else { "" };
+                println!(
+                    "{loc}  {date}  {} {} {}{arch}  {}",
+                    green("✓ EXACT"),
+                    cyan(&s.tool),
+                    truncate(&s.title, 42),
+                    dim(short)
+                );
+            }
             Attribution::Confident(s) => {
                 let arch = if s.archived { " [archived]" } else { "" };
                 println!(
@@ -2422,4 +2446,79 @@ pub fn backup_cmd(repo: Option<&str>, test: bool, status: bool, push: bool) -> R
     }
 
     Ok(())
+}
+
+/// Find the AI session responsible for a Git commit SHA (AI Git Blame)
+pub fn commit_cmd(sha: &str, json: bool, no_sync: bool) -> Result<()> {
+    let mut conn = index::open()?;
+    if !no_sync {
+        index::sync(&mut conn, None)?;
+    }
+    let row_opt = index::find_session_by_commit(&conn, sha)?;
+    match row_opt {
+        Some(row) => {
+            let commits = index::get_session_commits(&conn, &row.session_id).unwrap_or_default();
+            let matched_commit = commits.iter().find(|(c, _, _)| {
+                c.starts_with(sha) || sha.starts_with(c)
+            });
+            if json {
+                let v = serde_json::json!({
+                    "commit": sha,
+                    "session_id": row.session_id,
+                    "tool": row.tool,
+                    "title": row.title,
+                    "project": row.project,
+                    "started": row.started,
+                    "last_active": row.last_active,
+                    "archived": row.archived,
+                    "commit_message": matched_commit.and_then(|(_, m, _)| m.as_deref()),
+                });
+                println!("{}", serde_json::to_string_pretty(&v)?);
+            } else {
+                println!(
+                    "{} {}",
+                    green("✓ AI Session found for commit"),
+                    bold(sha)
+                );
+                println!("  {} {}", dim("Session ID:"), yellow(&row.session_id));
+                println!("  {} {}", dim("Tool:      "), cyan(&row.tool));
+                println!("  {} {}", dim("Title:     "), bold(&row.title));
+                println!("  {} {}", dim("Project:   "), &row.project);
+                if let Some((_, Some(msg), _)) = matched_commit {
+                    println!("  {} {}", dim("Message:   "), msg);
+                }
+                if let Some(started) = &row.started {
+                    println!("  {} {}", dim("Started:   "), started);
+                }
+                if row.archived {
+                    println!("  {} {}", dim("Status:    "), yellow("[archived]"));
+                }
+                println!();
+                println!(
+                    "{}",
+                    dim(&format!(
+                        "View full transcript: wikiagents show {}  (or run `wikiagents ui`)",
+                        &row.session_id[..row.session_id.len().min(12)]
+                    ))
+                );
+            }
+            Ok(())
+        }
+        None => {
+            if json {
+                println!("{}", serde_json::json!({ "error": "not found", "commit": sha }));
+            } else {
+                eprintln!(
+                    "{} No AI session found for commit {}",
+                    yellow("Note:"),
+                    sha
+                );
+                eprintln!(
+                    "{}",
+                    dim("This commit may have been created manually, or outside indexed AI sessions.")
+                );
+            }
+            Ok(())
+        }
+    }
 }

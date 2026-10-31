@@ -3,6 +3,7 @@ use crate::{commands, index, resume};
 use anyhow::{Context, Result};
 use rusqlite::Connection;
 use serde_json::json;
+use std::path::Path;
 use tiny_http::{Header, Response, Server};
 
 /// Local read-only viewer over the index. By default it does not sync, so it
@@ -190,6 +191,13 @@ fn handle_request(
         "/api/backup/config" => api_backup_config(&conn, &mut request, query),
         "/api/backup/test" => api_backup_test(&mut request, query),
         "/api/backup/run" => api_backup_run(&conn, &mut request, query),
+        p if p.starts_with("/api/commit/") => {
+            api_commit(&conn, p.trim_start_matches("/api/commit/"))
+        }
+        "/api/commit" => {
+            let sha = param(query, "sha").unwrap_or_default();
+            api_commit(&conn, &sha)
+        }
         p if p.starts_with("/api/related/") => {
             api_related(&conn, p.trim_start_matches("/api/related/"))
         }
@@ -678,7 +686,150 @@ fn api_session(conn: &Connection, id: &str, query: &str) -> Result<Boxed> {
     if !subagents.is_empty() {
         v["subagents"] = json!(subagents.iter().map(row_json).collect::<Vec<_>>());
     }
+    let (git_remote, git_branch) = detect_git_remote_and_branch(Path::new(&row.project));
+    if let Some(r) = git_remote {
+        v["git_remote"] = json!(r);
+    }
+    if let Some(b) = git_branch {
+        v["git_branch"] = json!(b);
+    }
+    v["project_root"] = json!(row.project);
+    let commits = index::get_session_commits(conn, &row.session_id).unwrap_or_default();
+    if !commits.is_empty() {
+        v["commits"] = json!(commits.into_iter().map(|(sha, msg, ts)| json!({
+            "sha": sha,
+            "message": msg,
+            "timestamp": ts,
+        })).collect::<Vec<_>>());
+    }
     json_response(v)
+}
+
+fn api_commit(conn: &Connection, sha: &str) -> Result<Boxed> {
+    let clean = sha.trim();
+    if clean.is_empty() {
+        return Ok(Response::from_string(json!({ "error": "missing commit sha" }).to_string())
+            .with_status_code(400)
+            .boxed());
+    }
+    if let Some(row) = index::find_session_by_commit(conn, clean)? {
+        let mut val = row_json(&row);
+        let commits = index::get_session_commits(conn, &row.session_id).unwrap_or_default();
+        val["commits"] = json!(commits.into_iter().map(|(s, m, t)| json!({
+            "sha": s, "message": m, "timestamp": t
+        })).collect::<Vec<_>>());
+        json_response(val)
+    } else {
+        Ok(Response::from_string(json!({ "error": "not found", "commit": clean }).to_string())
+            .with_status_code(404)
+            .boxed())
+    }
+}
+
+/// Detect git remote web URL (GitHub, GitLab, Bitbucket) and branch from a repository directory
+pub fn detect_git_remote_and_branch(project_path: &Path) -> (Option<String>, Option<String>) {
+    if project_path.as_os_str().is_empty() {
+        return (None, None);
+    }
+    let mut current = if project_path.is_file() {
+        project_path.parent().unwrap_or(project_path).to_path_buf()
+    } else {
+        project_path.to_path_buf()
+    };
+    let mut git_dir = None;
+    for _ in 0..10 {
+        let candidate = current.join(".git");
+        if candidate.is_dir() {
+            git_dir = Some(candidate);
+            break;
+        } else if candidate.is_file() {
+            if let Ok(content) = std::fs::read_to_string(&candidate) {
+                if let Some(rest) = content.trim().strip_prefix("gitdir:") {
+                    let pointer = rest.trim();
+                    let resolved = current.join(pointer);
+                    if resolved.exists() {
+                        git_dir = Some(resolved);
+                        break;
+                    }
+                }
+            }
+        }
+        if let Some(parent) = current.parent() {
+            current = parent.to_path_buf();
+        } else {
+            break;
+        }
+    }
+
+    let git_dir = match git_dir {
+        Some(d) => d,
+        None => return (None, None),
+    };
+
+    let mut branch = None;
+    if let Ok(head) = std::fs::read_to_string(git_dir.join("HEAD")) {
+        let head = head.trim();
+        if let Some(rest) = head.strip_prefix("ref: refs/heads/") {
+            branch = Some(rest.trim().to_string());
+        }
+    }
+
+    let mut config_dir = git_dir.clone();
+    if let Ok(commondir) = std::fs::read_to_string(git_dir.join("commondir")) {
+        let c = commondir.trim();
+        if !c.is_empty() {
+            let resolved = git_dir.join(c);
+            if resolved.exists() {
+                config_dir = resolved;
+            }
+        }
+    }
+
+    let mut remote_url = None;
+    if let Ok(config) = std::fs::read_to_string(config_dir.join("config")) {
+        let mut in_origin = false;
+        for line in config.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with('[') {
+                in_origin = trimmed.eq_ignore_ascii_case("[remote \"origin\"]");
+                continue;
+            }
+            if in_origin && trimmed.starts_with("url") {
+                if let Some((_, u)) = trimmed.split_once('=') {
+                    remote_url = Some(u.trim().to_string());
+                    break;
+                }
+            }
+        }
+    }
+
+    let web_url = remote_url.and_then(|u| normalize_git_web_url(&u));
+    (web_url, branch)
+}
+
+fn normalize_git_web_url(url: &str) -> Option<String> {
+    let clean = url.trim().trim_end_matches(".git");
+    if let Some(rest) = clean.strip_prefix("git@") {
+        if let Some((host, repo)) = rest.split_once(':') {
+            return Some(format!("https://{host}/{repo}"));
+        }
+    }
+    if let Some(rest) = clean.strip_prefix("ssh://git@") {
+        if let Some((host, repo)) = rest.split_once('/') {
+            return Some(format!("https://{host}/{repo}"));
+        }
+    }
+    if clean.starts_with("https://") || clean.starts_with("http://") {
+        if let Some(pos) = clean.find("://") {
+            let proto = &clean[..pos];
+            let rest = &clean[pos + 3..];
+            if let Some(at) = rest.find('@') {
+                return Some(format!("{proto}://{}", &rest[at + 1..]));
+            }
+        }
+        return Some(clean.to_string());
+    }
+    None
 }
 
 fn api_favorites(conn: &Connection) -> Result<Boxed> {
@@ -1102,6 +1253,38 @@ mod tests {
         assert!(!origin_ok(Some("http://evil.com"), 7575)); // cross-origin fetch
         assert!(!origin_ok(Some("https://127.0.0.1:7575"), 7575)); // wrong scheme
         assert!(!origin_ok(Some("http://127.0.0.1:7576"), 7575)); // wrong port
+    }
+
+    #[test]
+    fn test_normalize_git_web_urls() {
+        use super::normalize_git_web_url;
+        assert_eq!(
+            normalize_git_web_url("git@github.com:AlexZander85/wikiagents.git"),
+            Some("https://github.com/AlexZander85/wikiagents".into())
+        );
+        assert_eq!(
+            normalize_git_web_url("https://github.com/AlexZander85/wikiagents.git"),
+            Some("https://github.com/AlexZander85/wikiagents".into())
+        );
+        assert_eq!(
+            normalize_git_web_url("https://token@gitlab.com/org/project.git"),
+            Some("https://gitlab.com/org/project".into())
+        );
+        assert_eq!(
+            normalize_git_web_url("ssh://git@github.com/org/repo.git"),
+            Some("https://github.com/org/repo".into())
+        );
+    }
+
+    #[test]
+    fn test_detect_git_remote_and_branch_self() {
+        use super::detect_git_remote_and_branch;
+        use std::path::Path;
+        let (remote, branch) = detect_git_remote_and_branch(Path::new("."));
+        assert!(remote.is_some(), "detects git remote for current repo");
+        let r = remote.unwrap();
+        assert!(r.contains("wikiagents"), "remote URL contains wikiagents: {}", r);
+        assert!(branch.is_some(), "detects git branch");
     }
 }
 
