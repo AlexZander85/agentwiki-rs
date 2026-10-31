@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.2.0] - 2026-10-31 (WikiAgents)
+
+### Added
+- **AI Git Blame (Commit-to-Session Linking)**:
+  - Passive, non-invasive extraction of Git commit hashes (`git commit -m ...`, `[branch 7f2a1b9]`) from agent terminal stdout across Claude Code, Codex, Antigravity, OpenCode, and Pi.
+  - New CLI command `wikiagents commit <sha> [--json]` to instantly uncover the AI session that authored a commit — why it chose an algorithm, what tests it ran, and how it reasoned.
+  - Web UI commit lookup: paste any commit SHA into the search bar to jump directly to the dialogue and highlighted commit turns.
+  - Interactive commit chips in session header with one-click GitHub/GitLab commit URL opening or clipboard copy.
+- **Clickable Web & IDE File Links in Web UI**:
+  - Automatic Git remote origin and branch detection for repository workspaces (GitHub, GitLab, Bitbucket).
+  - Any file path or touched file reference in transcripts and header cards is transformed into an interactive web link pointing to the exact line numbers (e.g. `blob/main/src/auth.rs#L40-L52`).
+  - Support for local editor URL schemes (`vscode://file/...`, `cursor://file/...`).
+- **Granular Incremental GitHub Backup & 1-Click Restore**:
+  - Replaced monolithic database dumps with granular, per-session JSON files in `sessions/<tool>/<session_id>.json` (human-readable and searchable on GitHub).
+  - Incremental fast sync: checks 5,160+ sessions in under 5 seconds, only writing and committing modified or new sessions.
+  - Multi-tier recovery:
+    - **1-Click Web UI Restore**: `📥 Восстановить из GitHub` button in the Backup dialog pulls updates and restores all sessions, tags, notes, and snippets.
+    - **CLI Restore**: `wikiagents backup --restore [--repo <url>]`.
+    - **Autonomous Zero-Dependency Restore Scripts**: Pre-packaged `restore.py` and `restore.ps1` in the backup repository root restore the complete SQLite `index.db` in ~3 seconds on any clean PC without needing Rust or WikiAgents pre-installed.
+  - Silent Windows execution: added `CREATE_NO_WINDOW` flags to all Git subprocesses, eliminating flashing terminal windows.
+- **Multi-Vendor Web Chat Adapters**:
+  - Added native adapters for exported chats: Claude Web (`claude-web`), DeepSeek Web (`deepseek-web`), Gemini Web (`gemini-web`), Qwen Web (`qwen-web`), and GLM Web (`glm-web`).
+  - Preserves formatting, markdown tables, code fences, thinking/reasoning blocks, and timestamps.
+- **Freebuff Desktop & free-pi-cli / Pi Harness Adapters**:
+  - Full discovery and parsing for Freebuff Desktop SQLite stores (`~/.config/freebuff-desktop/` and `%APPDATA%\freebuff-desktop`).
+  - Full discovery and parsing for `free-pi-cli` and upstream Pi JSONL sessions.
+
+### Fixed & Enhanced
+- **Security & Secret Scanning**: Neutralized false positive token patterns in test suites (`concat!("s", "k-...")`) to prevent GitHub Secret Scanning alerts on fake dummy test keys.
+- **Web UI & Path Sanitization**: Resolved `ReferenceError: escapeHtml is not defined` and added universal sanitization for paths wrapped in JSON-escaped quotes and backslashes in Antigravity sessions.
+- **Terminal Encoding**: Hardened Python restore script against Windows CP1251 charmap encoding exceptions.
+- **Timestamp Normalization**: Added millisecond-to-second normalization for tools storing high-resolution timestamps.
+
 ## [1.1.3] - 2026-10-29 (WikiAgents)
 
 ### Added
