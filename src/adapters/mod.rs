@@ -16,6 +16,7 @@ pub mod harness;
 mod opencode;
 mod prodex;
 mod qoder;
+mod web_chat;
 mod zcode;
 pub use antigravity::Antigravity;
 pub use claude_code::ClaudeCode;
@@ -30,6 +31,7 @@ pub use hermes::Hermes;
 pub use kimi::Kimi;
 pub use qoder::Qoder;
 pub use zcode::ZCode;
+pub use web_chat::{ClaudeWeb, DeepSeekWeb, GeminiWeb, GlmWeb, QwenWeb};
 
 use crate::model::{Session, StoreReport};
 use anyhow::Result;
@@ -181,6 +183,11 @@ pub fn all() -> Vec<Box<dyn Adapter>> {
         Box::new(freebuff::Freebuff),
         Box::new(free_pi::FreePiCli),
         Box::new(free_pi::Pi),
+        Box::new(web_chat::ClaudeWeb::default()),
+        Box::new(web_chat::DeepSeekWeb::default()),
+        Box::new(web_chat::GeminiWeb::default()),
+        Box::new(web_chat::QwenWeb::default()),
+        Box::new(web_chat::GlmWeb::default()),
     ];
 
     if let Some(home) = crate::util::home_dir() {
@@ -205,6 +212,11 @@ pub fn all() -> Vec<Box<dyn Adapter>> {
 pub fn by_name(name: &str) -> Option<Box<dyn Adapter>> {
     let canonical = match name {
         "free-pi" => "free-pi-cli",
+        "claude-web" | "claudeweb" => "claude-web",
+        "deepseek-web" | "deepseekweb" => "deepseek-web",
+        "gemini-web" | "geminiweb" => "gemini-web",
+        "qwen-web" | "qwenweb" => "qwen-web",
+        "glm-web" | "glmweb" | "glm" => "glm-web",
         other => other,
     };
     all().into_iter().find(|a| a.name() == canonical)
