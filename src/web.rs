@@ -686,14 +686,15 @@ fn api_session(conn: &Connection, id: &str, query: &str) -> Result<Boxed> {
     if !subagents.is_empty() {
         v["subagents"] = json!(subagents.iter().map(row_json).collect::<Vec<_>>());
     }
-    let (git_remote, git_branch) = detect_git_remote_and_branch(Path::new(&row.project));
+    let clean_proj = row.project.trim().trim_matches(['"', '\'']).trim();
+    let (git_remote, git_branch) = detect_git_remote_and_branch(Path::new(clean_proj));
     if let Some(r) = git_remote {
         v["git_remote"] = json!(r);
     }
     if let Some(b) = git_branch {
         v["git_branch"] = json!(b);
     }
-    v["project_root"] = json!(row.project);
+    v["project_root"] = json!(clean_proj);
     let commits = index::get_session_commits(conn, &row.session_id).unwrap_or_default();
     if !commits.is_empty() {
         v["commits"] = json!(commits.into_iter().map(|(sha, msg, ts)| json!({
@@ -728,14 +729,20 @@ fn api_commit(conn: &Connection, sha: &str) -> Result<Boxed> {
 
 /// Detect git remote web URL (GitHub, GitLab, Bitbucket) and branch from a repository directory
 pub fn detect_git_remote_and_branch(project_path: &Path) -> (Option<String>, Option<String>) {
-    if project_path.as_os_str().is_empty() {
+    let raw_str = project_path.to_string_lossy();
+    let clean_str = raw_str.trim().trim_matches(['"', '\'']).trim();
+    if clean_str.is_empty() {
         return (None, None);
     }
-    let mut current = if project_path.is_file() {
-        project_path.parent().unwrap_or(project_path).to_path_buf()
+    let clean_path = Path::new(clean_str);
+    let mut current = if clean_path.is_file() {
+        clean_path.parent().unwrap_or(clean_path).to_path_buf()
     } else {
-        project_path.to_path_buf()
+        clean_path.to_path_buf()
     };
+    if !current.exists() {
+        return (None, None);
+    }
     let mut git_dir = None;
     for _ in 0..10 {
         let candidate = current.join(".git");
@@ -755,6 +762,9 @@ pub fn detect_git_remote_and_branch(project_path: &Path) -> (Option<String>, Opt
             }
         }
         if let Some(parent) = current.parent() {
+            if parent == current || parent.as_os_str().is_empty() {
+                break;
+            }
             current = parent.to_path_buf();
         } else {
             break;

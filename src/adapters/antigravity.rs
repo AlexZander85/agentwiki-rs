@@ -290,14 +290,21 @@ impl Adapter for Antigravity {
                                         .or_else(|| inp.get("cwd"))
                                         .and_then(Value::as_str)
                                     {
-                                        project = Some(cwd.to_string());
+                                        let clean_cwd = cwd.trim().trim_matches(['"', '\'']).trim();
+                                        if !clean_cwd.is_empty() {
+                                            project = Some(clean_cwd.to_string());
+                                        }
                                     } else if let Some(p) = inp
                                         .get("Path")
                                         .or_else(|| inp.get("path"))
                                         .and_then(Value::as_str)
                                     {
-                                        if let Some(parent) = Path::new(p).parent() {
-                                            project = Some(parent.to_string_lossy().into_owned());
+                                        let clean_p = p.trim().trim_matches(['"', '\'']).trim();
+                                        if let Some(parent) = Path::new(clean_p).parent() {
+                                            let s = parent.to_string_lossy().trim().to_string();
+                                            if !s.is_empty() {
+                                                project = Some(s);
+                                            }
                                         }
                                     }
                                 }
