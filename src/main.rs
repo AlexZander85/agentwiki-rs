@@ -398,6 +398,9 @@ enum Command {
         /// Push backup to GitHub
         #[arg(long)]
         push: bool,
+        /// Restore full database from GitHub backup repository
+        #[arg(long)]
+        restore: bool,
     },
     /// Run as an MCP server over stdio (register: claude mcp add wikiagents -- wikiagents mcp)
     Mcp,
@@ -596,8 +599,8 @@ fn main() {
             sessionwiki::hook::session_start();
             return;
         }
-        Command::Backup { repo, test, status, push } => {
-            commands::backup_cmd(repo.as_deref(), test, status, push)
+        Command::Backup { repo, test, status, push, restore } => {
+            commands::backup_cmd(repo.as_deref(), test, status, push, restore)
         }
         Command::Mcp => {
             sessionwiki::mcp::serve();

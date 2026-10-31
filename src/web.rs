@@ -191,6 +191,7 @@ fn handle_request(
         "/api/backup/config" => api_backup_config(&conn, &mut request, query),
         "/api/backup/test" => api_backup_test(&mut request, query),
         "/api/backup/run" => api_backup_run(&conn, &mut request, query),
+        "/api/backup/restore" => api_backup_restore(&conn, &mut request, query),
         p if p.starts_with("/api/commit/") => {
             api_commit(&conn, p.trim_start_matches("/api/commit/"))
         }
@@ -1402,6 +1403,60 @@ fn api_backup_run(conn: &Connection, req: &mut tiny_http::Request, query: &str) 
             }
         };
         let _ = crate::backup::run_backup(&conn, &repo_url_clone);
+    });
+
+    json_response(json!({
+        "ok": true,
+        "started": true,
+        "progress": crate::backup::get_progress(),
+    }))
+}
+
+fn api_backup_restore(conn: &Connection, req: &mut tiny_http::Request, query: &str) -> Result<Boxed> {
+    let mut body = String::new();
+    let _ = req.as_reader().read_to_string(&mut body);
+    let json_body: Option<serde_json::Value> = serde_json::from_str(&body).ok();
+    let explicit_url = json_body.as_ref()
+        .and_then(|v| v.get("repo_url").and_then(|s| s.as_str()).map(String::from))
+        .or_else(|| param(query, "repo_url"));
+
+    let repo_url = match explicit_url {
+        Some(u) if !u.trim().is_empty() => u,
+        _ => {
+            let cfg = crate::backup::get_backup_config(conn)?;
+            if cfg.repo_url.trim().is_empty() {
+                anyhow::bail!("Репозиторий не настроен. Укажите URL GitHub репозитория.");
+            }
+            cfg.repo_url
+        }
+    };
+
+    if crate::backup::is_running() {
+        return json_response(json!({
+            "ok": true,
+            "started": true,
+            "already_running": true,
+            "progress": crate::backup::get_progress(),
+        }));
+    }
+
+    let repo_url_clone = repo_url.clone();
+    std::thread::spawn(move || {
+        let db_p = match crate::index::db_path() {
+            Ok(p) => p,
+            Err(e) => {
+                crate::backup::set_error(&format!("Database path error: {e}"));
+                return;
+            }
+        };
+        let mut conn = match rusqlite::Connection::open(&db_p) {
+            Ok(c) => c,
+            Err(e) => {
+                crate::backup::set_error(&format!("Database open error: {e}"));
+                return;
+            }
+        };
+        let _ = crate::backup::run_restore(&mut conn, &repo_url_clone);
     });
 
     json_response(json!({

@@ -359,6 +359,70 @@ pub fn run_backup(conn: &Connection, repo_url: &str) -> Result<BackupReport> {
     }
 }
 
+/// Restore full database from GitHub backup repository:
+/// 1. Pulls latest commits from GitHub repository.
+/// 2. Restores curated tables (favorites, tags, notes, summaries, snippets).
+/// 3. Restores granular sessions into SQLite index tables.
+pub fn run_restore(conn: &mut Connection, repo_url: &str) -> Result<usize> {
+    let repo_url = repo_url.trim();
+    if repo_url.is_empty() {
+        let err = "GitHub repository URL is empty".to_string();
+        set_error(&err);
+        anyhow::bail!(err);
+    }
+
+    set_progress(|p| {
+        p.is_running = true;
+        p.step = 1;
+        p.total_steps = 4;
+        p.stage = "Синхронизация с GitHub...".to_string();
+        p.error = None;
+        p.log_messages = vec!["[1/4] Подключение к GitHub и git pull...".to_string()];
+    });
+
+    let res = (|| -> Result<usize> {
+        let backup_dir = resolve_backup_dir()?;
+        ensure_git_repo(&backup_dir, repo_url)?;
+
+        // 1. Fetch and pull latest from origin main
+        let _ = run_git_cmd(&backup_dir, &["fetch", "origin", "main"]);
+        let _ = run_git_cmd(&backup_dir, &["checkout", "-B", "main", "origin/main"]);
+        let _ = run_git_cmd(&backup_dir, &["pull", "origin", "main"]);
+        log_step(1, "Репозиторий обновлен", "[1/4] Подключение к GitHub и git pull... OK");
+
+        // 2. Restore curated
+        log_step(2, "Восстановление метаданных...", "[2/4] Восстановление заметок, тегов, избранного и сниппетов...");
+        restore_curated_tables(conn, &backup_dir.join("curated"))?;
+        log_step(2, "Метаданные восстановлены", "[2/4] Восстановление метаданных и заметок... OK");
+
+        // 3. Restore granular sessions
+        log_step(3, "Восстановление сессий...", "[3/4] Восстановление сессий агентов из sessions/...");
+        let total = restore_granular_sessions(conn, &backup_dir.join("sessions"))?;
+        log_step(3, "Сессии восстановлены", &format!("[3/4] Восстановление сессий... OK (всего: {})", total));
+
+        // 4. Update local meta
+        set_meta(conn, REPO_URL_KEY, repo_url)?;
+        set_meta(conn, LAST_STATUS_KEY, "ok")?;
+        log_step(4, "Готово", &format!("[4/4] УСПЕШНО! Восстановлено {} сессий из GitHub бэкапа.", total));
+
+        Ok(total)
+    })();
+
+    match res {
+        Ok(total) => {
+            set_progress(|p| {
+                p.is_running = false;
+                p.stage = "Восстановление завершено".to_string();
+            });
+            Ok(total)
+        }
+        Err(e) => {
+            set_error(&e.to_string());
+            Err(e)
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers: Git execution
 // ---------------------------------------------------------------------------
@@ -916,6 +980,227 @@ if (Get-Command python -ErrorAction SilentlyContinue) {
     fs::write(dest_dir.join("restore.ps1"), ps_restore)?;
 
     Ok(())
+}
+
+fn restore_curated_tables(conn: &Connection, curated_dir: &Path) -> Result<()> {
+    if !curated_dir.exists() {
+        return Ok(());
+    }
+
+    // 1. Favorites
+    let fav_path = curated_dir.join("favorites.json");
+    if fav_path.exists() {
+        if let Ok(data) = fs::read_to_string(&fav_path) {
+            if let Ok(rows) = serde_json::from_str::<Vec<Value>>(&data) {
+                let mut stmt = conn.prepare(
+                    "INSERT OR REPLACE INTO favorites (session_id, created_at) VALUES (?1, ?2)",
+                )?;
+                for r in rows {
+                    let sid = r.get("session_id").and_then(|v| v.as_str());
+                    let created = r.get("created_at").and_then(|v| v.as_str());
+                    if let Some(s) = sid {
+                        let _ = stmt.execute(rusqlite::params![s, created]);
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Tags
+    let tags_path = curated_dir.join("tags.json");
+    if tags_path.exists() {
+        if let Ok(data) = fs::read_to_string(&tags_path) {
+            if let Ok(rows) = serde_json::from_str::<Vec<Value>>(&data) {
+                let mut stmt = conn.prepare(
+                    "INSERT OR REPLACE INTO tags (session_id, tag) VALUES (?1, ?2)",
+                )?;
+                for r in rows {
+                    let sid = r.get("session_id").and_then(|v| v.as_str());
+                    let tag = r.get("tag").and_then(|v| v.as_str());
+                    if let (Some(s), Some(t)) = (sid, tag) {
+                        let _ = stmt.execute(rusqlite::params![s, t]);
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Notes
+    let notes_path = curated_dir.join("notes.json");
+    if notes_path.exists() {
+        if let Ok(data) = fs::read_to_string(&notes_path) {
+            if let Ok(rows) = serde_json::from_str::<Vec<Value>>(&data) {
+                let mut stmt = conn.prepare(
+                    "INSERT OR REPLACE INTO notes (session_id, note, updated) VALUES (?1, ?2, ?3)",
+                )?;
+                for r in rows {
+                    let sid = r.get("session_id").and_then(|v| v.as_str());
+                    let note = r.get("note").and_then(|v| v.as_str());
+                    let updated = r.get("updated").and_then(|v| v.as_str());
+                    if let (Some(s), Some(n)) = (sid, note) {
+                        let _ = stmt.execute(rusqlite::params![s, n, updated]);
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Summaries
+    let sum_path = curated_dir.join("summaries.json");
+    if sum_path.exists() {
+        if let Ok(data) = fs::read_to_string(&sum_path) {
+            if let Ok(rows) = serde_json::from_str::<Vec<Value>>(&data) {
+                let mut stmt = conn.prepare(
+                    "INSERT OR REPLACE INTO summaries (session_id, summary, created, kind) VALUES (?1, ?2, ?3, ?4)",
+                )?;
+                for r in rows {
+                    let sid = r.get("session_id").and_then(|v| v.as_str());
+                    let sum = r.get("summary").and_then(|v| v.as_str());
+                    let created = r.get("created").and_then(|v| v.as_str());
+                    let kind = r.get("kind").and_then(|v| v.as_str());
+                    if let (Some(s), Some(u)) = (sid, sum) {
+                        let _ = stmt.execute(rusqlite::params![s, u, created, kind]);
+                    }
+                }
+            }
+        }
+    }
+
+    // 5. Snippets
+    let snip_path = curated_dir.join("snippets.json");
+    if snip_path.exists() {
+        if let Ok(data) = fs::read_to_string(&snip_path) {
+            if let Ok(rows) = serde_json::from_str::<Vec<Value>>(&data) {
+                let mut stmt = conn.prepare(
+                    "INSERT OR REPLACE INTO snippets (id, session_id, message_idx, title, lang, content, tags, created_at, tool, role, message_ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                )?;
+                for r in rows {
+                    let id = r.get("id").and_then(|v| v.as_str());
+                    let sid = r.get("session_id").and_then(|v| v.as_str());
+                    let midx = r.get("message_idx").and_then(|v| v.as_i64()).unwrap_or(0);
+                    let title = r.get("title").and_then(|v| v.as_str()).unwrap_or("");
+                    let lang = r.get("lang").and_then(|v| v.as_str()).unwrap_or("");
+                    let content = r.get("content").and_then(|v| v.as_str()).unwrap_or("");
+                    let tags = r.get("tags").and_then(|v| v.as_str()).unwrap_or("");
+                    let created = r.get("created_at").and_then(|v| v.as_str()).unwrap_or("");
+                    let tool = r.get("tool").and_then(|v| v.as_str());
+                    let role = r.get("role").and_then(|v| v.as_str());
+                    let mts = r.get("message_ts").and_then(|v| v.as_i64());
+                    if let (Some(i), Some(s)) = (id, sid) {
+                        let _ = stmt.execute(rusqlite::params![i, s, midx, title, lang, content, tags, created, tool, role, mts]);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn restore_granular_sessions(conn: &mut Connection, sessions_dir: &Path) -> Result<usize> {
+    if !sessions_dir.exists() {
+        return Ok(0);
+    }
+
+    let mut session_paths = Vec::new();
+    for entry in walkdir::WalkDir::new(sessions_dir)
+        .into_iter()
+        .filter_map(Result::ok)
+    {
+        if entry.file_type().is_file() {
+            if entry.path().extension().and_then(|s| s.to_str()) == Some("json") {
+                session_paths.push(entry.path().to_path_buf());
+            }
+        }
+    }
+
+    let total = session_paths.len();
+    if total == 0 {
+        return Ok(0);
+    }
+
+    let tx = conn.transaction()?;
+    {
+        let mut file_stmt = tx.prepare(
+            "INSERT OR REPLACE INTO files (path, mtime, size, session_id, tool, project, title, started, ended, msg_count, kind, parent_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)"
+        )?;
+        let mut msg_stmt = tx.prepare(
+            "INSERT INTO messages (session_id, role, text, full_text, is_rewound) VALUES (?1, ?2, ?3, ?4, ?5)"
+        )?;
+        let mut fts_stmt = tx.prepare(
+            "INSERT INTO msgs (session_id, text) VALUES (?1, ?2)"
+        ).ok();
+        let mut touched_stmt = tx.prepare(
+            "INSERT OR IGNORE INTO touched (session_id, path) VALUES (?1, ?2)"
+        )?;
+        let mut commits_stmt = tx.prepare(
+            "INSERT OR IGNORE INTO session_commits (session_id, commit_sha) VALUES (?1, ?2)"
+        )?;
+
+        for path in session_paths {
+            let content = match fs::read_to_string(&path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+            let s: Value = match serde_json::from_str(&content) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+
+            let sid = match s.get("id").and_then(|v| v.as_str()) {
+                Some(id) => id,
+                None => continue,
+            };
+            let tool = s.get("tool").and_then(|v| v.as_str()).unwrap_or("unknown");
+            let project = s.get("project").and_then(|v| v.as_str()).unwrap_or("");
+            let title = s.get("title").and_then(|v| v.as_str()).unwrap_or("");
+            let started = s.get("started").and_then(|v| v.as_str());
+            let ended = s.get("ended").and_then(|v| v.as_str());
+            let kind = s.get("kind").and_then(|v| v.as_str()).unwrap_or("main");
+            let parent_id = s.get("parent_id").and_then(|v| v.as_str());
+            let mtime = s.get("mtime").and_then(|v| v.as_i64()).unwrap_or(0);
+            let msgs = s.get("messages").and_then(|v| v.as_array());
+            let msg_count = msgs.map(|m| m.len()).unwrap_or(0) as i64;
+            let fake_path = format!("restored://{tool}/{sid}");
+
+            let _ = file_stmt.execute(rusqlite::params![
+                fake_path, mtime, msg_count, sid, tool, project, title, started, ended, msg_count, kind, parent_id
+            ]);
+
+            if let Some(msgs) = msgs {
+                for m in msgs {
+                    let role = m.get("role").and_then(|v| v.as_str()).unwrap_or("user");
+                    let text = m.get("text").and_then(|v| v.as_str()).unwrap_or("");
+                    let full_text = m.get("full_text").and_then(|v| v.as_str());
+                    let is_rewound = if m.get("is_rewound").and_then(|v| v.as_bool()).unwrap_or(false) { 1 } else { 0 };
+
+                    let _ = msg_stmt.execute(rusqlite::params![sid, role, text, full_text, is_rewound]);
+                    if let Some(ref mut fts) = fts_stmt {
+                        let _ = fts.execute(rusqlite::params![sid, text]);
+                    }
+                }
+            }
+
+            if let Some(touched) = s.get("touched_files").and_then(|v| v.as_array()) {
+                for t in touched {
+                    if let Some(p) = t.as_str() {
+                        let _ = touched_stmt.execute(rusqlite::params![sid, p]);
+                    }
+                }
+            }
+
+            if let Some(commits) = s.get("commit_shas").and_then(|v| v.as_array()) {
+                for c in commits {
+                    if let Some(sha) = c.as_str() {
+                        let _ = commits_stmt.execute(rusqlite::params![sid, sha]);
+                    }
+                }
+            }
+        }
+    }
+    tx.commit()?;
+    Ok(total)
 }
 
 // ---------------------------------------------------------------------------

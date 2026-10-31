@@ -8849,12 +8849,15 @@ setupSnippetsControls();
         </div>
       </div>
 
-      <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
         <button type="button" id="backup-test-btn" class="sync-btn" style="padding:6px 12px;font-size:12px;" onclick="testBackupConnection()">
           🔍 Проверить доступ
         </button>
         <button type="button" id="backup-run-btn" class="sync-btn" style="padding:6px 14px;font-size:12px;font-weight:600;background:var(--accent,#1a73e8);color:#fff;border-color:transparent;" onclick="runBackupNow()">
           🚀 Выгрузить в GitHub сейчас
+        </button>
+        <button type="button" id="backup-restore-btn" class="sync-btn" style="padding:6px 14px;font-size:12px;font-weight:600;background:var(--card,#202124);color:var(--ink-1,#e8eaed);border:1px solid var(--line,#3c4043);" onclick="runRestoreNow()">
+          📥 Восстановить из GitHub
         </button>
       </div>
 
@@ -8975,6 +8978,11 @@ function startBackupPolling() {
         backupPollTimer = null;
         btn.disabled = false;
         btn.textContent = "🚀 Выгрузить в GitHub сейчас";
+        const restoreBtn = document.getElementById("backup-restore-btn");
+        if (restoreBtn) {
+          restoreBtn.disabled = false;
+          restoreBtn.textContent = "📥 Восстановить из GitHub";
+        }
 
         if (data.last_backup_at) {
           const d = new Date(data.last_backup_at * 1000);
@@ -8985,15 +8993,55 @@ function startBackupPolling() {
         }
 
         if (data.progress.error) {
-          showToast("Ошибка выгрузки: " + data.progress.error);
+          showToast("Ошибка: " + data.progress.error);
         } else if (data.progress.last_report && data.progress.last_report.success) {
           showToast("Бэкап успешно выгружен на GitHub!");
+        } else if (data.progress.stage && data.progress.stage.includes("Восстановление завершено")) {
+          showToast("База данных успешно восстановлена из GitHub!");
+          if (typeof refresh === "function") refresh();
         }
       }
     } catch(e) {
       console.error("Backup polling error", e);
     }
   }, 600);
+}
+
+async function runRestoreNow() {
+  const btn = document.getElementById("backup-restore-btn");
+  const logBox = document.getElementById("backup-log-box");
+  const url = document.getElementById("backup-repo-input").value.trim();
+
+  if (!confirm("Восстановить базу данных из GitHub репозитория?\nВсе отсутствующие сессии, заметки, теги и сниппеты будут загружены в вашу базу.")) {
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "Восстановление... ⏳";
+  logBox.style.display = "block";
+  logBox.textContent = "[1/4] Запуск восстановления из GitHub...\n";
+
+  try {
+    const res = await fetch("/api/backup/restore", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ repo_url: url })
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      logBox.textContent += "\nОШИБКА: " + (data.error || "Не удалось запустить восстановление") + "\n";
+      btn.disabled = false;
+      btn.textContent = "📥 Восстановить из GitHub";
+      showToast("Ошибка запуска восстановления");
+      return;
+    }
+    startBackupPolling();
+  } catch(e) {
+    logBox.textContent += "\nОШИБКА СЕТИ: " + e.message + "\n";
+    btn.disabled = false;
+    btn.textContent = "📥 Восстановить из GitHub";
+    showToast("Сетевой сбой при восстановлении");
+  }
 }
 
 async function runBackupNow() {
