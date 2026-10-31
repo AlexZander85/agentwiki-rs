@@ -2,8 +2,6 @@
 
 use anyhow::{Context, Result};
 use chrono::Utc;
-use flate2::write::GzEncoder;
-use flate2::Compression;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -267,16 +265,15 @@ pub fn run_backup(conn: &Connection, repo_url: &str) -> Result<BackupReport> {
         let web_count = export_web_session_files(&web_dir)?;
         log_step(3, "Веб-чаты экспортированы", &format!("[3/5] Экспорт веб-чатов ({} файлов)... OK", web_count));
 
-        // 4. Export database snapshot (vacuum -> gzip -> 45MB chunking)
-        log_step(4, "Снимок SQLite базы (VACUUM)...", "[4/5] Подготовка снимка базы SQLite (VACUUM INTO)...");
-        let db_dir = backup_dir.join("database");
-        fs::create_dir_all(&db_dir)?;
-        let parts = export_database_snapshot(conn, &db_dir)?;
-        log_step(4, "База упакована", &format!("[4/5] Быстрое сжатие gzip и нарезка по 45 МБ... OK ({} блоков)", parts));
+        // 4. Export granular sessions (sessions/<tool>/<session_id>.json)
+        log_step(4, "Инкрементальный экспорт сессий...", "[4/5] Проверка сессий IDE-агентов (инкрементально)...");
+        let (total_s, newly_written) = export_granular_sessions(conn, &backup_dir)?;
+        log_step(4, "Сессии сохранены", &format!("[4/5] Экспорт сессий... OK (всего: {}, новых/обновленных: {})", total_s, newly_written));
 
-        // 5. Generate manifest and README
+        // 5. Generate manifest, README and restore scripts
         let (total_sessions, tool_stats) = query_session_stats(conn)?;
         write_manifest_and_readme(&backup_dir, repo_url, total_sessions, &tool_stats)?;
+        write_restore_scripts(&backup_dir)?;
 
         // 6. Git commit and push
         log_step(5, "Отправка на GitHub (git push)...", "[5/5] Подготовка коммита и отправка в GitHub (git push)...");
@@ -292,8 +289,9 @@ pub fn run_backup(conn: &Connection, repo_url: &str) -> Result<BackupReport> {
             message = "Данные уже синхронизированы с GitHub, изменений нет.".to_string();
         } else {
             let commit_msg = format!(
-                "wikiagents backup: {} ({} sessions across {} tools)",
+                "wikiagents backup: {} ({} new/updated, {} total across {} tools)",
                 now.format("%Y-%m-%d %H:%M:%S UTC"),
+                newly_written,
                 total_sessions,
                 tool_stats.len()
             );
@@ -316,8 +314,9 @@ pub fn run_backup(conn: &Connection, repo_url: &str) -> Result<BackupReport> {
             }
             push_res?;
             message = format!(
-                "Успешно выгружено в GitHub! Коммит: {}, всего сессий: {}",
+                "Успешно выгружено в GitHub! Коммит: {}, выгружено сессий: {} (всего: {})",
                 commit_hash.as_deref().unwrap_or(""),
+                newly_written,
                 total_sessions
             );
         }
@@ -614,102 +613,309 @@ Get-ChildItem -Filter "*.part00" | ForEach-Object {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers: Database Snapshot Export with Compression & Chunking
+// Helpers: Granular Sessions Export & Zero-Dependency Restore Scripts
 // ---------------------------------------------------------------------------
 
-fn export_database_snapshot(conn: &Connection, dest_dir: &Path) -> Result<usize> {
-    let temp_db = dest_dir.join("temp_snapshot.db");
-    if temp_db.exists() {
-        let _ = fs::remove_file(&temp_db);
-    }
-
-    // 1. Safe, consistent SQLite snapshot without stopping writes or locking
-    let temp_db_str = temp_db.to_string_lossy().replace('\\', "/");
-    conn.execute(&format!("VACUUM INTO '{temp_db_str}'"), [])
-        .context("VACUUM INTO failed")?;
-
-    // 2. Fast compress the snapshot with gzip
-    let gz_path = dest_dir.join("index.db.gz");
-    {
-        let mut src_file = File::open(&temp_db)?;
-        let dst_file = File::create(&gz_path)?;
-        let mut encoder = GzEncoder::new(dst_file, Compression::fast());
-        std::io::copy(&mut src_file, &mut encoder)?;
-        encoder.finish()?;
-    }
-
-    // Clean up temporary uncompressed db
-    let _ = fs::remove_file(&temp_db);
-
-    // 3. If compressed file > 45 MB, split into chunks for GitHub
-    let gz_size = fs::metadata(&gz_path)?.len();
-    let parts_count = if gz_size > MAX_CHUNK_BYTES {
-        let count = split_file(&gz_path, dest_dir, "index.db.gz")?;
-        // Remove the giant .gz file so only the chunks are kept for Git
-        let _ = fs::remove_file(&gz_path);
-        count
+fn safe_file_component(s: &str) -> String {
+    let safe: String = s
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    if safe.is_empty() {
+        "unnamed".to_string()
     } else {
-        1
-    };
+        safe
+    }
+}
 
-    // 4. Write restore scripts for the database
+fn export_granular_sessions(conn: &Connection, dest_dir: &Path) -> Result<(usize, usize)> {
+    // 1. Remove obsolete monolithic database directory if present
+    let old_db = dest_dir.join("database");
+    if old_db.exists() {
+        let _ = fs::remove_dir_all(&old_db);
+    }
+
+    let sessions_dir = dest_dir.join("sessions");
+    fs::create_dir_all(&sessions_dir)?;
+
+    let mut stmt = conn.prepare(
+        "SELECT session_id, tool, project, title, started, ended, kind, parent_id, mtime FROM files ORDER BY session_id"
+    )?;
+
+    struct FileRow {
+        session_id: String,
+        tool: String,
+        project: String,
+        title: String,
+        started: Option<String>,
+        ended: Option<String>,
+        kind: String,
+        parent_id: Option<String>,
+        mtime: i64,
+    }
+
+    let rows: Vec<FileRow> = stmt
+        .query_map([], |r| {
+            Ok(FileRow {
+                session_id: r.get(0)?,
+                tool: r.get(1)?,
+                project: r.get(2)?,
+                title: r.get(3)?,
+                started: r.get(4)?,
+                ended: r.get(5)?,
+                kind: r.get(6)?,
+                parent_id: r.get(7)?,
+                mtime: r.get(8)?,
+            })
+        })?
+        .filter_map(Result::ok)
+        .collect();
+    drop(stmt);
+
+    let total = rows.len();
+    let mut newly_written = 0;
+
+    let mut msg_stmt = conn.prepare(
+        "SELECT role, text, full_text, is_rewound FROM messages WHERE session_id = ?1 ORDER BY id"
+    )?;
+    let mut touched_stmt = conn.prepare(
+        "SELECT path FROM touched WHERE session_id = ?1"
+    )?;
+    let mut commits_stmt = conn.prepare(
+        "SELECT commit_sha FROM session_commits WHERE session_id = ?1"
+    )?;
+
+    for row in &rows {
+        let tool_safe = safe_file_component(&row.tool);
+        let id_safe = safe_file_component(&row.session_id);
+        let tool_dir = sessions_dir.join(&tool_safe);
+        fs::create_dir_all(&tool_dir)?;
+
+        let dest_file = tool_dir.join(format!("{id_safe}.json"));
+
+        let row_mtime_sec = if row.mtime > 100_000_000_000 {
+            row.mtime / 1000
+        } else {
+            row.mtime
+        };
+
+        let should_skip = if let Ok(meta) = dest_file.metadata() {
+            if meta.len() > 0 {
+                if let Ok(mod_time) = meta.modified() {
+                    let file_sec = mod_time
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs() as i64)
+                        .unwrap_or(0);
+                    file_sec >= row_mtime_sec
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if should_skip {
+            continue;
+        }
+
+        // Fetch messages for this session
+        let messages: Vec<Value> = msg_stmt
+            .query_map([&row.session_id], |r| {
+                let role: String = r.get(0)?;
+                let text: String = r.get(1)?;
+                let full_text: Option<String> = r.get(2)?;
+                let is_rewound: bool = r.get::<_, i32>(3).unwrap_or(0) != 0;
+                Ok(json!({
+                    "role": role,
+                    "text": text,
+                    "full_text": full_text,
+                    "is_rewound": is_rewound,
+                }))
+            })?
+            .filter_map(Result::ok)
+            .collect();
+
+        // Fetch touched files
+        let touched: Vec<String> = touched_stmt
+            .query_map([&row.session_id], |r| r.get(0))?
+            .filter_map(Result::ok)
+            .collect();
+
+        // Fetch commits
+        let commits: Vec<String> = commits_stmt
+            .query_map([&row.session_id], |r| r.get(0))?
+            .filter_map(Result::ok)
+            .collect();
+
+        let session_data = json!({
+            "id": row.session_id,
+            "tool": row.tool,
+            "project": row.project,
+            "title": row.title,
+            "started": row.started,
+            "ended": row.ended,
+            "kind": row.kind,
+            "parent_id": row.parent_id,
+            "mtime": row.mtime,
+            "touched_files": touched,
+            "commit_shas": commits,
+            "messages": messages,
+        });
+
+        fs::write(&dest_file, serde_json::to_string_pretty(&session_data)?)?;
+        newly_written += 1;
+    }
+
+    Ok((total, newly_written))
+}
+
+fn write_restore_scripts(dest_dir: &Path) -> Result<()> {
     let py_restore = r#"#!/usr/bin/env python3
-"""Restores index.db from compressed and chunked parts."""
-import os, glob, gzip, shutil
+"""
+WikiAgents Backup Restorer.
+Restores all sessions, curated data, and web chats from this repository into a SQLite index.db.
+Usage:
+    python restore.py [dest_index.db]
+"""
+import os, sys, glob, json, sqlite3
 
-def restore():
-    # 1. Recombine parts if chunked
-    parts = sorted(glob.glob("index.db.gz.part*"))
-    gz_name = "index.db.gz"
-    if parts:
-        print(f"Recombining {len(parts)} chunks into {gz_name}...")
-        with open(gz_name, "wb") as out:
-            for p in parts:
-                with open(p, "rb") as inp:
-                    shutil.copyfileobj(inp, out)
-        print("  ✓ index.db.gz reassembled.")
+def restore(dest_db="index.db"):
+    print(f"[*] Restoring WikiAgents database to: {dest_db}")
+    db_dir = os.path.dirname(os.path.abspath(dest_db))
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
+    conn = sqlite3.connect(dest_db)
+    cur = conn.cursor()
 
-    # 2. Decompress index.db
-    if os.path.exists(gz_name):
-        print("Decompressing index.db.gz -> index.db...")
-        with gzip.open(gz_name, "rb") as f_in:
-            with open("index.db", "wb") as f_out:
-                shutil.copyfileobj(f_in, f_out)
-        print(f"  ✓ index.db restored ({os.path.getsize('index.db')} bytes). Ready to use!")
+    cur.execute("""CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS files (
+        path TEXT PRIMARY KEY, mtime INTEGER NOT NULL, size INTEGER NOT NULL,
+        session_id TEXT NOT NULL, tool TEXT NOT NULL, project TEXT NOT NULL DEFAULT '',
+        title TEXT NOT NULL DEFAULT '', started TEXT, ended TEXT, msg_count INTEGER NOT NULL DEFAULT 0,
+        kind TEXT NOT NULL DEFAULT 'main', archived_at TEXT, parent_id TEXT, reader INTEGER NOT NULL DEFAULT 0
+    )""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, role TEXT NOT NULL,
+        text TEXT NOT NULL, full_text TEXT, is_rewound INTEGER NOT NULL DEFAULT 0
+    )""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS touched (session_id TEXT NOT NULL, path TEXT NOT NULL, PRIMARY KEY(session_id, path))""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS session_commits (session_id TEXT NOT NULL, commit_sha TEXT NOT NULL, message TEXT, timestamp INTEGER, PRIMARY KEY(session_id, commit_sha))""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS summaries (session_id TEXT PRIMARY KEY, summary TEXT NOT NULL, created TEXT, kind TEXT)""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS tags (session_id TEXT NOT NULL, tag TEXT NOT NULL, PRIMARY KEY(session_id, tag))""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS notes (session_id TEXT PRIMARY KEY, note TEXT NOT NULL, updated TEXT)""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS favorites (session_id TEXT PRIMARY KEY, created_at TEXT)""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS snippets (
+        id TEXT PRIMARY KEY, session_id TEXT NOT NULL, message_idx INTEGER NOT NULL,
+        title TEXT NOT NULL, lang TEXT NOT NULL, content TEXT NOT NULL, tags TEXT NOT NULL,
+        created_at TEXT NOT NULL, tool TEXT, role TEXT, message_ts INTEGER
+    )""")
+
+    try:
+        cur.execute("""CREATE VIRTUAL TABLE IF NOT EXISTS msgs USING fts5(session_id UNINDEXED, text)""")
+    except Exception:
+        pass
+
+    # 1. Restore Curated
+    curated_dir = "curated"
+    if os.path.exists(curated_dir):
+        print("[*] Restoring curated tables...")
+        for name, tbl, cols in [
+            ("favorites.json", "favorites", ["session_id", "created_at"]),
+            ("tags.json", "tags", ["session_id", "tag"]),
+            ("notes.json", "notes", ["session_id", "note", "updated"]),
+            ("summaries.json", "summaries", ["session_id", "summary", "created", "kind"]),
+            ("snippets.json", "snippets", ["id", "session_id", "message_idx", "title", "lang", "content", "tags", "created_at", "tool", "role", "message_ts"]),
+        ]:
+            p = os.path.join(curated_dir, name)
+            if os.path.exists(p):
+                with open(p, "r", encoding="utf-8") as f:
+                    rows = json.load(f)
+                q = f"INSERT OR REPLACE INTO {tbl} ({','.join(cols)}) VALUES ({','.join(['?']*len(cols))})"
+                cur.executemany(q, [[r.get(c) for c in cols] for r in rows])
+                print(f"  ✓ {tbl}: {len(rows)} rows restored.")
+
+    # 2. Restore Sessions
+    session_files = glob.glob(os.path.join("sessions", "*", "*.json"))
+    print(f"[*] Restoring {len(session_files)} granular sessions...")
+    restored = 0
+    for sf in session_files:
+        try:
+            with open(sf, "r", encoding="utf-8") as f:
+                s = json.load(f)
+            sid = s["id"]
+            tool = s.get("tool", "unknown")
+            proj = s.get("project", "")
+            title = s.get("title", "")
+            started = s.get("started")
+            ended = s.get("ended")
+            kind = s.get("kind", "main")
+            parent_id = s.get("parent_id")
+            mtime = s.get("mtime", 0)
+            msgs = s.get("messages", [])
+            touched = s.get("touched_files", [])
+            commits = s.get("commit_shas", [])
+
+            fake_path = f"restored://{tool}/{sid}"
+            cur.execute("""INSERT OR REPLACE INTO files
+                (path, mtime, size, session_id, tool, project, title, started, ended, msg_count, kind, parent_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (fake_path, mtime, len(msgs), sid, tool, proj, title, started, ended, len(msgs), kind, parent_id)
+            )
+
+            for m in msgs:
+                role = m.get("role", "user")
+                text = m.get("text", "")
+                full_text = m.get("full_text")
+                is_rewound = 1 if m.get("is_rewound") else 0
+                cur.execute("""INSERT INTO messages (session_id, role, text, full_text, is_rewound)
+                    VALUES (?, ?, ?, ?, ?)""", (sid, role, text, full_text, is_rewound))
+                try:
+                    cur.execute("INSERT INTO msgs(session_id, text) VALUES (?, ?)", (sid, text))
+                except Exception:
+                    pass
+
+            for t in touched:
+                cur.execute("INSERT OR IGNORE INTO touched (session_id, path) VALUES (?, ?)", (sid, t))
+
+            for c in commits:
+                cur.execute("INSERT OR IGNORE INTO session_commits (session_id, commit_sha) VALUES (?, ?)", (sid, c))
+
+            restored += 1
+        except Exception:
+            continue
+
+    conn.commit()
+    conn.close()
+    print(f"[✓] SUCCESS: {restored} sessions successfully restored to {dest_db}!")
 
 if __name__ == "__main__":
-    restore()
+    dest = sys.argv[1] if len(sys.argv) > 1 else "index.db"
+    restore(dest)
 "#;
     fs::write(dest_dir.join("restore.py"), py_restore)?;
 
-    let ps_restore = r#"# Restores index.db from compressed and chunked parts
-$parts = Get-ChildItem -Filter "index.db.gz.part*" | Sort-Object Name
-$gzName = Join-Path $PSScriptRoot "index.db.gz"
-if ($parts.Count -gt 0) {
-    Write-Host "Recombining $($parts.Count) chunks into index.db.gz..."
-    $out = [System.IO.File]::Create($gzName)
-    foreach ($p in $parts) {
-        $bytes = [System.IO.File]::ReadAllBytes($p.FullName)
-        $out.Write($bytes, 0, $bytes.Length)
-    }
-    $out.Close()
-}
+    let ps_restore = r#"# WikiAgents Backup Restorer (PowerShell)
+param([string]$dest = "index.db")
 
-if (Test-Path $gzName) {
-    Write-Host "Decompressing index.db.gz -> index.db..."
-    $inStream = [System.IO.File]::OpenRead($gzName)
-    $gzStream = [System.IO.Compression.GZipStream]::new($inStream, [System.IO.Compression.CompressionMode]::Decompress)
-    $outStream = [System.IO.File]::Create((Join-Path $PSScriptRoot "index.db"))
-    $gzStream.CopyTo($outStream)
-    $outStream.Close()
-    $gzStream.Close()
-    $inStream.Close()
-    Write-Host "  ✓ index.db restored. Ready to use!"
+if (Get-Command python -ErrorAction SilentlyContinue) {
+    Write-Host "Restoring WikiAgents database via python restore.py $dest..."
+    python restore.py $dest
+} else {
+    Write-Host "Python not found. Please install Python 3 or use WikiAgents to restore sessions."
 }
 "#;
     fs::write(dest_dir.join("restore.ps1"), ps_restore)?;
 
-    Ok(parts_count)
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -774,16 +980,17 @@ fn write_manifest_and_readme(
     md.push_str(&format!("| **ИТОГО** | **{total_sessions}** |\n\n"));
 
     md.push_str("## 📁 Структура репозитория\n\n");
-    md.push_str("- `database/` — Полный сжатый снапшот SQLite базы (`index.db`), содержащий **все сессии всех IDE-агентов (OpenCode, Claude Code, Codex, Antigravity, Qoder, ZCode и др.)**, всю переписку, диффы кода, затронутые файлы и FTS-индекс. Порезан на части по 45 МБ для обхода лимитов GitHub.\n");
+    md.push_str("- `sessions/` — **Все сессии всех IDE-агентов (OpenCode, Claude Code, Codex, Antigravity, Qoder, ZCode и др.) в открытом JSON**, разбитые по инструментам (`sessions/<tool>/<id>.json`). Содержат полные тексты диалогов, диффы, затронутые файлы и связанные коммиты. Можно читать прямо в интерфейсе GitHub!\n");
     md.push_str("- `curated/` — Человеческие знания в открытом JSON: избранные сессии ⭐, теги, заметки, KB-сниппеты 📌 и саммари.\n");
     md.push_str("- `web_session/` — Исходные JSON-выгрузки веб-чатов (Claude, DeepSeek, Gemini, Qwen, GLM).\n");
-    md.push_str("- `manifest.json` — Машинночитаемая сводка бэкапа.\n\n");
+    md.push_str("- `manifest.json` — Машинночитаемая сводка бэкапа.\n");
+    md.push_str("- `restore.py` / `restore.ps1` — Скрипты мгновенного восстановления рабочей базы `index.db`.\n\n");
 
     md.push_str("## 🔄 Как восстановить данные на новом компьютере\n\n");
     md.push_str("### Вариант 1 (Автоматически через приложение):\n");
     md.push_str("В приложении WikiAgents откройте окно «Бэкап», укажите URL этого репозитория и нажмите «Синхронизировать / Восстановить».\n\n");
     md.push_str("### Вариант 2 (Вручную из терминала):\n");
-    md.push_str("```bash\ncd database && python restore.py\n```\n");
+    md.push_str("```bash\npython restore.py\n```\n");
     md.push_str("После этого готовый `index.db` помещается в рабочую папку `data/` приложения WikiAgents.\n");
 
     fs::write(dest_dir.join("README.md"), md)?;
