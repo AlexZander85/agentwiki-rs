@@ -841,7 +841,7 @@ def restore(dest_db="index.db"):
                     rows = json.load(f)
                 q = f"INSERT OR REPLACE INTO {tbl} ({','.join(cols)}) VALUES ({','.join(['?']*len(cols))})"
                 cur.executemany(q, [[r.get(c) for c in cols] for r in rows])
-                print(f"  ✓ {tbl}: {len(rows)} rows restored.")
+                print(f"  [OK] {tbl}: {len(rows)} rows restored.")
 
     # 2. Restore Sessions
     session_files = glob.glob(os.path.join("sessions", "*", "*.json"))
@@ -895,7 +895,7 @@ def restore(dest_db="index.db"):
 
     conn.commit()
     conn.close()
-    print(f"[✓] SUCCESS: {restored} sessions successfully restored to {dest_db}!")
+    print(f"[OK] SUCCESS: {restored} sessions successfully restored to {dest_db}!")
 
 if __name__ == "__main__":
     dest = sys.argv[1] if len(sys.argv) > 1 else "index.db"
